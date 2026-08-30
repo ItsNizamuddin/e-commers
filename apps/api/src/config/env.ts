@@ -1,13 +1,35 @@
 import "dotenv/config";
 
-const port = Number(process.env.PORT ?? 5001);
+import { z } from "zod";
 
-if (!Number.isInteger(port) || port <= 0) {
-    throw new Error("PORT must be a positive integer");
+const envSchema = z.object({
+    NODE_ENV: z
+        .enum(["development", "test", "production"])
+        .default("development"),
+
+    PORT: z.coerce
+        .number()
+        .int()
+        .positive()
+        .default(5001),
+
+    CORS_ORIGIN: z
+        .string()
+        .min(1)
+        .default("http://localhost:3000"),
+});
+
+const parsedEnv = envSchema.safeParse(process.env);
+
+if (!parsedEnv.success) {
+    console.error("❌ Invalid environment configuration:");
+    console.error(parsedEnv.error.flatten().fieldErrors);
+
+    process.exit(1);
 }
 
 export const env = {
-    nodeEnv: process.env.NODE_ENV ?? "development",
-    port,
-    corsOrigin: process.env.CORS_ORIGIN ?? "http://localhost:3000",
+    nodeEnv: parsedEnv.data.NODE_ENV,
+    port: parsedEnv.data.PORT,
+    corsOrigin: parsedEnv.data.CORS_ORIGIN,
 } as const;
