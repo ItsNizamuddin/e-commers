@@ -1,0 +1,14 @@
+{
+  "name": "e-commerce-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Production-grade full-stack e-commerce platform",
+  "packageManager": "pnpm@11.24.0",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --parallel --filter web --filter api dev",
+    "build": "pnpm --recursive build",
+    "test": "pnpm --recursive test",
+    "lint": "pnpm --recursive lint"
+  }
+}
