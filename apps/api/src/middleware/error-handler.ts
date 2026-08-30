@@ -1,6 +1,7 @@
 import type { ErrorRequestHandler } from "express";
 import { AppError } from "../utils/app-error.js";
 import { env } from "../config/env.js";
+import { logger } from "../config/logger.js";
 
 export const errorHandler: ErrorRequestHandler = (
     error,
@@ -36,7 +37,7 @@ export const errorHandler: ErrorRequestHandler = (
     }
 
     // 3. Unexpected Server Errors (500)
-    console.error("Unhandled Error:", error);
+    logger.error(error, "Unhandled Error");
 
     res.status(500).json({
         success: false,

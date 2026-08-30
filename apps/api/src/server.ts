@@ -1,16 +1,17 @@
 import app from "./app.js";
 import { env } from "./config/env.js";
+import { logger } from "./config/logger.js";
 
 const server = app.listen(env.port, () => {
-    console.log(
+    logger.info(
         `API server running on port ${env.port} in ${env.nodeEnv} mode`,
     );
 });
 
 const shutdown = (signal: string) => {
-    console.log(`Received ${signal}. Shutting down gracefully...`);
+    logger.info(`Received ${signal}. Shutting down gracefully...`);
     server.close(() => {
-        console.log("HTTP server closed.");
+        logger.info("HTTP server closed.");
         process.exit(0);
     });
 };
