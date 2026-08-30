@@ -1,7 +1,8 @@
 import app from "./app.js";
+import { env } from "./config/env.js";
 
-const PORT = process.env.PORT || 5001;
-
-app.listen(PORT, () => {
-    console.log(`API server running on port ${PORT}`);
+const server = app.listen(env.port, () => {
+    console.log(
+        `API server running on port ${env.port} in ${env.nodeEnv} mode`,
+    );
 });
