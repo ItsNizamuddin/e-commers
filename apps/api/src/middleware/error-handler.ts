@@ -1,7 +1,10 @@
 import type { ErrorRequestHandler } from "express";
-import { AppError } from "../utils/app-error.js";
+import mongoose from "mongoose";
+import { ZodError } from "zod";
+
 import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
+import { AppError } from "../utils/app-error.js";
 
 export const errorHandler: ErrorRequestHandler = (
     error,
@@ -23,7 +26,52 @@ export const errorHandler: ErrorRequestHandler = (
         return;
     }
 
-    // 2. Handle Express JSON Body Syntax Errors (Malformed Body)
+    // 2. Zod Schema Validation Errors
+    if (error instanceof ZodError) {
+        res.status(400).json({
+            success: false,
+            error: {
+                code: "VALIDATION_ERROR",
+                message: "Invalid request payload or parameters",
+                details: error.flatten().fieldErrors,
+            },
+        });
+
+        return;
+    }
+
+    // 3. Mongoose Invalid ObjectId Cast Error
+    if (error instanceof mongoose.Error.CastError) {
+        res.status(400).json({
+            success: false,
+            error: {
+                code: "INVALID_ID",
+                message: `Invalid ID format provided for '${error.path}'`,
+            },
+        });
+
+        return;
+    }
+
+    // 4. Mongoose Duplicate Key Error (Code 11000)
+    if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        (error as { code: unknown }).code === 11000
+    ) {
+        res.status(409).json({
+            success: false,
+            error: {
+                code: "DUPLICATE_RESOURCE",
+                message: "A resource with that unique key already exists",
+            },
+        });
+
+        return;
+    }
+
+    // 5. Express JSON Body Syntax Errors (Malformed Body)
     if (error instanceof SyntaxError && "status" in error && error.status === 400 && "body" in error) {
         res.status(400).json({
             success: false,
@@ -36,7 +84,7 @@ export const errorHandler: ErrorRequestHandler = (
         return;
     }
 
-    // 3. Unexpected Server Errors (500)
+    // 6. Unexpected Server Errors (500)
     logger.error(error, "Unhandled Error");
 
     res.status(500).json({

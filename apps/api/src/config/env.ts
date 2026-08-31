@@ -21,6 +21,10 @@ const envSchema = z.object({
         .string()
         .min(1)
         .default("http://localhost:3000"),
+
+    DATABASE_URL: z
+        .string()
+        .min(1, "DATABASE_URL is required"),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
@@ -37,4 +41,5 @@ export const env = {
     logLevel: parsedEnv.data.LOG_LEVEL,
     port: parsedEnv.data.PORT,
     corsOrigin: parsedEnv.data.CORS_ORIGIN,
+    databaseUrl: parsedEnv.data.DATABASE_URL,
 } as const;
