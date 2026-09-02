@@ -2,6 +2,7 @@ import type { RequestHandler } from "express";
 
 import { AppError } from "../../utils/app-error.js";
 import { userService } from "./user.service.js";
+import { toUserResponse } from "./user.mapper.js";
 
 export const getUserById: RequestHandler<{ id: string }> = async (
     req,
@@ -21,15 +22,6 @@ export const getUserById: RequestHandler<{ id: string }> = async (
 
     res.status(200).json({
         success: true,
-        data: {
-            id: user._id,
-            email: user.email,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            role: user.role,
-            isActive: user.isActive,
-            createdAt: user.createdAt,
-            updatedAt: user.updatedAt,
-        },
+        data: toUserResponse(user),
     });
 };
