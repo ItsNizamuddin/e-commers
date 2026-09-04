@@ -864,6 +864,216 @@
           ]
         }
       ]
+    },
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "Create Product (Multi-Currency Grocery)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Farm-Fresh Organic Honeycrisp Apples\",\n  \"description\": \"Crisp, juicy, and naturally sweet organic apples harvested from certified orchards.\",\n  \"shortDescription\": \"Sweet & crisp organic apples\",\n  \"brand\": \"Nature's Harvest\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"baseCurrency\": \"USD\",\n  \"variants\": [\n    {\n      \"sku\": \"APL-HONEYCRISP-1KG\",\n      \"title\": \"1kg Eco-Pouch\",\n      \"prices\": [\n        { \"currency\": \"USD\", \"amount\": 499, \"compareAtAmount\": 599, \"costAmount\": 250 },\n        { \"currency\": \"INR\", \"amount\": 39900, \"compareAtAmount\": 49900, \"costAmount\": 20000 },\n        { \"currency\": \"EUR\", \"amount\": 450, \"compareAtAmount\": 550, \"costAmount\": 220 }\n      ],\n      \"weight\": 1,\n      \"weightUnit\": \"kg\"\n    }\n  ],\n  \"tags\": [\"organic\", \"fresh\", \"fruits\", \"apple\", \"produce\"],\n  \"nutritionInfo\": {\n    \"calories\": 52,\n    \"carbohydrates\": 14,\n    \"fiber\": 2,\n    \"servingSize\": \"100g\"\n  },\n  \"storageInstructions\": \"Refrigerate upon arrival to maintain crispness.\",\n  \"seo\": {\n    \"metaTitle\": \"Buy Organic Honeycrisp Apples | ShopSphere Grocery\",\n    \"metaDescription\": \"Farm-fresh organic apples delivered cold to your home.\",\n    \"keywords\": [\"organic apples\", \"honeycrisp\", \"fresh fruit delivery\"]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["products"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Product created with variants and baseCurrency', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(true);",
+                  "    pm.expect(jsonData.data).to.have.property('id');",
+                  "    pm.expect(jsonData.data.status).to.eql('DRAFT');",
+                  "    pm.environment.set('productId', jsonData.data.id);",
+                  "    pm.environment.set('productSlug', jsonData.data.slug);",
+                  "    pm.collectionVariables.set('productId', jsonData.data.id);",
+                  "    pm.collectionVariables.set('productSlug', jsonData.data.slug);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Products (Filter & Search)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products?page=1&limit=20&currency=USD&minPrice=100&maxPrice=5000",
+              "host": ["{{baseUrl}}"],
+              "path": ["products"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "currency", "value": "USD" },
+                { "key": "minPrice", "value": "100" },
+                { "key": "maxPrice", "value": "5000" }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Returns product list', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(true);",
+                  "    pm.expect(jsonData.data).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Product By Slug",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/slug/{{productSlug}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["products", "slug", "{{productSlug}}"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Product By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["products", "{{productId}}"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Publish Product",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/products/{{productId}}/publish",
+              "host": ["{{baseUrl}}"],
+              "path": ["products", "{{productId}}", "publish"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Product transitioned to PUBLISHED status', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.status).to.eql('PUBLISHED');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Archive Product",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["products", "{{productId}}"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

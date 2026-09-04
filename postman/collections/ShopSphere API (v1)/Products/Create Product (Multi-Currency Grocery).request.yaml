@@ -1,0 +1,72 @@
+$kind: http-request
+url: "{{baseUrl}}/products"
+method: POST
+headers:
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "title": "Farm-Fresh Organic Honeycrisp Apples",
+      "description": "Crisp, juicy, and naturally sweet organic apples harvested from certified orchards.",
+      "shortDescription": "Sweet & crisp organic apples",
+      "brand": "Nature's Harvest",
+      "categoryId": "{{categoryId}}",
+      "baseCurrency": "USD",
+      "variants": [
+        {
+          "sku": "APL-HONEYCRISP-1KG",
+          "title": "1kg Eco-Pouch",
+          "prices": [
+            { "currency": "USD", "amount": 499, "compareAtAmount": 599, "costAmount": 250 },
+            { "currency": "INR", "amount": 39900, "compareAtAmount": 49900, "costAmount": 20000 },
+            { "currency": "EUR", "amount": 450, "compareAtAmount": 550, "costAmount": 220 }
+          ],
+          "weight": 1,
+          "weightUnit": "kg"
+        },
+        {
+          "sku": "APL-HONEYCRISP-3KG",
+          "title": "3kg Family Box",
+          "prices": [
+            { "currency": "USD", "amount": 1299, "compareAtAmount": 1499, "costAmount": 650 },
+            { "currency": "INR", "amount": 99900, "compareAtAmount": 119900, "costAmount": 55000 }
+          ],
+          "weight": 3,
+          "weightUnit": "kg"
+        }
+      ],
+      "tags": ["organic", "fresh", "fruits", "apple", "produce"],
+      "nutritionInfo": {
+        "calories": 52,
+        "carbohydrates": 14,
+        "fiber": 2,
+        "servingSize": "100g"
+      },
+      "storageInstructions": "Refrigerate upon arrival to maintain crispness.",
+      "seo": {
+        "metaTitle": "Buy Organic Honeycrisp Apples | ShopSphere Grocery",
+        "metaDescription": "Farm-fresh organic apples delivered cold to your home.",
+        "keywords": ["organic apples", "honeycrisp", "fresh fruit delivery"]
+      }
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 201 Created', function () {
+          pm.response.to.have.status(201);
+      });
+      pm.test('Product created with variants and baseCurrency', function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.success).to.eql(true);
+          pm.expect(jsonData.data).to.have.property('id');
+          pm.expect(jsonData.data.status).to.eql('DRAFT');
+          pm.expect(jsonData.data.variants.length).to.eql(2);
+          pm.environment.set('productId', jsonData.data.id);
+          pm.environment.set('productSlug', jsonData.data.slug);
+          pm.collectionVariables.set('productId', jsonData.data.id);
+          pm.collectionVariables.set('productSlug', jsonData.data.slug);
+      });
+    language: text/javascript
+order: 1000

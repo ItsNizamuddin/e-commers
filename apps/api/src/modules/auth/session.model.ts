@@ -1,4 +1,4 @@
-import { Schema, model, type InferSchemaType, type HydratedDocument } from "mongoose";
+import { Schema, model, models, type Model, type InferSchemaType, type HydratedDocument } from "mongoose";
 
 const sessionSchema = new Schema(
     {
@@ -52,4 +52,4 @@ const sessionSchema = new Schema(
 
 export type SessionDocument = HydratedDocument<InferSchemaType<typeof sessionSchema>>;
 
-export const SessionModel = model("Session", sessionSchema);
+export const SessionModel = (models.Session as Model<SessionDocument>) || model<SessionDocument>("Session", sessionSchema);

@@ -1,4 +1,4 @@
-import { Schema, model, Document } from "mongoose";
+import { Schema, model, models, Model, Document } from "mongoose";
 import { ICategory } from "./category.types.js";
 import { SeoSchema } from "../../database/schemas/seo.schema.js";
 import { AuditActorSchema } from "../../database/schemas/audit-actor.schema.js";
@@ -76,4 +76,5 @@ const CategorySchema = new Schema<CategoryDocument>(
 CategorySchema.index({ parentId: 1, sortOrder: 1 });
 CategorySchema.index({ name: "text", description: "text" });
 
-export const CategoryModel = model<CategoryDocument>("Category", CategorySchema);
+export const CategoryModel =
+    (models.Category as Model<CategoryDocument>) || model<CategoryDocument>("Category", CategorySchema);

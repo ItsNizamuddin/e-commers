@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{baseUrl}}/products/{{productId}}/publish"
+method: PATCH
+headers:
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 200 OK', function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test('Product transitioned to PUBLISHED status', function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.success).to.eql(true);
+          pm.expect(jsonData.data.status).to.eql('PUBLISHED');
+      });
+    language: text/javascript
+order: 5000

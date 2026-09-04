@@ -1,4 +1,4 @@
-import { Schema, model, type InferSchemaType, type HydratedDocument } from "mongoose";
+import { Schema, model, models, Model, type InferSchemaType, type HydratedDocument } from "mongoose";
 import { ALL_ROLES } from "@shopsphere/types";
 
 const userSchema = new Schema(
@@ -51,4 +51,4 @@ const userSchema = new Schema(
 
 export type UserDocument = HydratedDocument<InferSchemaType<typeof userSchema>>;
 
-export const UserModel = model("User", userSchema);
+export const UserModel = (models.User as Model<UserDocument>) || model<UserDocument>("User", userSchema);

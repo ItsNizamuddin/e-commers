@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{baseUrl}}/products?page=1&limit=20&currency=USD&minPrice=100&maxPrice=5000"
+method: GET
+headers:
+  Content-Type: application/json
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 200 OK', function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test('Returns product list and pagination metadata', function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.success).to.eql(true);
+          pm.expect(jsonData.data).to.be.an('array');
+          pm.expect(jsonData.meta).to.have.property('total');
+      });
+    language: text/javascript
+order: 2000
