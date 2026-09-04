@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { Types } from "mongoose";
 import type { UserRole } from "@shopsphere/types";
 import { AppError } from "../../utils/app-error.js";
 import { hashPassword, verifyPassword } from "../../utils/password.js";
@@ -81,8 +82,40 @@ export const authService = {
         const tokenHash = hashToken(refreshToken);
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
+        const userObjectId = new Types.ObjectId(userId);
+
+        // 1. Revoke previous active sessions from the same device / client (same userAgent)
+        await SessionModel.updateMany(
+            {
+                userId: userObjectId,
+                sessionType,
+                userAgent,
+                isRevoked: false,
+            },
+            { $set: { isRevoked: true } }
+        );
+
+        // 2. Enforce maximum active sessions cap (max 5 active sessions per user)
+        const activeSessions = await SessionModel.find({
+            userId: userObjectId,
+            sessionType,
+            isRevoked: false,
+        }).sort({ createdAt: 1 });
+
+        const MAX_ACTIVE_SESSIONS = 5;
+        if (activeSessions.length >= MAX_ACTIVE_SESSIONS) {
+            const overflowCount = activeSessions.length - MAX_ACTIVE_SESSIONS + 1;
+            const oldestToRevoke = activeSessions.slice(0, overflowCount);
+            const idsToRevoke = oldestToRevoke.map((s) => s._id);
+
+            await SessionModel.updateMany(
+                { _id: { $in: idsToRevoke } },
+                { $set: { isRevoked: true } }
+            );
+        }
+
         await SessionModel.create({
-            userId,
+            userId: userObjectId,
             tokenHash,
             sessionType,
             expiresAt,

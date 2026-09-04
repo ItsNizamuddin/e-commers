@@ -1,0 +1,53 @@
+$kind: http-request
+url: "{{baseUrl}}/categories"
+method: POST
+headers:
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "name": "Fresh Organic Produce",
+      "description": "Farm-fresh organic fruits, leafy vegetables, and seasonal harvests",
+      "seo": {
+        "metaTitle": "Buy Fresh Organic Produce Online | ShopSphere Grocery",
+        "metaDescription": "Farm-fresh 100% organic fruits and vegetables delivered cold to your doorstep within 2 hours.",
+        "metaRobots": "index, follow",
+        "keywords": [
+          "organic produce",
+          "fresh fruits",
+          "organic vegetables",
+          "farm fresh grocery"
+        ],
+        "ogTitle": "Farm-Fresh Organic Produce Delivered Cold",
+        "ogDescription": "Sustainably grown, pesticide-free fruits & vegetables direct from local organic farms.",
+        "ogType": "website",
+        "twitterCard": "summary_large_image",
+        "internalSection": {
+          "title": "Why Choose ShopSphere Organic Produce?",
+          "value": "<p>Our produce is harvested daily from certified organic farms, stored under climate-controlled refrigeration (2°C to 4°C), and delivered cold to guarantee peak freshness.</p>"
+        },
+        "bottomSection": {
+          "title": "Nutritional Benefits & Farm Quality Guarantee",
+          "value": "<h3>100% Non-GMO & Pesticide Free</h3><p>Every batch undergoes strict quality checks before packing. Includes certified organic compliance and full farm traceability.</p>"
+        }
+      }
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 201 Created', function () {
+          pm.response.to.have.status(201);
+      });
+      pm.test('Food category created successfully with universal SEO metadata', function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.success).to.eql(true);
+          pm.expect(jsonData.data).to.have.property('id');
+          pm.expect(jsonData.data.name).to.eql('Fresh Organic Produce');
+          pm.expect(jsonData.data.seo).to.have.property('metaTitle');
+          pm.environment.set('categoryId', jsonData.data.id);
+          pm.collectionVariables.set('categoryId', jsonData.data.id);
+      });
+    language: text/javascript
+order: 1000

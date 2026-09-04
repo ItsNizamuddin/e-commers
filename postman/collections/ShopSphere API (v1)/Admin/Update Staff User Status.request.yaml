@@ -22,4 +22,4 @@ scripts:
           pm.expect(jsonData.data.isActive).to.eql(false);
       });
     language: text/javascript
-order: 5000
+order: 6000

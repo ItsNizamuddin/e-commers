@@ -18,4 +18,4 @@ scripts:
           pm.expect(jsonData.data).to.be.an('array');
       });
     language: text/javascript
-order: 3000
+order: 4000

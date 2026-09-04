@@ -1,16 +1,18 @@
 $kind: http-request
-url: "{{baseUrl}}/auth/admin/logout"
-method: POST
+url: "{{baseUrl}}/categories?tree=true"
+method: GET
+queryParams:
+  tree: "true"
 scripts:
   - type: afterResponse
     code: |-
       pm.test('Status code is 200 OK', function () {
           pm.response.to.have.status(200);
       });
-      pm.test('Logout successful message', function () {
+      pm.test('Returns nested hierarchical menu tree', function () {
           var jsonData = pm.response.json();
           pm.expect(jsonData.success).to.eql(true);
-          pm.expect(jsonData.data.message).to.eql('Logged out successfully');
+          pm.expect(Array.isArray(jsonData.data)).to.eql(true);
       });
     language: text/javascript
-order: 2000
+order: 3000

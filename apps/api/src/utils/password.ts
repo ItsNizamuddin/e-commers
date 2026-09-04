@@ -2,9 +2,9 @@ import { argon2id, hash, verify, type HashOptions } from "argon2";
 
 const ARGON2_OPTIONS: HashOptions = {
     type: argon2id,
-    memoryCost: 65536, // 64 MB memory
-    timeCost: 3,        // 3 iterations
-    parallelism: 2,     // 2 parallel threads
+    memoryCost: 16384, // 16 MB memory (fast & secure)
+    timeCost: 2,       // 2 iterations
+    parallelism: 1,    // 1 thread
 };
 
 /**

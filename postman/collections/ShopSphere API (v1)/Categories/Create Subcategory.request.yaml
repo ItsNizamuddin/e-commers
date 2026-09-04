@@ -1,0 +1,30 @@
+$kind: http-request
+url: "{{baseUrl}}/categories"
+method: POST
+headers:
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "name": "Organic Berries",
+      "parentId": "{{categoryId}}",
+      "description": "Fresh organic strawberries, blueberries, raspberries, and blackberries"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 201 Created', function () {
+          pm.response.to.have.status(201);
+      });
+      pm.test('Subcategory created with parentId and ancestors', function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.success).to.eql(true);
+          pm.expect(jsonData.data.parentId).to.eql(pm.collectionVariables.get('categoryId'));
+          pm.expect(jsonData.data.ancestors).to.include(pm.collectionVariables.get('categoryId'));
+          pm.environment.set('subcategoryId', jsonData.data.id);
+          pm.collectionVariables.set('subcategoryId', jsonData.data.id);
+      });
+    language: text/javascript
+order: 2000

@@ -633,6 +633,237 @@
           ]
         }
       ]
+    },
+    {
+      "name": "Categories",
+      "item": [
+        {
+          "name": "Create Category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Fresh Organic Produce\",\n  \"description\": \"Farm-fresh organic fruits, leafy vegetables, and seasonal harvests\",\n  \"seo\": {\n    \"metaTitle\": \"Buy Fresh Organic Produce Online | ShopSphere Grocery\",\n    \"metaDescription\": \"Farm-fresh 100% organic fruits and vegetables delivered cold to your doorstep within 2 hours.\",\n    \"metaRobots\": \"index, follow\",\n    \"keywords\": [\n      \"organic produce\",\n      \"fresh fruits\",\n      \"organic vegetables\",\n      \"farm fresh grocery\"\n    ],\n    \"ogTitle\": \"Farm-Fresh Organic Produce Delivered Cold\",\n    \"ogDescription\": \"Sustainably grown, pesticide-free fruits & vegetables direct from local organic farms.\",\n    \"ogType\": \"website\",\n    \"twitterCard\": \"summary_large_image\",\n    \"internalSection\": {\n      \"title\": \"Why Choose ShopSphere Organic Produce?\",\n      \"value\": \"<p>Our produce is harvested daily from certified organic farms, stored under climate-controlled refrigeration (2°C to 4°C), and delivered cold to guarantee peak freshness.</p>\"\n    },\n    \"bottomSection\": {\n      \"title\": \"Nutritional Benefits & Farm Quality Guarantee\",\n      \"value\": \"<h3>100% Non-GMO & Pesticide Free</h3><p>Every batch undergoes strict quality checks before packing. Includes certified organic compliance and full farm traceability.</p>\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Food category created successfully with universal SEO metadata', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(true);",
+                  "    pm.expect(jsonData.data).to.have.property('id');",
+                  "    pm.expect(jsonData.data.name).to.eql('Fresh Organic Produce');",
+                  "    pm.expect(jsonData.data.seo).to.have.property('metaTitle');",
+                  "    pm.environment.set('categoryId', jsonData.data.id);",
+                  "    pm.collectionVariables.set('categoryId', jsonData.data.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Subcategory",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Organic Berries\",\n  \"parentId\": \"{{categoryId}}\",\n  \"description\": \"Fresh organic strawberries, blueberries, raspberries, and blackberries\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Subcategory created with parentId and ancestors', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(true);",
+                  "    pm.expect(jsonData.data.parentId).to.eql(pm.collectionVariables.get('categoryId'));",
+                  "    pm.expect(jsonData.data.ancestors).to.include(pm.collectionVariables.get('categoryId'));",
+                  "    pm.environment.set('subcategoryId', jsonData.data.id);",
+                  "    pm.collectionVariables.set('subcategoryId', jsonData.data.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Category Menu Tree",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/categories?tree=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories"
+              ],
+              "query": [
+                {
+                  "key": "tree",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Returns nested hierarchical menu tree', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(true);",
+                  "    pm.expect(Array.isArray(jsonData.data)).to.eql(true);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Categories (Flat)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/categories?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Returns flat paginated categories list', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(true);",
+                  "    pm.expect(jsonData.meta).to.have.property('total');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Category By Slug",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/categories/slug/fresh-organic-produce",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories",
+                "slug",
+                "fresh-organic-produce"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Returns food category by slug', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(true);",
+                  "    pm.expect(jsonData.data.slug).to.eql('fresh-organic-produce');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

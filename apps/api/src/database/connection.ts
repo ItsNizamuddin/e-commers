@@ -4,6 +4,10 @@ import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
 
 export const connectDatabase = async (): Promise<void> => {
+    if (mongoose.connection.readyState === 1) {
+        return;
+    }
+
     try {
         mongoose.connection.on("error", (error) => {
             logger.error(error, "MongoDB connection error");
@@ -23,6 +27,10 @@ export const connectDatabase = async (): Promise<void> => {
 };
 
 export const disconnectDatabase = async (): Promise<void> => {
+    if (mongoose.connection.readyState === 0) {
+        return;
+    }
+
     await mongoose.disconnect();
 
     logger.info("MongoDB connection closed");

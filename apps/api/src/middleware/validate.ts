@@ -23,7 +23,13 @@ export const validate = (
             return;
         }
 
-        req[source] = result.data;
+        if (source === "query") {
+            Object.assign(req.query, result.data);
+        } else if (source === "params") {
+            Object.assign(req.params, result.data);
+        } else {
+            req.body = result.data;
+        }
 
         next();
     };

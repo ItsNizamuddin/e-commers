@@ -55,3 +55,34 @@ export const requireAuth: RequestHandler = (
         );
     }
 };
+
+export const authenticate = requireAuth;
+
+export const optionalAuth: RequestHandler = (req, _res, next) => {
+    const authorization = req.headers.authorization;
+
+    if (!authorization?.startsWith("Bearer ")) {
+        return next();
+    }
+
+    const token = authorization.slice("Bearer ".length);
+
+    try {
+        const payload = verifyAccessToken(token);
+
+        if (
+            payload.type === "access" &&
+            typeof payload.sub === "string" &&
+            ALL_ROLES.includes(payload.role)
+        ) {
+            req.user = {
+                id: payload.sub,
+                role: payload.role,
+            };
+        }
+    } catch {
+        // Proceed unauthenticated if token verification fails in optionalAuth
+    }
+
+    next();
+};

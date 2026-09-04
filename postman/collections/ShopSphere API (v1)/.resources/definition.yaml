@@ -1,4 +1,5 @@
 $kind: collection
+name: ShopSphere API (v1)
 description: |-
   Production-grade Postman Collection for ShopSphere E-Commerce Backend API.
   Includes automated token management, request validation checks, and health monitoring.
@@ -6,3 +7,6 @@ variables:
   baseUrl: http://localhost:5001/api/v1
   accessToken: ""
   userId: ""
+  staffId: ""
+  categoryId: ""
+  subcategoryId: ""

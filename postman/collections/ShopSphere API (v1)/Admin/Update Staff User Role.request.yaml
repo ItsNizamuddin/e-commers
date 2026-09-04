@@ -22,4 +22,4 @@ scripts:
           pm.expect(jsonData.data.role).to.eql('PUBLISHER');
       });
     language: text/javascript
-order: 4000
+order: 5000

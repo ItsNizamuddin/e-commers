@@ -31,4 +31,4 @@ scripts:
           pm.collectionVariables.set('staffId', jsonData.data.id);
       });
     language: text/javascript
-order: 2000
+order: 3000
