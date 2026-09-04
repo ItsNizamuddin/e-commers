@@ -64,51 +64,42 @@ ShopSphere strictly mandates secure password handling to protect user credential
 
 ---
 
-## 3. Role-Based Access Control (RBAC)
+## 3. Role-Based Access Control (RBAC) & Fine-Grained Authorization
 
-ShopSphere enforces strict authorization boundaries across two primary roles: `CUSTOMER` and `ADMIN`.
+ShopSphere enforces multi-tier enterprise authorization boundaries across 6 distinct user roles:
 
-### 3.1 Permission Matrix
+1. **`SUPER_ADMIN`**: Unrestricted executive access (system management, role administration, security, full catalog & order controls).
+2. **`ADMIN`**: General operational administrator (catalog management, sales operations, customer accounts, analytics).
+3. **`SALES`**: Sales & fulfillment manager (order management, customer search, sales reports).
+4. **`PUBLISHER`**: Content & product catalog manager (product creation, editing, category tree updates, publishing).
+5. **`SUPPORT_AGENT`**: Customer service representative (read-only view of customer profiles and order statuses for support ticket resolution).
+6. **`CUSTOMER`**: Standard end-user consumer account.
 
-| Resource / Endpoint Area | Public | Customer | Admin |
-| :--- | :---: | :---: | :---: |
-| Browse Products / Categories / Search | ✅ | ✅ | ✅ |
-| Read Product Reviews | ✅ | ✅ | ✅ |
-| Manage Personal Cart / Wishlist / Profile | ❌ | ✅ | ✅ |
-| Checkout & Order Placement | ❌ | ✅ | ❌ |
-| Submit Review | ❌ | Verified Buyer | ❌ |
-| Create / Update / Delete Products | ❌ | ❌ | ✅ |
-| Adjust Inventory Stock | ❌ | ❌ | ✅ |
-| View Executive Dashboard & Sales Analytics | ❌ | ❌ | ✅ |
-| Update Order Status (`SHIPPED`/`DELIVERED`) | ❌ | ❌ | ✅ |
+### 3.1 Enterprise Permission Matrix
+
+| Resource / Endpoint Area | Customer | Support Agent | Publisher | Sales | Admin | Super Admin |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| Browse Products / Categories | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Personal Cart / Wishlist / Profile | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| View Customer Orders | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ |
+| Manage Order Fulfillment & Refunds | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
+| Create / Edit / Publish Catalog | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ |
+| View Executive Sales Analytics | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
+| Manage User Roles & System Configs | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 
 ### 3.2 Authorization Middleware Implementation
 
 ```typescript
-import { Request, Response, NextFunction } from 'express';
+import { requireRole, requirePermission, requireStaff } from './middleware/authorize.middleware.js';
 
-export const requireAuth = (req: Request, res: Response, next: NextFunction) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ success: false, error: { code: 'UNAUTHENTICATED', message: 'Authentication required' } });
-  }
+// Guard for any staff member (SUPER_ADMIN, ADMIN, SALES, PUBLISHER, SUPPORT_AGENT)
+router.get('/admin/test', requireAuth, requireStaff(), handler);
 
-  const token = authHeader.split(' ')[1];
-  try {
-    const payload = verifyJwt(token);
-    req.user = payload; // Attach { userId, role }
-    next();
-  } catch (err) {
-    return res.status(401).json({ success: false, error: { code: 'INVALID_TOKEN', message: 'Token expired or invalid' } });
-  }
-};
+// Guard for specific granular permission ('orders:read')
+router.get('/admin/sales', requireAuth, requirePermission('orders:read'), handler);
 
-export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.user || req.user.role !== 'ADMIN') {
-    return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } });
-  }
-  next();
-};
+// Guard for specific role ('SUPER_ADMIN')
+router.get('/admin/super', requireAuth, requireRole('SUPER_ADMIN'), handler);
 ```
 
 ---

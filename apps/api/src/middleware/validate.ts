@@ -16,7 +16,7 @@ export const validate = (
                     "Request validation failed",
                     400,
                     "VALIDATION_ERROR",
-                    result.error.flatten(),
+                    result.error.flatten().fieldErrors,
                 ),
             );
 

@@ -1,0 +1,31 @@
+$kind: http-request
+url: "{{baseUrl}}/auth/login"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "email": "nizam@gmail.com",
+      "password": "nizam@123!"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 200 OK', function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test('Returns Access Token & User Data', function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.success).to.eql(true);
+          pm.expect(jsonData.data).to.have.property('accessToken');
+          
+          // Auto-save Access Token to Environment and Collection Variables
+          pm.environment.set('accessToken', jsonData.data.accessToken);
+          pm.environment.set('userId', jsonData.data.user.id);
+          pm.collectionVariables.set('accessToken', jsonData.data.accessToken);
+          pm.collectionVariables.set('userId', jsonData.data.user.id);
+      });
+    language: text/javascript
+order: 2000

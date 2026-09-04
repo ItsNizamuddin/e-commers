@@ -4,12 +4,14 @@ import app from "./app.js";
 import { env } from "./config/env.js";
 import { logger } from "./config/logger.js";
 import { connectDatabase, disconnectDatabase } from "./database/connection.js";
+import { seedDefaultSuperAdmin } from "./database/seed.js";
 
 let server: Server;
 
 const startServer = async (): Promise<void> => {
     try {
         await connectDatabase();
+        await seedDefaultSuperAdmin();
 
         server = app.listen(env.port, () => {
             logger.info(

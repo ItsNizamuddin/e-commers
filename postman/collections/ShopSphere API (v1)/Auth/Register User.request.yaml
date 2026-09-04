@@ -1,0 +1,32 @@
+$kind: http-request
+url: "{{baseUrl}}/auth/register"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "email": "alex.dev@example.com",
+      "password": "SecurePass123!",
+      "firstName": "Alex",
+      "lastName": "Developer"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 201 Created', function () {
+          pm.response.to.have.status(201);
+      });
+      pm.test('Returns created user payload', function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.success).to.eql(true);
+          pm.expect(jsonData.data).to.have.property('id');
+          pm.expect(jsonData.data.email).to.eql('alex.dev@example.com');
+          
+          // Save userId for subsequent requests
+          pm.environment.set('userId', jsonData.data.id);
+          pm.collectionVariables.set('userId', jsonData.data.id);
+      });
+    language: text/javascript
+order: 1000

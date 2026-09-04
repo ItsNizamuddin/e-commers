@@ -1,0 +1,18 @@
+$kind: http-request
+url: "{{baseUrl}}/users/{{userId}}"
+method: GET
+headers:
+  Authorization: Bearer {{accessToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 200 OK', function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test('User payload matches request ID', function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.success).to.eql(true);
+          pm.expect(jsonData.data.id).to.eql(pm.environment.get('userId'));
+      });
+    language: text/javascript
+order: 1000

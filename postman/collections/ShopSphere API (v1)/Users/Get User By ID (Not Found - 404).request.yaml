@@ -1,0 +1,18 @@
+$kind: http-request
+url: "{{baseUrl}}/users/000000000000000000000000"
+method: GET
+headers:
+  Authorization: Bearer {{accessToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 404 Not Found', function () {
+          pm.response.to.have.status(404);
+      });
+      pm.test('Returns USER_NOT_FOUND code', function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.success).to.eql(false);
+          pm.expect(jsonData.error.code).to.eql('USER_NOT_FOUND');
+      });
+    language: text/javascript
+order: 3000

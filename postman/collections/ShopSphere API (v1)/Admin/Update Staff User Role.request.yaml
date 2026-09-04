@@ -1,0 +1,25 @@
+$kind: http-request
+url: "{{baseUrl}}/admin/users/{{staffId}}/role"
+method: PATCH
+headers:
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "role": "PUBLISHER"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 200 OK', function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test('Role updated successfully', function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.success).to.eql(true);
+          pm.expect(jsonData.data.role).to.eql('PUBLISHER');
+      });
+    language: text/javascript
+order: 4000

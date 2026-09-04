@@ -1,4 +1,5 @@
 import { Schema, model, type InferSchemaType, type HydratedDocument } from "mongoose";
+import { ALL_ROLES } from "@shopsphere/types";
 
 const userSchema = new Schema(
     {
@@ -31,7 +32,7 @@ const userSchema = new Schema(
 
         role: {
             type: String,
-            enum: ["CUSTOMER", "ADMIN"],
+            enum: ALL_ROLES,
             default: "CUSTOMER",
             required: true,
         },

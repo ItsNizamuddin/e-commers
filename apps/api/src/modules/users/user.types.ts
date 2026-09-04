@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ALL_ROLES, type UserRole } from "@shopsphere/types";
 
 export const getUserByIdParamsSchema = z.object({
     id: z.string().min(1, "User ID is required"),
@@ -11,7 +12,7 @@ export const createUserBodySchema = z.object({
     password: z.string().min(8, "Password must be at least 8 characters long"),
     firstName: z.string().min(1, "First name is required"),
     lastName: z.string().min(1, "Last name is required"),
-    role: z.enum(["CUSTOMER", "ADMIN"]).optional().default("CUSTOMER"),
+    role: z.enum(ALL_ROLES as [UserRole, ...UserRole[]]).optional().default("CUSTOMER"),
 });
 
 export type CreateUserBody = z.infer<typeof createUserBodySchema>;

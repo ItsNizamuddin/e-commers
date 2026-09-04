@@ -1,0 +1,9 @@
+# Use this workspace to collaborate
+workspace:
+  id: ""
+
+localResources:
+  collections:
+    - ../ShopSphere_API.postman_collection.json
+  environments:
+    - ../ShopSphere_Local.postman_environment.json

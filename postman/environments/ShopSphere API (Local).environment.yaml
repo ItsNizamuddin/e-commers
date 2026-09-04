@@ -1,0 +1,8 @@
+name: ShopSphere API (Local)
+values:
+  - key: baseUrl
+    value: 'http://localhost:5001/api/v1'
+  - key: accessToken
+    value: ''
+  - key: userId
+    value: ''

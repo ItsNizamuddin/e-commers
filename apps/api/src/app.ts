@@ -5,7 +5,11 @@ import { errorHandler } from "./middleware/error-handler.js";
 import { AppError } from "./utils/app-error.js";
 import { env } from "./config/env.js";
 import routes from "./routes.js";
+import { requestLogger } from "./middleware/request-logger.js";
+import cookieParser from "cookie-parser";
+
 const app = express();
+app.use(requestLogger);
 
 app.use(helmet());
 app.use(cors({
@@ -13,6 +17,7 @@ app.use(cors({
     credentials: true,
 }));
 app.use(express.json());
+app.use(cookieParser());
 
 app.get("/api/v1/health", (_req, res) => {
     res.status(200).json({

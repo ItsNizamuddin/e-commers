@@ -1,3 +1,4 @@
+import type { UserRole } from "@shopsphere/types";
 import { UserModel } from "./user.model.js";
 
 export const userRepository = {
@@ -16,7 +17,7 @@ export const userRepository = {
         passwordHash: string;
         firstName: string;
         lastName: string;
-        role?: "CUSTOMER" | "ADMIN";
+        role?: UserRole;
     }) {
         return UserModel.create(data);
     },

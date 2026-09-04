@@ -1,0 +1,34 @@
+$kind: http-request
+url: "{{baseUrl}}/admin/users"
+method: POST
+headers:
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "email": "sales.mgr@example.com",
+      "password": "SalesPass123!",
+      "firstName": "Sarah",
+      "lastName": "Sales",
+      "role": "SALES"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 201 Created', function () {
+          pm.response.to.have.status(201);
+      });
+      pm.test('Returns created staff payload', function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.success).to.eql(true);
+          pm.expect(jsonData.data).to.have.property('id');
+          pm.expect(jsonData.data.role).to.eql('SALES');
+          
+          // Save staffId for subsequent requests
+          pm.environment.set('staffId', jsonData.data.id);
+          pm.collectionVariables.set('staffId', jsonData.data.id);
+      });
+    language: text/javascript
+order: 2000
