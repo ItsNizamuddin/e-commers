@@ -18,8 +18,12 @@ import {
     updateUserRoleSchema,
     updateUserStatusSchema,
 } from "./admin.validation.js";
+import { adminInventoryRouter } from "../inventory/inventory.routes.js";
 
 const router = Router();
+
+// Sub-router for Admin Inventory Operations (/admin/inventory/*)
+router.use("/inventory", adminInventoryRouter);
 
 // Create new Staff / Admin account (Requires 'staff.create' permission - SUPER_ADMIN)
 router.post(

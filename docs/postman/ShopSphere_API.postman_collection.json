@@ -20,6 +20,56 @@
       "key": "userId",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "productId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "productSlug",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "categoryId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "variantId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "warehouseId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "inventoryId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "movementId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reservationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "cartId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "guestSessionId",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -888,8 +938,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/products",
-              "host": ["{{baseUrl}}"],
-              "path": ["products"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products"
+              ]
             }
           },
           "response": [],
@@ -924,14 +978,33 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/products?page=1&limit=20&currency=USD&minPrice=100&maxPrice=5000",
-              "host": ["{{baseUrl}}"],
-              "path": ["products"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products"
+              ],
               "query": [
-                { "key": "page", "value": "1" },
-                { "key": "limit", "value": "20" },
-                { "key": "currency", "value": "USD" },
-                { "key": "minPrice", "value": "100" },
-                { "key": "maxPrice", "value": "5000" }
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "currency",
+                  "value": "USD"
+                },
+                {
+                  "key": "minPrice",
+                  "value": "100"
+                },
+                {
+                  "key": "maxPrice",
+                  "value": "5000"
+                }
               ]
             }
           },
@@ -962,8 +1035,14 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/products/slug/{{productSlug}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["products", "slug", "{{productSlug}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "slug",
+                "{{productSlug}}"
+              ]
             }
           },
           "response": [],
@@ -988,8 +1067,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/products/{{productId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["products", "{{productId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "{{productId}}"
+              ]
             }
           },
           "response": [],
@@ -1019,8 +1103,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/products/{{productId}}/publish",
-              "host": ["{{baseUrl}}"],
-              "path": ["products", "{{productId}}", "publish"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "{{productId}}",
+                "publish"
+              ]
             }
           },
           "response": [],
@@ -1054,8 +1144,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/products/{{productId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["products", "{{productId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "{{productId}}"
+              ]
             }
           },
           "response": [],
@@ -1066,6 +1161,1133 @@
                 "exec": [
                   "pm.test('Status code is 200 OK', function () {",
                   "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Inventory",
+      "description": "Enterprise Inventory Management & Stock Ledger API.\nIncludes multi-warehouse stock management, atomic reservation engine, immutable movement audit ledger, and public stock availability.",
+      "item": [
+        {
+          "name": "Public Availability",
+          "item": [
+            {
+              "name": "Get Variant Stock Availability",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/products/{{productId}}/variants/{{variantId}}/availability",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "products",
+                    "{{productId}}",
+                    "variants",
+                    "{{variantId}}",
+                    "availability"
+                  ]
+                },
+                "description": "Public endpoint masking raw counts for competitive privacy. Returns UX-friendly availability badges (isInStock, isLowStock, allowBackorder)."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code is 200 OK', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test('Returns availability flags', function () {",
+                      "    var json = pm.response.json();",
+                      "    pm.expect(json.success).to.eql(true);",
+                      "    pm.expect(json.data).to.have.property('isInStock');",
+                      "    pm.expect(json.data).to.have.property('allowBackorder');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Admin Inventory",
+          "item": [
+            {
+              "name": "List Inventory Records (Filter & Pagination)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/inventory?page=1&limit=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "inventory"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    },
+                    {
+                      "key": "productId",
+                      "value": "{{productId}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "variantId",
+                      "value": "{{variantId}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "lowStock",
+                      "value": "true",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "List multi-warehouse stock counts with onHand, reserved, backordered, safetyStock, and computed available."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code is 200 OK', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test('Captures first inventory and variant IDs', function () {",
+                      "    var json = pm.response.json();",
+                      "    pm.expect(json.success).to.eql(true);",
+                      "    if (json.data && json.data.items && json.data.items.length > 0) {",
+                      "        var first = json.data.items[0];",
+                      "        pm.environment.set('inventoryId', first.id);",
+                      "        pm.environment.set('variantId', first.variantId);",
+                      "        pm.environment.set('warehouseId', first.warehouseId);",
+                      "        pm.collectionVariables.set('inventoryId', first.id);",
+                      "        pm.collectionVariables.set('variantId', first.variantId);",
+                      "        pm.collectionVariables.set('warehouseId', first.warehouseId);",
+                      "    }",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Inventory Record By ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/inventory/{{inventoryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "inventory",
+                    "{{inventoryId}}"
+                  ]
+                },
+                "description": "Retrieves single warehouse inventory record with stock quantities and threshold configurations."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code is 200 OK', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test('Verifies availability formula', function () {",
+                      "    var json = pm.response.json();",
+                      "    pm.expect(json.success).to.eql(true);",
+                      "    var expected = Math.max(0, json.data.onHand - json.data.reserved - json.data.safetyStock);",
+                      "    pm.expect(json.data.available).to.eql(expected);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Adjust Inventory Stock (Audit Ledger)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"variantId\": \"{{variantId}}\",\n  \"warehouseId\": \"{{warehouseId}}\",\n  \"deltaOnHand\": 15,\n  \"reason\": \"Inbound shipment replenishment batch #9921\",\n  \"expectedVersion\": 1\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/inventory/adjust",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "inventory",
+                    "adjust"
+                  ]
+                },
+                "description": "Atomically mutates inventory physical onHand count and logs an immutable entry in the Stock Movement audit ledger within a MongoDB transaction."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code is 200 OK', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test('Stock adjusted successfully', function () {",
+                      "    var json = pm.response.json();",
+                      "    pm.expect(json.success).to.eql(true);",
+                      "    pm.expect(json.data.inventory).to.be.an('object');",
+                      "    pm.expect(json.data.movement).to.be.an('object');",
+                      "    pm.environment.set('movementId', json.data.movement.id);",
+                      "    pm.collectionVariables.set('movementId', json.data.movement.id);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Inventory Thresholds (OCC)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"expectedVersion\": 1,\n  \"safetyStock\": 5,\n  \"reorderThreshold\": 15,\n  \"allowBackorder\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/inventory/{{inventoryId}}/thresholds",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "inventory",
+                    "{{inventoryId}}",
+                    "thresholds"
+                  ]
+                },
+                "description": "Updates safetyStock, reorderThreshold, and allowBackorder flag using Optimistic Concurrency Control (OCC)."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code is 200 OK', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test('Thresholds updated & version incremented', function () {",
+                      "    var json = pm.response.json();",
+                      "    pm.expect(json.success).to.eql(true);",
+                      "    pm.expect(json.data.safetyStock).to.eql(5);",
+                      "    pm.expect(json.data.allowBackorder).to.eql(true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "List Stock Movements (Audit Ledger)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/inventory/movements?page=1&limit=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "inventory",
+                    "movements"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    },
+                    {
+                      "key": "type",
+                      "value": "ADJUSTMENT",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Queries the immutable append-only stock movement ledger. Movement records can never be updated or deleted."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code is 200 OK', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test('Returns movement ledger entries', function () {",
+                      "    var json = pm.response.json();",
+                      "    pm.expect(json.success).to.eql(true);",
+                      "    pm.expect(json.data.items).to.be.an('array');",
+                      "    if (json.data.items.length > 0) {",
+                      "        pm.environment.set('movementId', json.data.items[0].id);",
+                      "        pm.collectionVariables.set('movementId', json.data.items[0].id);",
+                      "    }",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Stock Movement Detail",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/inventory/movements/{{movementId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "inventory",
+                    "movements",
+                    "{{movementId}}"
+                  ]
+                },
+                "description": "Fetches individual stock movement record by ID with actor, timestamp, quantity, and delta details."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code is 200 OK', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test('Movement detail matches ID', function () {",
+                      "    var json = pm.response.json();",
+                      "    pm.expect(json.success).to.eql(true);",
+                      "    pm.expect(json.data.id).to.eql(pm.environment.get('movementId'));",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Reservations",
+          "item": [
+            {
+              "name": "Create Inventory Reservation (Checkout Hold)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"items\": [\n    {\n      \"variantId\": \"{{variantId}}\",\n      \"quantity\": 2\n    }\n  ],\n  \"idempotencyKey\": \"res_checkout_hold_001\",\n  \"orderId\": \"draft_checkout_123\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/reservations",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "reservations"
+                  ]
+                },
+                "description": "Atomically reserves stock across warehouses with all-or-nothing rollback semantics. Sets 15-minute TTL."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code is 201 Created', function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "pm.test('Reservation created & ID saved', function () {",
+                      "    var json = pm.response.json();",
+                      "    pm.expect(json.success).to.eql(true);",
+                      "    pm.expect(json.data).to.have.property('id');",
+                      "    pm.expect(json.data.status).to.eql('PENDING');",
+                      "    pm.environment.set('reservationId', json.data.id);",
+                      "    pm.collectionVariables.set('reservationId', json.data.id);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Reservation By ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/reservations/{{reservationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "reservations",
+                    "{{reservationId}}"
+                  ]
+                },
+                "description": "Fetches active reservation and checks expiration timer."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code is 200 OK', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test('Reservation is valid', function () {",
+                      "    var json = pm.response.json();",
+                      "    pm.expect(json.success).to.eql(true);",
+                      "    pm.expect(json.data.id).to.eql(pm.environment.get('reservationId'));",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Release Reservation (Timeout / Abandonment)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/reservations/{{reservationId}}/release",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "reservations",
+                    "{{reservationId}}",
+                    "release"
+                  ]
+                },
+                "description": "Releases reserved physical units back to available stock when checkout expires or user abandons purchase."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code is 200 OK', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test('Reservation status is RELEASED', function () {",
+                      "    var json = pm.response.json();",
+                      "    pm.expect(json.success).to.eql(true);",
+                      "    pm.expect(json.data.status).to.eql('RELEASED');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Confirm Reservation (Payment Captured)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/reservations/{{reservationId}}/confirm",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "reservations",
+                    "{{reservationId}}",
+                    "confirm"
+                  ]
+                },
+                "description": "Permanently commits stock onHand and reserved counts upon successful order payment."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code is 200 OK', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test('Reservation status is CONFIRMED', function () {",
+                      "    var json = pm.response.json();",
+                      "    pm.expect(json.success).to.eql(true);",
+                      "    pm.expect(json.data.status).to.eql('CONFIRMED');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Cart",
+      "description": "Enterprise Cart Module API.\nSupports anonymous guest session cookies (HttpOnly, SameSite=Lax), authenticated persistent carts, soft inventory availability tagging, price snapshot integrity, mutation idempotency, and atomic guest cart merging with stock issue reporting.",
+      "item": [
+        {
+          "name": "Get Active Cart",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "description": "Optional: If provided, retrieves user's persistent cart. If omitted, uses/sets HttpOnly guest session cookie.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/cart",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cart"
+              ]
+            },
+            "description": "Retrieves current active cart. GET does NOT extend guest inactivity TTL. Never leaks sessionId in the response payload. Authenticated carts have expiresAt: null."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Cart response structure is valid', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    pm.expect(json.data).to.have.property('id');",
+                  "    pm.expect(json.data).to.have.property('currency');",
+                  "    pm.expect(json.data).to.have.property('items');",
+                  "    pm.expect(json.data).to.have.property('summary');",
+                  "    pm.expect(json.data.sessionId).to.be.undefined;",
+                  "    pm.environment.set('cartId', json.data.id);",
+                  "    pm.collectionVariables.set('cartId', json.data.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add Item to Cart",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "disabled": true
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "cart_add_item_001",
+                "description": "Optional mutation idempotency key",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"variantId\": \"{{variantId}}\",\n  \"quantity\": 2,\n  \"currency\": \"USD\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/cart/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cart",
+                "items"
+              ]
+            },
+            "description": "Adds item or increments existing variant quantity (one variant per cart). Snapshots current display price. Extends guest TTL by 30 days. Soft-checks stock availability."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Item added with priceSnapshot & lineTotal', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    pm.expect(json.data.items.length).to.be.above(0);",
+                  "    var item = json.data.items[json.data.items.length - 1];",
+                  "    pm.expect(item.priceSnapshot).to.have.property('amount');",
+                  "    pm.expect(item.priceSnapshot).to.have.property('capturedAt');",
+                  "    pm.expect(item).to.have.property('lineTotal');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Item Quantity",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "disabled": true
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 4,\n  \"expectedVersion\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/cart/items/{{variantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cart",
+                "items",
+                "{{variantId}}"
+              ]
+            },
+            "description": "Modifies item quantity and recalculates subtotal and line totals. Setting quantity to 0 removes the item. Supports OCC expectedVersion."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Quantity updated in cart', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Remove Item from Cart",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/cart/items/{{variantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cart",
+                "items",
+                "{{variantId}}"
+              ]
+            },
+            "description": "Pulls the variant item completely from the active cart and re-sums totals."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Clear Active Cart",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/cart",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cart"
+              ]
+            },
+            "description": "Empties all items from the active cart."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Cart is now empty', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    pm.expect(json.data.items).to.have.lengthOf(0);",
+                  "    pm.expect(json.data.summary.itemCount).to.eql(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Merge Guest Cart into Customer Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionId\": \"{{guestSessionId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/cart/merge",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cart",
+                "merge"
+              ]
+            },
+            "description": "Atomic MongoDB transaction that merges the guest cart items into the authenticated customer cart. Caches and caps quantities against current inventory availability and returns structured issues ({ requested, resulting, available, reason }). Transitions guest cart to MERGED and clears session cookie."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Merge completed with issues array', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    pm.expect(json.data).to.have.property('cart');",
+                  "    pm.expect(json.data).to.have.property('merged');",
+                  "    pm.expect(json.data).to.have.property('issues');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8. Checkout Module",
+      "description": "Enterprise checkout transaction lifecycle: cart locking, multi-currency pricing, address recalculation, physical inventory holds, and payment webhooks.",
+      "item": [
+        {
+          "name": "Initiate Checkout (Lock Cart & Reserve Stock)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "chk_{{$timestamp}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shippingAddress\": {\n    \"firstName\": \"Alice\",\n    \"lastName\": \"Smith\",\n    \"street\": \"123 Market St\",\n    \"city\": \"San Francisco\",\n    \"state\": \"CA\",\n    \"postalCode\": \"94105\",\n    \"country\": \"US\"\n  },\n  \"billingAddress\": {\n    \"firstName\": \"Alice\",\n    \"lastName\": \"Smith\",\n    \"street\": \"123 Market St\",\n    \"city\": \"San Francisco\",\n    \"state\": \"CA\",\n    \"postalCode\": \"94105\",\n    \"country\": \"US\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/checkout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "checkout"
+              ]
+            },
+            "description": "Initiates a checkout session. Validates published catalog items and price drift against cart snapshot. In a single atomic MongoDB transaction, locks the cart, reserves physical stock in inventory, and creates an authoritative temporary checkout snapshot with a 15-minute TTL."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Checkout initiated and stock reserved', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    pm.expect(json.data).to.have.property('id');",
+                  "    pm.expect(json.data.status).to.eql('INVENTORY_RESERVED');",
+                  "    pm.expect(json.data.pricing).to.have.property('grandTotalMinor');",
+                  "    pm.environment.set('checkoutId', json.data.id);",
+                  "    pm.environment.set('checkoutVersion', json.data.version);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Checkout By ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/checkout/{{checkoutId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "checkout",
+                "{{checkoutId}}"
+              ]
+            },
+            "description": "Retrieves the temporary checkout snapshot by ID. Enforces strict multi-tenant customer and guest session isolation."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Retrieved valid checkout', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    pm.expect(json.data.id).to.eql(pm.environment.get('checkoutId'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Checkout Addresses (Recalculate Tax & Shipping)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shippingAddress\": {\n    \"firstName\": \"Alice\",\n    \"lastName\": \"Smith\",\n    \"street\": \"456 Mission Blvd\",\n    \"city\": \"San Jose\",\n    \"state\": \"CA\",\n    \"postalCode\": \"95112\",\n    \"country\": \"US\"\n  },\n  \"expectedVersion\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/checkout/{{checkoutId}}/addresses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "checkout",
+                "{{checkoutId}}",
+                "addresses"
+              ]
+            },
+            "description": "Updates shipping/billing addresses with OCC version checking. Recalculates tax and shipping totals atomically. Rejects mutations with 409 STATE_LOCKED once payment has been initiated (PAYMENT_PENDING)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Addresses updated and version incremented', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    pm.environment.set('checkoutVersion', json.data.version);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel Checkout (Release Hold & Unlock Cart)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expectedVersion\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/checkout/{{checkoutId}}/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "checkout",
+                "{{checkoutId}}",
+                "cancel"
+              ]
+            },
+            "description": "Explicit customer abandonment / cancellation. Releases the reserved physical inventory hold back to available stock, unlocks the cart back to ACTIVE, and transitions checkout status to CANCELLED."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Checkout cancelled and stock released', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    pm.expect(json.data.status).to.eql('CANCELLED');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Payment Gateway Webhook (Succeeded / Failed)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"payment.succeeded\",\n  \"checkoutId\": \"{{checkoutId}}\",\n  \"paymentIntentId\": \"pi_stripe_mock_001\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/checkout/webhook",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "checkout",
+                "webhook"
+              ]
+            },
+            "description": "Payment gateway webhook handler. On payment.succeeded, commits physical inventory reservation, marks cart CONVERTED, and transitions checkout to COMPLETED. On payment.failed, releases inventory reservation and restores cart to ACTIVE."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Webhook handled successfully', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
                   "});"
                 ],
                 "type": "text/javascript"

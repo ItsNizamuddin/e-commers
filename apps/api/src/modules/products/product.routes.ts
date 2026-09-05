@@ -9,6 +9,8 @@ import {
     updateProductSchema,
     productQuerySchema,
 } from "./product.validation.js";
+import { inventoryController } from "../inventory/inventory.controller.js";
+import { variantAvailabilityParamsSchema } from "../inventory/inventory.validation.js";
 
 const router = Router();
 
@@ -37,6 +39,13 @@ router.get(
     "/:id",
     optionalAuth,
     productController.getProductById
+);
+
+router.get(
+    "/:productId/variants/:variantId/availability",
+    optionalAuth,
+    validate(variantAvailabilityParamsSchema, "params"),
+    inventoryController.getVariantAvailability
 );
 
 router.patch(

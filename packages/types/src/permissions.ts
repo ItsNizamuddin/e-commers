@@ -21,6 +21,10 @@ export const Permissions = {
     ORDER_UPDATE: "order.update",
     ORDER_FULFILL: "order.fulfill",
 
+    INVENTORY_READ: "inventory.read",
+    INVENTORY_ADJUST: "inventory.adjust",
+    INVENTORY_UPDATE: "inventory.update",
+
     CUSTOMER_READ: "customer.read",
 
     ANALYTICS_READ: "analytics.read",
@@ -43,6 +47,9 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
         Permissions.PRODUCT_UPDATE,
         Permissions.PRODUCT_DELETE,
         Permissions.PRODUCT_PUBLISH,
+        Permissions.INVENTORY_READ,
+        Permissions.INVENTORY_ADJUST,
+        Permissions.INVENTORY_UPDATE,
         Permissions.ORDER_READ,
         Permissions.ORDER_UPDATE,
         Permissions.ORDER_FULFILL,
@@ -52,6 +59,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     SALES: [
         Permissions.CATEGORY_READ,
         Permissions.PRODUCT_READ,
+        Permissions.INVENTORY_READ,
         Permissions.ORDER_READ,
         Permissions.ORDER_UPDATE,
         Permissions.ORDER_FULFILL,
@@ -70,6 +78,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     SUPPORT_AGENT: [
         Permissions.CATEGORY_READ,
         Permissions.PRODUCT_READ,
+        Permissions.INVENTORY_READ,
         Permissions.CUSTOMER_READ,
         Permissions.ORDER_READ,
     ],
