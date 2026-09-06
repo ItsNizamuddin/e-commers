@@ -1,0 +1,84 @@
+:root {
+  /* Brand Primary Colors */
+  --ec-primary-50: #eff6ff;
+  --ec-primary-100: #dbeafe;
+  --ec-primary-200: #bfdbfe;
+  --ec-primary-300: #93c5fd;
+  --ec-primary-400: #60a5fa;
+  --ec-primary-500: #3b82f6;
+  --ec-primary-600: #2563eb;
+  --ec-primary-700: #1d4ed8;
+  --ec-primary-800: #1e40af;
+  --ec-primary-900: #1e3a8a;
+
+  /* Surfaces & Backgrounds */
+  --ec-surface: #ffffff;
+  --ec-bg-app: #f8fafc;
+  --ec-bg-subtle: #f1f5f9;
+  --ec-bg-muted: #e2e8f0;
+
+  /* Typography Colors */
+  --ec-text-primary: #0f172a;
+  --ec-text-secondary: #334155;
+  --ec-text-muted: #64748b;
+  --ec-text-subtle: #94a3b8;
+  --ec-text-inverse: #ffffff;
+
+  /* Borders */
+  --ec-border: #e2e8f0;
+  --ec-border-strong: #cbd5e1;
+  --ec-border-focus: #2563eb;
+
+  /* Status Colors */
+  --ec-success: #059669;
+  --ec-success-bg: #ecfdf5;
+  --ec-success-border: #a7f3d0;
+
+  --ec-warning: #d97706;
+  --ec-warning-bg: #fffbeb;
+  --ec-warning-border: #fde68a;
+
+  --ec-danger: #dc2626;
+  --ec-danger-bg: #fef2f2;
+  --ec-danger-border: #fecaca;
+
+  --ec-info: #0284c7;
+  --ec-info-bg: #f0f9ff;
+  --ec-info-border: #bae6fd;
+
+  /* Radii */
+  --ec-radius-xs: 4px;
+  --ec-radius-sm: 6px;
+  --ec-radius-md: 8px;
+  --ec-radius-lg: 12px;
+  --ec-radius-xl: 16px;
+  --ec-radius-full: 9999px;
+
+  /* Shadows */
+  --ec-shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --ec-shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.08);
+  --ec-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --ec-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  --ec-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+  --ec-shadow-card: 0 20px 40px -15px rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(226, 232, 240, 0.8);
+
+  /* Focus Ring */
+  --ec-ring: 0 0 0 3px rgba(37, 99, 235, 0.18);
+  --ec-ring-danger: 0 0 0 3px rgba(220, 38, 38, 0.18);
+
+  /* Transitions */
+  --ec-transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes ec-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ec-animate-spin {
+  animation: ec-spin 0.75s linear infinite;
+}

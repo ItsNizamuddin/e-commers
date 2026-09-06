@@ -11,31 +11,33 @@ export default function DashboardLoading() {
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                minHeight: "450px",
+                minHeight: "360px",
                 width: "100%",
-                padding: "4rem 2rem",
-                gap: "1.25rem",
+                padding: "3rem 1.5rem",
+                gap: "1rem",
             }}
         >
             <div
                 style={{
-                    width: "48px",
-                    height: "48px",
-                    borderRadius: "12px",
-                    backgroundColor: "#eff6ff",
+                    width: "40px",
+                    height: "40px",
+                    borderRadius: "10px",
+                    backgroundColor: "var(--ec-primary-50, #eff6ff)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    border: "1px solid #dbeafe",
+                    border: "1px solid var(--ec-primary-100, #dbeafe)",
+                    color: "var(--ec-primary-600, #2563eb)",
+                    boxShadow: "0 2px 4px 0 rgba(37, 99, 235, 0.06)",
                 }}
             >
-                <Spinner size="md" className="text-blue-600" />
+                <Spinner size="md" style={{ color: "var(--ec-primary-600, #2563eb)" }} />
             </div>
             <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: "0.9375rem", fontWeight: 600, color: "#0f172a" }}>
-                    Loading data...
+                <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--ec-text-primary, #0f172a)" }}>
+                    Loading...
                 </div>
-                <div style={{ fontSize: "0.8125rem", color: "#64748b", marginTop: "0.25rem" }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--ec-text-muted, #64748b)", marginTop: "0.125rem" }}>
                     Fetching records from ecommers backoffice
                 </div>
             </div>

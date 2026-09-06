@@ -9,7 +9,7 @@ import { Button, Card, Input, FormField } from "@ecommers/ui";
 import { api, setAccessToken } from "../../../lib/api";
 import { useAppDispatch } from "../../../store";
 import { setSession } from "../../../store/auth-slice";
-import { Lock, Mail, AlertCircle, Shield, Eye, EyeOff, CheckCircle2, Sparkles } from "lucide-react";
+import { Lock, Mail, AlertCircle, Shield, Eye, EyeOff } from "lucide-react";
 
 const loginSchema = z.object({
     email: z.string().min(1, "Email is required").email("Invalid email address"),
@@ -28,7 +28,6 @@ export default function AdminLoginPage() {
     const {
         register,
         handleSubmit,
-        setValue,
         formState: { errors },
     } = useForm<LoginFormData>({
         resolver: zodResolver(loginSchema),
@@ -54,12 +53,6 @@ export default function AdminLoginPage() {
                 setLoginError("Failed to sign in. Please verify your credentials.");
             }
         }
-    };
-
-    const handleQuickFill = (email: string, pass: string) => {
-        setValue("email", email, { shouldValidate: true });
-        setValue("password", pass, { shouldValidate: true });
-        setLoginError(null);
     };
 
     return (
@@ -122,74 +115,6 @@ export default function AdminLoginPage() {
                         padding: "2.25rem",
                     }}
                 >
-                    {/* Quick Demo Credentials Bar */}
-                    <div
-                        style={{
-                            marginBottom: "1.5rem",
-                            padding: "0.875rem",
-                            backgroundColor: "#f8fafc",
-                            border: "1px solid #e2e8f0",
-                            borderRadius: "10px",
-                        }}
-                    >
-                        <div
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "0.375rem",
-                                fontSize: "0.75rem",
-                                fontWeight: 600,
-                                color: "#475569",
-                                marginBottom: "0.5rem",
-                                textTransform: "uppercase",
-                                letterSpacing: "0.05em",
-                            }}
-                        >
-                            <Sparkles size={14} color="#2563eb" />
-                            <span>Quick Demo Sign In</span>
-                        </div>
-                        <div style={{ display: "flex", gap: "0.5rem" }}>
-                            <button
-                                type="button"
-                                onClick={() => handleQuickFill("superadmin@gmail.com", "admin@123")}
-                                disabled={isLoggingIn}
-                                style={{
-                                    flex: 1,
-                                    padding: "0.375rem 0.5rem",
-                                    fontSize: "0.75rem",
-                                    fontWeight: 600,
-                                    borderRadius: "6px",
-                                    border: "1px solid #cbd5e1",
-                                    backgroundColor: "#ffffff",
-                                    color: "#1e293b",
-                                    cursor: isLoggingIn ? "not-allowed" : "pointer",
-                                    transition: "all 0.15s ease",
-                                }}
-                            >
-                                Super Admin
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => handleQuickFill("admin@ecommers.local", "AdminPass123!")}
-                                disabled={isLoggingIn}
-                                style={{
-                                    flex: 1,
-                                    padding: "0.375rem 0.5rem",
-                                    fontSize: "0.75rem",
-                                    fontWeight: 600,
-                                    borderRadius: "6px",
-                                    border: "1px solid #cbd5e1",
-                                    backgroundColor: "#ffffff",
-                                    color: "#1e293b",
-                                    cursor: isLoggingIn ? "not-allowed" : "pointer",
-                                    transition: "all 0.15s ease",
-                                }}
-                            >
-                                Admin Role
-                            </button>
-                        </div>
-                    </div>
-
                     <form onSubmit={handleSubmit(onSubmit)} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
                         {loginError && (
                             <div
@@ -233,38 +158,37 @@ export default function AdminLoginPage() {
                             error={errors.password?.message}
                             id="password"
                         >
-                            <div style={{ position: "relative" }}>
-                                <Input
-                                    id="password"
-                                    type={showPassword ? "text" : "password"}
-                                    placeholder="••••••••"
-                                    leadingIcon={<Lock size={16} />}
-                                    error={errors.password?.message}
-                                    disabled={isLoggingIn}
-                                    {...register("password")}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    style={{
-                                        position: "absolute",
-                                        right: "12px",
-                                        top: "50%",
-                                        transform: "translateY(-50%)",
-                                        background: "none",
-                                        border: "none",
-                                        cursor: "pointer",
-                                        color: "#94a3b8",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        padding: "4px",
-                                    }}
-                                    tabIndex={-1}
-                                    title={showPassword ? "Hide password" : "Show password"}
-                                >
-                                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                </button>
-                            </div>
+                            <Input
+                                id="password"
+                                type={showPassword ? "text" : "password"}
+                                placeholder="••••••••"
+                                leadingIcon={<Lock size={16} />}
+                                trailingIcon={
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        style={{
+                                            background: "none",
+                                            border: "none",
+                                            cursor: "pointer",
+                                            color: "#94a3b8",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            padding: "2px",
+                                            borderRadius: "4px",
+                                            transition: "color 0.15s ease",
+                                        }}
+                                        tabIndex={-1}
+                                        title={showPassword ? "Hide password" : "Show password"}
+                                    >
+                                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                    </button>
+                                }
+                                error={errors.password?.message}
+                                disabled={isLoggingIn}
+                                {...register("password")}
+                            />
                         </FormField>
 
                         <Button
@@ -276,8 +200,6 @@ export default function AdminLoginPage() {
                             style={{
                                 width: "100%",
                                 marginTop: "0.5rem",
-                                backgroundColor: "#2563eb",
-                                borderRadius: "8px",
                                 fontWeight: 600,
                             }}
                         >
@@ -286,20 +208,16 @@ export default function AdminLoginPage() {
                     </form>
                 </Card>
 
-                {/* Secure Notice */}
+                {/* Enterprise Footer */}
                 <div
                     style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "0.5rem",
-                        marginTop: "1.5rem",
+                        textAlign: "center",
+                        marginTop: "1.75rem",
                         fontSize: "0.75rem",
-                        color: "#64748b",
+                        color: "var(--ec-text-subtle, #94a3b8)",
                     }}
                 >
-                    <CheckCircle2 size={14} color="#16a34a" />
-                    <span>256-bit encrypted enterprise session • Audit-logged</span>
+                    © {new Date().getFullYear()} ecommers • Enterprise Control Plane
                 </div>
             </div>
         </div>

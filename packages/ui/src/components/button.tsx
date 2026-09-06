@@ -9,6 +9,61 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
     rightIcon?: React.ReactNode;
 }
 
+const sizeStyles = {
+    sm: {
+        height: "32px",
+        padding: "0 0.75rem",
+        fontSize: "0.75rem",
+        gap: "0.375rem",
+        borderRadius: "6px",
+    },
+    md: {
+        height: "38px",
+        padding: "0 1rem",
+        fontSize: "0.875rem",
+        gap: "0.5rem",
+        borderRadius: "8px",
+    },
+    lg: {
+        height: "44px",
+        padding: "0 1.25rem",
+        fontSize: "0.9375rem",
+        gap: "0.5rem",
+        borderRadius: "8px",
+    },
+};
+
+const variantStyles = {
+    primary: {
+        backgroundColor: "var(--ec-primary-600, #2563eb)",
+        color: "#ffffff",
+        border: "1px solid transparent",
+        boxShadow: "0 1px 2px 0 rgba(37, 99, 235, 0.2)",
+    },
+    secondary: {
+        backgroundColor: "var(--ec-bg-subtle, #f1f5f9)",
+        color: "var(--ec-text-primary, #0f172a)",
+        border: "1px solid var(--ec-border, #e2e8f0)",
+        boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.03)",
+    },
+    outline: {
+        backgroundColor: "transparent",
+        color: "var(--ec-text-secondary, #334155)",
+        border: "1px solid var(--ec-border-strong, #cbd5e1)",
+    },
+    ghost: {
+        backgroundColor: "transparent",
+        color: "var(--ec-text-secondary, #334155)",
+        border: "1px solid transparent",
+    },
+    danger: {
+        backgroundColor: "var(--ec-danger, #dc2626)",
+        color: "#ffffff",
+        border: "1px solid transparent",
+        boxShadow: "0 1px 2px 0 rgba(220, 38, 38, 0.2)",
+    },
+};
+
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     (
         {
@@ -20,40 +75,45 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             rightIcon,
             disabled,
             className = "",
+            style,
+            type = "button",
             ...props
         },
         ref
     ) => {
-        const baseStyles =
-            "inline-flex items-center justify-center font-medium rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed select-none";
-
-        const sizeStyles = {
-            sm: "text-xs px-2.5 py-1.5 gap-1.5 h-8",
-            md: "text-sm px-3.5 py-2 gap-2 h-9",
-            lg: "text-base px-4 py-2.5 gap-2.5 h-11",
-        };
-
-        const variantStyles = {
-            primary: "bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 focus-visible:ring-indigo-500 shadow-sm",
-            secondary: "bg-zinc-100 text-zinc-900 hover:bg-zinc-200 active:bg-zinc-300 focus-visible:ring-zinc-400 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700",
-            outline: "border border-zinc-300 bg-transparent text-zinc-700 hover:bg-zinc-50 active:bg-zinc-100 focus-visible:ring-zinc-400 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800",
-            ghost: "bg-transparent text-zinc-700 hover:bg-zinc-100 active:bg-zinc-200 focus-visible:ring-zinc-400 dark:text-zinc-300 dark:hover:bg-zinc-800",
-            danger: "bg-rose-600 text-white hover:bg-rose-700 active:bg-rose-800 focus-visible:ring-rose-500 shadow-sm",
-        };
+        const sz = sizeStyles[size];
+        const vr = variantStyles[variant];
+        const isDisabled = disabled || isLoading;
 
         return (
             <button
                 ref={ref}
-                disabled={disabled || isLoading}
-                className={`${baseStyles} ${sizeStyles[size]} ${variantStyles[variant]} ${className}`}
+                type={type}
+                disabled={isDisabled}
+                className={`ec-button ${className}`}
+                style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: 600,
+                    cursor: isDisabled ? "not-allowed" : "pointer",
+                    opacity: isDisabled ? 0.75 : 1,
+                    transition: "var(--ec-transition, all 0.15s cubic-bezier(0.4, 0, 0.2, 1))",
+                    userSelect: "none",
+                    whiteSpace: "nowrap",
+                    boxSizing: "border-box",
+                    ...sz,
+                    ...vr,
+                    ...style,
+                }}
                 {...props}
             >
                 {isLoading ? (
-                    <Spinner size={size === "lg" ? "md" : "sm"} className="text-current" />
+                    <Spinner size={size === "lg" ? "md" : "sm"} />
                 ) : (
                     leftIcon
                 )}
-                <span>{children}</span>
+                {children && <span>{children}</span>}
                 {!isLoading && rightIcon}
             </button>
         );

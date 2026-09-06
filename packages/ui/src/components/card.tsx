@@ -1,9 +1,24 @@
 import React from "react";
 
-export function Card({ className = "", children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function Card({
+    className = "",
+    children,
+    style,
+    ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
     return (
         <div
-            className={`rounded-lg border border-zinc-200 bg-white text-zinc-950 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-50 ${className}`}
+            className={`ec-card ${className}`}
+            style={{
+                backgroundColor: "var(--ec-surface, #ffffff)",
+                border: "1px solid var(--ec-border, #e2e8f0)",
+                borderRadius: "var(--ec-radius-xl, 16px)",
+                boxShadow: "var(--ec-shadow-card, 0 4px 6px -1px rgba(0, 0, 0, 0.05))",
+                color: "var(--ec-text-primary, #0f172a)",
+                overflow: "hidden",
+                boxSizing: "border-box",
+                ...style,
+            }}
             {...props}
         >
             {children}
@@ -11,18 +26,46 @@ export function Card({ className = "", children, ...props }: React.HTMLAttribute
     );
 }
 
-export function CardHeader({ className = "", children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function CardHeader({
+    className = "",
+    children,
+    style,
+    ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
     return (
-        <div className={`flex flex-col space-y-1.5 p-5 ${className}`} {...props}>
+        <div
+            className={`ec-card-header ${className}`}
+            style={{
+                padding: "1.5rem 1.5rem 1rem 1.5rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.375rem",
+                ...style,
+            }}
+            {...props}
+        >
             {children}
         </div>
     );
 }
 
-export function CardTitle({ className = "", children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
+export function CardTitle({
+    className = "",
+    children,
+    style,
+    ...props
+}: React.HTMLAttributes<HTMLHeadingElement>) {
     return (
         <h3
-            className={`text-base font-semibold leading-none tracking-tight text-zinc-900 dark:text-zinc-100 ${className}`}
+            className={`ec-card-title ${className}`}
+            style={{
+                fontSize: "1.125rem",
+                fontWeight: 600,
+                color: "var(--ec-text-primary, #0f172a)",
+                letterSpacing: "-0.01em",
+                margin: 0,
+                ...style,
+            }}
             {...props}
         >
             {children}
@@ -30,25 +73,68 @@ export function CardTitle({ className = "", children, ...props }: React.HTMLAttr
     );
 }
 
-export function CardDescription({ className = "", children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
+export function CardDescription({
+    className = "",
+    children,
+    style,
+    ...props
+}: React.HTMLAttributes<HTMLParagraphElement>) {
     return (
-        <p className={`text-xs text-zinc-500 dark:text-zinc-400 ${className}`} {...props}>
+        <p
+            className={`ec-card-description ${className}`}
+            style={{
+                fontSize: "0.8125rem",
+                color: "var(--ec-text-muted, #64748b)",
+                margin: 0,
+                lineHeight: 1.4,
+                ...style,
+            }}
+            {...props}
+        >
             {children}
         </p>
     );
 }
 
-export function CardContent({ className = "", children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function CardContent({
+    className = "",
+    children,
+    style,
+    ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
     return (
-        <div className={`p-5 pt-0 ${className}`} {...props}>
+        <div
+            className={`ec-card-content ${className}`}
+            style={{
+                padding: "1.5rem",
+                boxSizing: "border-box",
+                ...style,
+            }}
+            {...props}
+        >
             {children}
         </div>
     );
 }
 
-export function CardFooter({ className = "", children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function CardFooter({
+    className = "",
+    children,
+    style,
+    ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
     return (
-        <div className={`flex items-center p-5 pt-0 ${className}`} {...props}>
+        <div
+            className={`ec-card-footer ${className}`}
+            style={{
+                padding: "1rem 1.5rem 1.5rem 1.5rem",
+                borderTop: "1px solid var(--ec-border, #e2e8f0)",
+                display: "flex",
+                alignItems: "center",
+                ...style,
+            }}
+            {...props}
+        >
             {children}
         </div>
     );

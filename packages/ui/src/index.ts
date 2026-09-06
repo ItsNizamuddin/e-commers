@@ -2,6 +2,7 @@
 export * from "./tokens/colors";
 export * from "./tokens/typography";
 export * from "./tokens/spacing";
+export * from "./tokens/theme";
 
 // Core Day-1 Primitives
 export * from "./components/button";
