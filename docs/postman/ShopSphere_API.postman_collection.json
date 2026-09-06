@@ -2747,6 +2747,178 @@
           ]
         }
       ]
+    },
+    {
+      "name": "11. Admin Analytics & Dashboard",
+      "description": "Executive dashboard metrics, time-series sales reports, and customer account analytics.",
+      "item": [
+        {
+          "name": "Get Executive Dashboard Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/dashboard?currency=USD",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "dashboard"
+              ],
+              "query": [
+                {
+                  "key": "currency",
+                  "value": "USD",
+                  "description": "ISO currency code (default: USD)"
+                }
+              ]
+            },
+            "description": "Retrieve executive dashboard metrics, gross/net revenue breakdown, orthogonal status counts, inventory alerts, and top products."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response contains valid dashboard metrics structure', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data.financials).to.be.an('object');",
+                  "    pm.expect(json.data.orders).to.be.an('object');",
+                  "    pm.expect(json.data.customers).to.be.an('object');",
+                  "    pm.expect(json.data.inventory).to.be.an('object');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Sales Analytics (Time-Series)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/analytics/sales?interval=day&currency=USD",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "analytics",
+                "sales"
+              ],
+              "query": [
+                {
+                  "key": "interval",
+                  "value": "day",
+                  "description": "Time interval: day, week, month"
+                },
+                {
+                  "key": "currency",
+                  "value": "USD",
+                  "description": "Currency code filter"
+                }
+              ]
+            },
+            "description": "Retrieve date-grouped sales and order volume time-series for chart visualizers."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Series contains time-series array', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data.series).to.be.an('array');",
+                  "    pm.expect(json.data.summary).to.be.an('object');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Customers (LTV & Orders Aggregation)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/customers?page=1&limit=20&sortBy=spent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "customers"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "spent",
+                  "description": "Sorting by spent, orders, or newest"
+                }
+              ]
+            },
+            "description": "Paginated customer accounts with computed lifetime spend and total orders."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response includes customers and pagination', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data).to.be.an('array');",
+                  "    pm.expect(json.pagination).to.be.an('object');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

@@ -9,3 +9,4 @@ export * from "./cart/index.js";
 export * from "./checkout/index.js";
 export * from "./payment/index.js";
 export * from "./order/index.js";
+export * from "./admin/index.js";

@@ -55,3 +55,29 @@ export const listStaffUsersQuerySchema = z.object({
 });
 
 export type ListStaffUsersQuery = z.infer<typeof listStaffUsersQuerySchema>;
+
+export const adminDashboardQuerySchema = z.object({
+    currency: z.string().trim().length(3).toUpperCase().optional().default("USD"),
+});
+
+export type AdminDashboardQuery = z.infer<typeof adminDashboardQuerySchema>;
+
+export const salesAnalyticsQuerySchema = z.object({
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+    interval: z.enum(["day", "week", "month"]).optional().default("day"),
+    currency: z.string().trim().length(3).toUpperCase().optional().default("USD"),
+});
+
+export type SalesAnalyticsQuery = z.infer<typeof salesAnalyticsQuerySchema>;
+
+export const customerListQuerySchema = z.object({
+    page: z.coerce.number().int().positive().optional().default(1),
+    limit: z.coerce.number().int().positive().max(100).optional().default(20),
+    search: z.string().trim().optional(),
+    status: z.enum(["active", "inactive"]).optional(),
+    sortBy: z.enum(["spent", "orders", "newest"]).optional().default("newest"),
+});
+
+export type CustomerListQuery = z.infer<typeof customerListQuerySchema>;
+

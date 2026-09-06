@@ -11,12 +11,18 @@ import {
     listStaffUsers,
     updateUserRole,
     updateUserStatus,
+    getDashboard,
+    getSalesAnalytics,
+    getCustomers,
 } from "./admin.controller.js";
 import {
     createStaffUserSchema,
     listStaffUsersQuerySchema,
     updateUserRoleSchema,
     updateUserStatusSchema,
+    adminDashboardQuerySchema,
+    salesAnalyticsQuerySchema,
+    customerListQuerySchema,
 } from "./admin.validation.js";
 import { adminInventoryRouter } from "../inventory/inventory.routes.js";
 
@@ -24,6 +30,33 @@ const router = Router();
 
 // Sub-router for Admin Inventory Operations (/admin/inventory/*)
 router.use("/inventory", adminInventoryRouter);
+
+// Executive Dashboard KPIs & Metrics (Requires 'analytics.read' permission - SUPER_ADMIN & ADMIN)
+router.get(
+    "/dashboard",
+    requireAuth,
+    requirePermission(Permissions.ANALYTICS_READ),
+    validate(adminDashboardQuerySchema, "query"),
+    asyncHandler(getDashboard),
+);
+
+// Sales & Revenue Time-Series Analytics
+router.get(
+    "/analytics/sales",
+    requireAuth,
+    requirePermission(Permissions.ANALYTICS_READ),
+    validate(salesAnalyticsQuerySchema, "query"),
+    asyncHandler(getSalesAnalytics),
+);
+
+// Customer Accounts List with aggregated lifetime value & order metrics
+router.get(
+    "/customers",
+    requireAuth,
+    requirePermission(Permissions.CUSTOMER_READ),
+    validate(customerListQuerySchema, "query"),
+    asyncHandler(getCustomers),
+);
 
 // Create new Staff / Admin account (Requires 'staff.create' permission - SUPER_ADMIN)
 router.post(

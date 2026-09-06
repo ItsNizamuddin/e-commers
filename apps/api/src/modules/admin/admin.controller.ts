@@ -5,6 +5,9 @@ import type {
     ListStaffUsersQuery,
     UpdateUserRoleInput,
     UpdateUserStatusInput,
+    AdminDashboardQuery,
+    SalesAnalyticsQuery,
+    CustomerListQuery,
 } from "./admin.validation.js";
 
 export const createStaffUser = async (
@@ -82,3 +85,48 @@ export const updateUserStatus = async (
         data: user,
     });
 };
+
+export const getDashboard = async (
+    req: Request,
+    res: Response,
+): Promise<void> => {
+    const query = req.query as unknown as AdminDashboardQuery;
+    const currency = query.currency || "USD";
+
+    const metrics = await adminService.getDashboardMetrics(currency);
+
+    res.status(200).json({
+        success: true,
+        data: metrics,
+    });
+};
+
+export const getSalesAnalytics = async (
+    req: Request,
+    res: Response,
+): Promise<void> => {
+    const query = req.query as unknown as SalesAnalyticsQuery;
+
+    const analytics = await adminService.getSalesAnalytics(query);
+
+    res.status(200).json({
+        success: true,
+        data: analytics,
+    });
+};
+
+export const getCustomers = async (
+    req: Request,
+    res: Response,
+): Promise<void> => {
+    const query = req.query as unknown as CustomerListQuery;
+
+    const result = await adminService.listCustomers(query);
+
+    res.status(200).json({
+        success: true,
+        data: result.data,
+        pagination: result.pagination,
+    });
+};
+
