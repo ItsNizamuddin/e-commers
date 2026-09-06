@@ -1,4 +1,4 @@
-import { Schema, model, models, Model } from "mongoose";
+import mongoose, { Schema, model, Model } from "mongoose";
 import { CheckoutDocument } from "../types/checkout.types.js";
 
 const CheckoutAddressSchema = new Schema(
@@ -217,5 +217,5 @@ CheckoutSchema.index({ customerId: 1, status: 1 });
 CheckoutSchema.index({ guestSessionId: 1, status: 1 });
 
 export const CheckoutModel =
-    (models.Checkout as Model<CheckoutDocument>) ||
+    (mongoose.models.Checkout as Model<CheckoutDocument>) ||
     model<CheckoutDocument>("Checkout", CheckoutSchema);

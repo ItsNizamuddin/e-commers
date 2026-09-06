@@ -1,4 +1,4 @@
-import type { ApiClient } from "../client.js";
+import type { ApiClient } from "../client";
 import type { CheckoutResponse, UpdateCheckoutAddressesInput, InitCheckoutInput } from "@ecommers/types";
 
 export class CheckoutClient {

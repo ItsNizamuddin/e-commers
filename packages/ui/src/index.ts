@@ -1,22 +1,22 @@
 // Design Tokens
-export * from "./tokens/colors.js";
-export * from "./tokens/typography.js";
-export * from "./tokens/spacing.js";
+export * from "./tokens/colors";
+export * from "./tokens/typography";
+export * from "./tokens/spacing";
 
 // Core Day-1 Primitives
-export * from "./components/button.js";
-export * from "./components/spinner.js";
-export * from "./components/input.js";
-export * from "./components/badge.js";
-export * from "./components/card.js";
-export * from "./components/table.js";
-export * from "./components/pagination.js";
-export * from "./components/modal.js";
-export * from "./components/dropdown.js";
-export * from "./components/skeleton.js";
-export * from "./components/empty-state.js";
-export * from "./components/error-state.js";
-export * from "./components/confirm-dialog.js";
+export * from "./components/button";
+export * from "./components/spinner";
+export * from "./components/input";
+export * from "./components/badge";
+export * from "./components/card";
+export * from "./components/table";
+export * from "./components/pagination";
+export * from "./components/modal";
+export * from "./components/dropdown";
+export * from "./components/skeleton";
+export * from "./components/empty-state";
+export * from "./components/error-state";
+export * from "./components/confirm-dialog";
 
 // Forms Integration
-export * from "./forms/form-field.js";
+export * from "./forms/form-field";

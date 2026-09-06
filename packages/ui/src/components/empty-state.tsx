@@ -1,5 +1,5 @@
 import React from "react";
-import { Button } from "./button.js";
+import { Button } from "./button";
 
 export interface EmptyStateProps {
     title: string;

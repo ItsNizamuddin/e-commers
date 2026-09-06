@@ -1,4 +1,4 @@
-import type { ApiClient } from "../client.js";
+import type { ApiClient } from "../client";
 import type { ReviewResponse, ProductReviewsResponse, CreateReviewInput, UpdateReviewInput, ReviewQueryOptions } from "@ecommers/types";
 
 export class ReviewsClient {

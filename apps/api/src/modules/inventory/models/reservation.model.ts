@@ -1,4 +1,4 @@
-import { Schema, model, models, Model } from "mongoose";
+import mongoose, { Schema, model, Model } from "mongoose";
 import { ReservationDocument } from "../types/reservation.types.js";
 
 const ReservationItemSchema = new Schema(
@@ -78,5 +78,5 @@ const ReservationSchema = new Schema<ReservationDocument>(
 ReservationSchema.index({ status: 1, expiresAt: 1 });
 
 export const ReservationModel =
-    (models.Reservation as Model<ReservationDocument>) ||
+    (mongoose.models.Reservation as Model<ReservationDocument>) ||
     model<ReservationDocument>("Reservation", ReservationSchema);

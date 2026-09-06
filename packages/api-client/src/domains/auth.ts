@@ -1,4 +1,4 @@
-import type { ApiClient } from "../client.js";
+import type { ApiClient } from "../client";
 import type { UserResponse } from "@ecommers/types";
 
 export interface AuthLoginInput {

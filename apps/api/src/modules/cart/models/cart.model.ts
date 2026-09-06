@@ -1,4 +1,4 @@
-import { Schema, model, models, Model } from "mongoose";
+import mongoose, { Schema, model, Model } from "mongoose";
 import { CartDocument, CartItemDocument } from "../types/cart.types.js";
 
 const CartItemPriceSnapshotSchema = new Schema(
@@ -167,4 +167,4 @@ CartSchema.index(
 CartSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export const CartModel =
-    (models.Cart as Model<CartDocument>) || model<CartDocument>("Cart", CartSchema);
+    (mongoose.models.Cart as Model<CartDocument>) || model<CartDocument>("Cart", CartSchema);

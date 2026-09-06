@@ -1,4 +1,4 @@
-import type { ApiClient } from "../client.js";
+import type { ApiClient } from "../client";
 import type { OrderResponse, OrderListQuery, UpdateFulfillmentInput, CancelOrderInput } from "@ecommers/types";
 
 export interface OrderListResponse {

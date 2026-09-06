@@ -1,4 +1,4 @@
-import type { ApiClient } from "../client.js";
+import type { ApiClient } from "../client";
 import type {
     AdminDashboardMetrics,
     SalesAnalyticsResponse,

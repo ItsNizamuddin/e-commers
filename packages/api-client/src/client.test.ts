@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { ApiClient } from "./client.js";
-import { ApiClientError } from "./errors.js";
-import { createInMemoryTokenStore } from "./token-store.js";
+import { ApiClient } from "./client";
+import { ApiClientError } from "./errors";
+import { createInMemoryTokenStore } from "./token-store";
 
 describe("ApiClient", () => {
     it("serializes query parameters and performs standard GET request", async () => {

@@ -1,4 +1,4 @@
-import { ApiClientError } from "./errors.js";
+import { ApiClientError } from "./errors";
 
 export interface RequestOptions extends RequestInit {
     params?: Record<string, any>;

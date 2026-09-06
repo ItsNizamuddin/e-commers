@@ -4,7 +4,7 @@ export * from "./category.js";
 export * from "./seo.js";
 export * from "./audit.js";
 export * from "./product.js";
-export * from "./inventory.js";
+export * from "./inventory/index.js";
 export * from "./cart/index.js";
 export * from "./checkout/index.js";
 export * from "./payment/index.js";

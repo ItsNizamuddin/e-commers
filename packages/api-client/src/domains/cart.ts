@@ -1,4 +1,4 @@
-import type { ApiClient } from "../client.js";
+import type { ApiClient } from "../client";
 import type { CartResponse, AddToCartInput } from "@ecommers/types";
 
 export class CartClient {

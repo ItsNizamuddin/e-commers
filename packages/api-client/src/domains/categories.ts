@@ -1,4 +1,4 @@
-import type { ApiClient } from "../client.js";
+import type { ApiClient } from "../client";
 import type { CategoryResponse, CreateCategoryInput, UpdateCategoryInput, CategoryQueryOptions } from "@ecommers/types";
 
 export class CategoriesClient {

@@ -1,4 +1,4 @@
-import { Schema, model, models, Model } from "mongoose";
+import mongoose, { Schema, model, Model } from "mongoose";
 import { AuditActorSchema } from "../../../database/schemas/audit-actor.schema.js";
 import { StockMovementDocument } from "../types/stock-movement.types.js";
 
@@ -124,5 +124,5 @@ StockMovementSchema.index({ variantId: 1, createdAt: -1 });
 StockMovementSchema.index({ referenceType: 1, referenceId: 1 });
 
 export const StockMovementModel =
-    (models.StockMovement as Model<StockMovementDocument>) ||
+    (mongoose.models.StockMovement as Model<StockMovementDocument>) ||
     model<StockMovementDocument>("StockMovement", StockMovementSchema);

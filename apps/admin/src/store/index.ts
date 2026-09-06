@@ -1,7 +1,7 @@
 import { configureStore } from "@reduxjs/toolkit";
 import { useDispatch, useSelector, TypedUseSelectorHook } from "react-redux";
-import adminAuthReducer from "./auth-slice.js";
-import adminUiReducer from "./ui-slice.js";
+import adminAuthReducer from "./auth-slice";
+import adminUiReducer from "./ui-slice";
 
 export const store = configureStore({
     reducer: {
