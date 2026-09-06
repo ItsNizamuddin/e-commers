@@ -49,6 +49,7 @@ export class PaymentController {
             const signatureHeader =
                 (req.headers["stripe-signature"] as string) ||
                 (req.headers["x-webhook-signature"] as string) ||
+                (req.headers["x-payment-signature"] as string) ||
                 (req.headers["x-mock-signature"] as string) ||
                 "";
 

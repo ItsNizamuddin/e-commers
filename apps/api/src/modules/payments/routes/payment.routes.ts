@@ -7,14 +7,19 @@ import {
 } from "../validation/payment.validation.js";
 import { cartIdentityMiddleware } from "../../cart/middleware/cart-identity.middleware.js";
 
+import { optionalAuth } from "../../auth/auth.middleware.js";
+
 const router = Router();
+
+// Apply optionalAuth so authenticated users are recognized automatically
+router.use(optionalAuth);
 
 // Public Webhook (Secured by HMAC / Gateway Signature)
 router.post("/webhook", paymentController.handleWebhook);
 
-// Intent creation (Authenticated user or Guest session)
+// Intent creation (Authenticated user or Guest session) - supports both /intent and /intents
 router.post(
-    "/intent",
+    ["/intent", "/intents"],
     cartIdentityMiddleware,
     validate(createPaymentIntentSchema, "body"),
     paymentController.createIntent

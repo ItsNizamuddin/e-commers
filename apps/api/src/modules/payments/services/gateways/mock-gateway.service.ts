@@ -56,8 +56,8 @@ export class MockPaymentGateway implements IPaymentGateway {
 
         return {
             provider: "MOCK",
-            eventId: parsed.eventId || `evt_${crypto.randomBytes(8).toString("hex")}`,
-            eventType: parsed.event || parsed.eventType,
+            eventId: parsed.id || parsed.eventId || `evt_${crypto.randomBytes(8).toString("hex")}`,
+            eventType: parsed.type || parsed.event || parsed.eventType || "payment.unknown",
             paymentIntentId: parsed.paymentIntentId || "",
             checkoutId: parsed.checkoutId || "",
             amountMinor: parsed.amountMinor ?? 0,
