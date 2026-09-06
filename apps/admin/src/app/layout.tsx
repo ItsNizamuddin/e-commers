@@ -1,7 +1,6 @@
-import React, { Suspense } from "react";
+import React from "react";
 import type { Metadata } from "next";
 import { StoreProvider } from "../store/provider";
-import { NavigationProgress } from "../components/navigation-progress";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,9 +17,6 @@ export default function RootLayout({
         <html lang="en">
             <body>
                 <StoreProvider>
-                    <Suspense fallback={null}>
-                        <NavigationProgress />
-                    </Suspense>
                     {children}
                 </StoreProvider>
             </body>

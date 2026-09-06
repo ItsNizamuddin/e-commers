@@ -7,10 +7,6 @@ import {
     Search,
     Sun,
     Bell,
-    CheckCircle2,
-    ShieldAlert,
-    ClipboardList,
-    Gift,
     ChevronDown,
     Loader2,
 } from "lucide-react";
@@ -25,8 +21,6 @@ export function Topbar() {
     const role = useAppSelector((state) => state.auth.role);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [emailVerified, setEmailVerified] = useState(false);
-    const [twoFactorSetup, setTwoFactorSetup] = useState(false);
 
     const handleLogout = async () => {
         setIsLoggingOut(true);
@@ -82,7 +76,7 @@ export function Topbar() {
                         boxShadow: "0 2px 6px -1px rgba(37, 99, 235, 0.4)",
                     }}
                 >
-                    S
+                    E
                 </div>
                 <div style={{ display: "flex", alignItems: "baseline", gap: "0.25rem" }}>
                     <span
@@ -108,91 +102,8 @@ export function Topbar() {
                 </div>
             </div>
 
-            {/* Right: Quick Action Pills, Search, Notifications, User Chip */}
+            {/* Right: Search, Notifications, User Chip */}
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                {/* Action Pills */}
-                <button
-                    type="button"
-                    onClick={() => setEmailVerified(!emailVerified)}
-                    style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "0.375rem",
-                        padding: "0.3125rem 0.75rem",
-                        borderRadius: "9999px",
-                        fontSize: "0.75rem",
-                        fontWeight: 600,
-                        backgroundColor: emailVerified ? "#f0fdf4" : "#eff6ff",
-                        color: emailVerified ? "#15803d" : "#2563eb",
-                        border: `1px solid ${emailVerified ? "#bbf7d0" : "#dbeafe"}`,
-                        cursor: "pointer",
-                        transition: "all 0.15s ease",
-                    }}
-                >
-                    <CheckCircle2 size={13} />
-                    <span>{emailVerified ? "Email verified" : "Verify email"}</span>
-                </button>
-
-                <button
-                    type="button"
-                    onClick={() => setTwoFactorSetup(!twoFactorSetup)}
-                    style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "0.375rem",
-                        padding: "0.3125rem 0.75rem",
-                        borderRadius: "9999px",
-                        fontSize: "0.75rem",
-                        fontWeight: 600,
-                        backgroundColor: twoFactorSetup ? "#f0fdf4" : "#fffbeb",
-                        color: twoFactorSetup ? "#15803d" : "#b45309",
-                        border: `1px solid ${twoFactorSetup ? "#bbf7d0" : "#fef3c7"}`,
-                        cursor: "pointer",
-                        transition: "all 0.15s ease",
-                    }}
-                >
-                    <ShieldAlert size={13} />
-                    <span>{twoFactorSetup ? "2FA Enabled" : "Setup 2FA"}</span>
-                </button>
-
-                {/* Quick Icon Tools */}
-                <button
-                    type="button"
-                    title="Audit Tasks"
-                    style={{
-                        width: "32px",
-                        height: "32px",
-                        borderRadius: "50%",
-                        border: "1px solid #e2e8f0",
-                        backgroundColor: "#ffffff",
-                        color: "#64748b",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                    }}
-                >
-                    <ClipboardList size={15} />
-                </button>
-
-                <button
-                    type="button"
-                    title="Special Promotions"
-                    style={{
-                        width: "32px",
-                        height: "32px",
-                        borderRadius: "50%",
-                        border: "1px solid #e2e8f0",
-                        backgroundColor: "#ffffff",
-                        color: "#64748b",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                    }}
-                >
-                    <Gift size={15} />
-                </button>
 
                 {/* Search Bar with ⌘K */}
                 <div

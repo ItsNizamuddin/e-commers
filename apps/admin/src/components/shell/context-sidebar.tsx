@@ -79,12 +79,16 @@ export function ContextSidebar() {
             { label: "Reviews Moderation", href: "/reviews", icon: Star },
             { label: "Product Catalog", href: "/products", icon: Package },
         ];
+    } else if (pathname.startsWith("/analytics") || pathname.startsWith("/dashboard")) {
+        subItems = [
+            { label: "Executive Dashboard", href: "/dashboard", icon: Layers },
+            { label: "Sales Analytics", href: "/analytics", icon: Star },
+        ];
     } else {
-        // Default to Account Context (matching reference screenshot)
+        // Default to Account Context
         subItems = [
             { label: "My details", href: "/account", icon: User },
-            { label: "Login & security", href: "/account?tab=security", icon: Lock },
-            { label: "Active sessions", href: "/account?tab=sessions", icon: Radio },
+            { label: "Staff & RBAC", href: "/staff", icon: Shield },
         ];
     }
 
@@ -105,29 +109,6 @@ export function ContextSidebar() {
                 gap: "1.25rem",
             }}
         >
-            {/* Top Verify Pill */}
-            <div>
-                <button
-                    type="button"
-                    style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "0.375rem",
-                        padding: "0.3125rem 0.75rem",
-                        borderRadius: "9999px",
-                        fontSize: "0.75rem",
-                        fontWeight: 600,
-                        backgroundColor: "#eff6ff",
-                        color: "#2563eb",
-                        border: "1px solid #dbeafe",
-                        cursor: "pointer",
-                    }}
-                >
-                    <Mail size={13} />
-                    <span>Verify email</span>
-                </button>
-            </div>
-
             {/* Authenticated As User Card */}
             <div
                 style={{

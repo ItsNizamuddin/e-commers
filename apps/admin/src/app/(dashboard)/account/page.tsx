@@ -270,7 +270,7 @@ export default function AccountPage() {
                             </span>
                         </div>
 
-                        {/* Verification Status */}
+                        {/* System Role */}
                         <div>
                             <div
                                 style={{
@@ -282,7 +282,7 @@ export default function AccountPage() {
                                     marginBottom: "0.5rem",
                                 }}
                             >
-                                VERIFICATION STATUS
+                                SYSTEM ROLE
                             </div>
                             <span
                                 style={{
@@ -293,13 +293,13 @@ export default function AccountPage() {
                                     borderRadius: "9999px",
                                     fontSize: "0.75rem",
                                     fontWeight: 700,
-                                    backgroundColor: "#fef2f2",
-                                    color: "#dc2626",
-                                    border: "1px solid #fecaca",
+                                    backgroundColor: "#eff6ff",
+                                    color: "#2563eb",
+                                    border: "1px solid #dbeafe",
                                 }}
                             >
-                                <AlertCircle size={13} />
-                                <span>UNVERIFIED</span>
+                                <CheckCircle2 size={13} />
+                                <span>{role ? role.replace("_", " ") : "SUPER ADMIN"}</span>
                             </span>
                         </div>
 

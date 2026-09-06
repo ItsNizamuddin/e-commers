@@ -15,7 +15,6 @@ import {
     BarChart3,
     UserCheck,
     ChevronRight,
-    LayoutGrid,
 } from "lucide-react";
 
 interface NavGroup {
@@ -42,7 +41,7 @@ const NAV_GROUPS: NavGroup[] = [
         title: "INFRASTRUCTURE & TOOLS",
         items: [
             { label: "Orders", href: "/orders", icon: ShoppingBag, hasSub: true },
-            { label: "Products", href: "/products", icon: Package, badge: "New", badgeColor: "#10b981", hasSub: true },
+            { label: "Products", href: "/products", icon: Package, hasSub: true },
             { label: "Categories", href: "/categories", icon: FolderTree },
             { label: "Inventory Matrix", href: "/inventory", icon: Warehouse, hasSub: true },
         ],
@@ -50,7 +49,7 @@ const NAV_GROUPS: NavGroup[] = [
     {
         title: "GROWTH & REVENUE",
         items: [
-            { label: "Sales Analytics", href: "/analytics", icon: BarChart3, badge: "Soon", badgeColor: "#f59e0b" },
+            { label: "Sales Analytics", href: "/analytics", icon: BarChart3 },
             { label: "Customer LTV", href: "/customers", icon: Users },
             { label: "Product Reviews", href: "/reviews", icon: Star },
         ],
@@ -194,20 +193,6 @@ export function Sidebar() {
                     />
                     <span>BUILD V1.0.0</span>
                 </div>
-                <button
-                    type="button"
-                    title="Grid Layout"
-                    style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        color: "#94a3b8",
-                        display: "flex",
-                        alignItems: "center",
-                    }}
-                >
-                    <LayoutGrid size={15} />
-                </button>
             </div>
         </aside>
     );
