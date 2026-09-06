@@ -151,7 +151,7 @@ export default function AdminLoginPage() {
                         <div style={{ display: "flex", gap: "0.5rem" }}>
                             <button
                                 type="button"
-                                onClick={() => handleQuickFill("superadmin@gmail.com", "SuperAdmin123!")}
+                                onClick={() => handleQuickFill("superadmin@gmail.com", "admin@123")}
                                 disabled={isLoggingIn}
                                 style={{
                                     flex: 1,

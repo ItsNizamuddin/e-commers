@@ -58,12 +58,27 @@ if (!parsedEnv.success) {
     process.exit(1);
 }
 
+const resolveDatabaseUrl = (url: string, nodeEnv: string): string => {
+    if (nodeEnv === "test") {
+        if (process.env.TEST_DATABASE_URL) {
+            return process.env.TEST_DATABASE_URL;
+        }
+        if (url.includes("/ecommers?")) {
+            return url.replace("/ecommers?", "/ecommers_test?");
+        }
+        if (url.endsWith("/ecommers")) {
+            return `${url}_test`;
+        }
+    }
+    return url;
+};
+
 export const env = {
     nodeEnv: parsedEnv.data.NODE_ENV,
     logLevel: parsedEnv.data.LOG_LEVEL,
     port: parsedEnv.data.PORT,
     corsOrigin: parsedEnv.data.CORS_ORIGIN,
-    databaseUrl: parsedEnv.data.DATABASE_URL,
+    databaseUrl: resolveDatabaseUrl(parsedEnv.data.DATABASE_URL, parsedEnv.data.NODE_ENV),
     jwtAccessSecret: parsedEnv.data.JWT_ACCESS_SECRET,
     jwtRefreshSecret: parsedEnv.data.JWT_REFRESH_SECRET,
     jwtAccessExpiresIn: parsedEnv.data.JWT_ACCESS_EXPIRES_IN,

@@ -10,7 +10,7 @@ export const seedDefaultSuperAdmin = async (): Promise<void> => {
         const existingSuperAdmin = await UserModel.findOne({ role: "SUPER_ADMIN" });
 
         if (existingSuperAdmin) {
-            logger.info("Default SUPER_ADMIN account already initialized.");
+            logger.info(`Default SUPER_ADMIN account already initialized and exists: ${existingSuperAdmin.email}`);
             return;
         }
 
