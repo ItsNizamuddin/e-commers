@@ -1,4 +1,4 @@
-import { Schema, model, models, Model } from "mongoose";
+import mongoose, { Schema, model, Model } from "mongoose";
 import { AuditActorSchema } from "../../../database/schemas/audit-actor.schema.js";
 import { InventoryDocument } from "../types/inventory.types.js";
 
@@ -87,5 +87,5 @@ InventorySchema.index({ productId: 1, variantId: 1 });
 InventorySchema.index({ reorderThreshold: 1, onHand: 1 });
 
 export const InventoryModel =
-    (models.Inventory as Model<InventoryDocument>) ||
+    (mongoose.models.Inventory as Model<InventoryDocument>) ||
     model<InventoryDocument>("Inventory", InventorySchema);

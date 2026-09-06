@@ -1,4 +1,4 @@
-import { Schema, model, models, Model, Document } from "mongoose";
+import mongoose, { Schema, model, Model, Document } from "mongoose";
 import { IProduct } from "./product.types.js";
 import { SeoSchema } from "../../database/schemas/seo.schema.js";
 import { AuditActorSchema } from "../../database/schemas/audit-actor.schema.js";
@@ -143,4 +143,4 @@ ProductSchema.index({ status: 1, "variants.prices.currency": 1, "variants.prices
 ProductSchema.index({ title: "text", description: "text", brand: "text", tags: "text" });
 
 export const ProductModel =
-    (models.Product as Model<ProductDocument>) || model<ProductDocument>("Product", ProductSchema);
+    (mongoose.models.Product as Model<ProductDocument>) || model<ProductDocument>("Product", ProductSchema);

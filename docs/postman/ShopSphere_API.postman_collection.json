@@ -3471,6 +3471,274 @@
           ]
         }
       ]
+    },
+    {
+      "name": "14. Search & Discovery",
+      "description": "Full-text catalog keyword search, structured category hierarchy, brand filtering, explicit currency price bounds, and faceted aggregation.",
+      "item": [
+        {
+          "name": "Search Catalog (Faceted & Paginated)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/search?page=1&limit=20&currency=USD",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "currency",
+                  "value": "USD",
+                  "description": "ISO currency code (default: USD)"
+                }
+              ]
+            },
+            "description": "Public storefront search endpoint returning paginated published products and aggregated brand/category/price facets."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Contains items, pagination, and facets', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data.items).to.be.an('array');",
+                  "    pm.expect(json.data.pagination).to.be.an('object');",
+                  "    pm.expect(json.data.facets).to.be.an('object');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Keyword Full-Text Search",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/search?q=headphones&currency=USD&sortBy=relevance",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "headphones",
+                  "description": "Text search query"
+                },
+                {
+                  "key": "currency",
+                  "value": "USD"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "relevance",
+                  "description": "relevance, price_asc, price_desc, rating, newest"
+                }
+              ]
+            },
+            "description": "Search products using MongoDB full-text index with text relevance scoring."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Returns matched products', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data.items).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Category & Subcategory Filter",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/search?categoryId={{categoryId}}&currency=USD",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "categoryId",
+                  "value": "{{categoryId}}",
+                  "description": "Filter by category or subcategory ID"
+                },
+                {
+                  "key": "currency",
+                  "value": "USD"
+                }
+              ]
+            },
+            "description": "Filter products belonging to a category or any of its descendant subcategories."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Filtered by category', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Brand & In-Stock Availability Filter",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/search?brand=Apple&inStock=true&currency=USD",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "brand",
+                  "value": "Apple",
+                  "description": "Exact brand filter"
+                },
+                {
+                  "key": "inStock",
+                  "value": "true",
+                  "description": "Only show products with active inventory"
+                },
+                {
+                  "key": "currency",
+                  "value": "USD"
+                }
+              ]
+            },
+            "description": "Filter catalog items by specific brand and read-only in-stock availability."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Items match brand and are in stock', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    json.data.items.forEach(function (item) {",
+                  "        pm.expect(item.brand).to.eql('Apple');",
+                  "        pm.expect(item.inStock).to.be.true;",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Price Bounds & Sorting",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/search?minPrice=100&maxPrice=600&currency=USD&sortBy=price_asc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "minPrice",
+                  "value": "100",
+                  "description": "Lower price bound"
+                },
+                {
+                  "key": "maxPrice",
+                  "value": "600",
+                  "description": "Upper price bound"
+                },
+                {
+                  "key": "currency",
+                  "value": "USD",
+                  "description": "Explicit currency for price filtering"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "price_asc",
+                  "description": "price_asc, price_desc, rating, newest"
+                }
+              ]
+            },
+            "description": "Explicit price bounds query sorted in ascending price order."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Items within price range', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    json.data.items.forEach(function (item) {",
+                  "        pm.expect(item.price.amount).to.be.at.least(100);",
+                  "        pm.expect(item.price.amount).to.be.at.most(600);",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }
