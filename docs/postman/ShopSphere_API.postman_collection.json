@@ -2919,6 +2919,296 @@
           ]
         }
       ]
+    },
+    {
+      "name": "12. Product Reviews",
+      "description": "Customer product reviews, verified purchase verification, rating aggregations, and helpful votes.",
+      "item": [
+        {
+          "name": "List Product Reviews & Ratings",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/products/:productId/reviews?page=1&limit=10&sortBy=newest",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                ":productId",
+                "reviews"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "newest",
+                  "description": "newest, oldest, highest, lowest, helpful"
+                },
+                {
+                  "key": "rating",
+                  "value": "5",
+                  "disabled": true,
+                  "description": "Filter by specific rating (1-5)"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "productId",
+                  "value": "{{productId}}",
+                  "description": "Target product ID"
+                }
+              ]
+            },
+            "description": "Retrieve paginated reviews for a product along with overall rating statistics and star distribution."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response contains reviews, stats, and pagination', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data.reviews).to.be.an('array');",
+                  "    pm.expect(json.data.stats).to.be.an('object');",
+                  "    pm.expect(json.pagination).to.be.an('object');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Product Review (Verified Purchaser)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 5,\n  \"title\": \"Exceptional build quality\",\n  \"comment\": \"I have been using this product for 2 weeks now and the craftsmanship is outstanding. Highly recommended!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/products/:productId/reviews",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                ":productId",
+                "reviews"
+              ],
+              "variable": [
+                {
+                  "key": "productId",
+                  "value": "{{productId}}",
+                  "description": "Target product ID"
+                }
+              ]
+            },
+            "description": "Submit a review for a product. Requires authentication and a completed, delivered order containing the product."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Review created with verifiedPurchase: true', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data.verifiedPurchase).to.be.true;",
+                  "    pm.expect(json.data.rating).to.eql(5);",
+                  "    pm.environment.set('reviewId', json.data.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Own Review",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 4,\n  \"title\": \"Updated feedback after 1 month\",\n  \"comment\": \"Still great quality, minor wear on corners after heavy use.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/reviews/:reviewId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reviews",
+                ":reviewId"
+              ],
+              "variable": [
+                {
+                  "key": "reviewId",
+                  "value": "{{reviewId}}",
+                  "description": "Target review ID"
+                }
+              ]
+            },
+            "description": "Update the author's own review, triggering automatic recalculation of the product average rating."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Review updated successfully', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data.rating).to.eql(4);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Toggle Helpful Vote",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reviews/:reviewId/vote",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reviews",
+                ":reviewId",
+                "vote"
+              ],
+              "variable": [
+                {
+                  "key": "reviewId",
+                  "value": "{{reviewId}}",
+                  "description": "Target review ID"
+                }
+              ]
+            },
+            "description": "Toggle an authenticated user's helpful vote on a review. Calling again removes the vote."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Helpful vote toggled', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data.helpfulVotes).to.be.a('number');",
+                  "    pm.expect(json.data.hasVotedHelpful).to.be.a('boolean');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Review",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reviews/:reviewId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reviews",
+                ":reviewId"
+              ],
+              "variable": [
+                {
+                  "key": "reviewId",
+                  "value": "{{reviewId}}",
+                  "description": "Target review ID"
+                }
+              ]
+            },
+            "description": "Delete a review. Permitted for the original author or any administrator. Automatically recalculates product ratings."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Review deletion confirmation', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.message).to.be.a('string');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

@@ -11,6 +11,12 @@ import {
 } from "./product.validation.js";
 import { inventoryController } from "../inventory/inventory.controller.js";
 import { variantAvailabilityParamsSchema } from "../inventory/inventory.validation.js";
+import { reviewController } from "../reviews/controllers/review.controller.js";
+import {
+    productIdParamsSchema,
+    createReviewSchema,
+    reviewQuerySchema,
+} from "../reviews/validation/review.validation.js";
 
 const router = Router();
 
@@ -46,6 +52,22 @@ router.get(
     optionalAuth,
     validate(variantAvailabilityParamsSchema, "params"),
     inventoryController.getVariantAvailability
+);
+
+router.get(
+    "/:productId/reviews",
+    optionalAuth,
+    validate(productIdParamsSchema, "params"),
+    validate(reviewQuerySchema, "query"),
+    reviewController.getProductReviews
+);
+
+router.post(
+    "/:productId/reviews",
+    authenticate,
+    validate(productIdParamsSchema, "params"),
+    validate(createReviewSchema, "body"),
+    reviewController.createReview
 );
 
 router.patch(

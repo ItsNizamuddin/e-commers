@@ -53,6 +53,8 @@ export class ProductService {
             images: doc.images,
             tags: doc.tags,
             status: doc.status,
+            averageRating: doc.averageRating ?? 0,
+            reviewCount: doc.reviewCount ?? 0,
             version: doc.version,
             createdAt: doc.createdAt.toISOString(),
             updatedAt: doc.updatedAt.toISOString(),

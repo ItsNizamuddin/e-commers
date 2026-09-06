@@ -107,6 +107,18 @@ const ProductSchema = new Schema<ProductDocument>(
             type: Schema.Types.Mixed,
             default: undefined,
         },
+        averageRating: {
+            type: Number,
+            default: 0,
+            min: 0,
+            max: 5,
+            index: true,
+        },
+        reviewCount: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
         version: {
             type: Number,
             default: 1,

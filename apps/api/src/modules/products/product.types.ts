@@ -28,6 +28,8 @@ export interface IProduct {
     storageInstructions?: string;
     seo?: SeoMetadata;
     metadata?: Record<string, unknown>;
+    averageRating: number;
+    reviewCount: number;
     version: number;
     createdBy?: AuditActor;
     updatedBy?: AuditActor;
