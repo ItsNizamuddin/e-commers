@@ -1,8 +1,9 @@
 "use client";
 
 import React from "react";
-import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
+import { Sidebar } from "./sidebar";
+import { ContextSidebar } from "./context-sidebar";
 
 interface AdminShellProps {
     children: React.ReactNode;
@@ -10,17 +11,26 @@ interface AdminShellProps {
 
 export function AdminShell({ children }: AdminShellProps) {
     return (
-        <div style={{ display: "flex", minHeight: "100vh", backgroundColor: "#f8fafc" }}>
-            <Sidebar />
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-                <Topbar />
+        <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", backgroundColor: "#f8fafc" }}>
+            {/* Full-width sticky topbar */}
+            <Topbar />
+
+            {/* Dual-Sidebar Layout + Main Content */}
+            <div style={{ display: "flex", flex: 1, minHeight: "calc(100vh - 64px)" }}>
+                {/* Primary Sidebar */}
+                <Sidebar />
+
+                {/* Contextual Sub-Sidebar */}
+                <ContextSidebar />
+
+                {/* Main Content Canvas */}
                 <main
                     style={{
                         flex: 1,
-                        padding: "1.5rem 2rem",
+                        padding: "2rem 2.5rem",
                         maxWidth: "1440px",
-                        width: "100%",
-                        margin: "0 auto",
+                        minWidth: 0,
+                        overflowY: "auto",
                     }}
                 >
                     {children}

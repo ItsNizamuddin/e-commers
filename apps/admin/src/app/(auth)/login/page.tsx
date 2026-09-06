@@ -9,7 +9,7 @@ import { Button, Card, Input, FormField } from "@ecommers/ui";
 import { api, setAccessToken } from "../../../lib/api";
 import { useAppDispatch } from "../../../store";
 import { setSession } from "../../../store/auth-slice";
-import { Lock, Mail, AlertCircle, Shield } from "lucide-react";
+import { Lock, Mail, AlertCircle, Shield, Eye, EyeOff, CheckCircle2, Sparkles } from "lucide-react";
 
 const loginSchema = z.object({
     email: z.string().min(1, "Email is required").email("Invalid email address"),
@@ -22,11 +22,14 @@ export default function AdminLoginPage() {
     const router = useRouter();
     const dispatch = useAppDispatch();
     const [loginError, setLoginError] = useState<string | null>(null);
+    const [showPassword, setShowPassword] = useState(false);
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
 
     const {
         register,
         handleSubmit,
-        formState: { errors, isSubmitting },
+        setValue,
+        formState: { errors },
     } = useForm<LoginFormData>({
         resolver: zodResolver(loginSchema),
         defaultValues: {
@@ -37,18 +40,26 @@ export default function AdminLoginPage() {
 
     const onSubmit = async (data: LoginFormData) => {
         setLoginError(null);
+        setIsLoggingIn(true);
         try {
             const res = await api.auth.adminLogin(data);
             setAccessToken(res.accessToken);
             dispatch(setSession(res.user));
             router.replace("/dashboard");
         } catch (err: unknown) {
+            setIsLoggingIn(false);
             if (err instanceof Error) {
                 setLoginError(err.message);
             } else {
                 setLoginError("Failed to sign in. Please verify your credentials.");
             }
         }
+    };
+
+    const handleQuickFill = (email: string, pass: string) => {
+        setValue("email", email, { shouldValidate: true });
+        setValue("password", pass, { shouldValidate: true });
+        setLoginError(null);
     };
 
     return (
@@ -58,42 +69,46 @@ export default function AdminLoginPage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: "#0f172a",
-                padding: "1.5rem",
+                backgroundColor: "#f8fafc",
+                backgroundImage: `
+                    radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.06) 0px, transparent 50%),
+                    radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.05) 0px, transparent 50%)
+                `,
+                padding: "2rem 1.5rem",
             }}
         >
-            <div style={{ width: "100%", maxWidth: "420px" }}>
+            <div style={{ width: "100%", maxWidth: "440px" }}>
                 {/* Brand Header */}
                 <div style={{ textAlign: "center", marginBottom: "2rem" }}>
                     <div
                         style={{
-                            width: "48px",
-                            height: "48px",
-                            borderRadius: "12px",
+                            width: "52px",
+                            height: "52px",
+                            borderRadius: "14px",
                             backgroundColor: "#2563eb",
                             display: "inline-flex",
                             alignItems: "center",
                             justifyContent: "center",
                             color: "#ffffff",
                             marginBottom: "1rem",
-                            boxShadow: "0 10px 15px -3px rgba(37, 99, 235, 0.3)",
+                            boxShadow: "0 10px 25px -5px rgba(37, 99, 235, 0.35)",
                         }}
                     >
-                        <Shield size={26} />
+                        <Shield size={28} />
                     </div>
                     <h1
                         style={{
-                            fontSize: "1.5rem",
-                            fontWeight: 700,
-                            color: "#f8fafc",
-                            letterSpacing: "-0.025em",
-                            marginBottom: "0.25rem",
+                            fontSize: "1.75rem",
+                            fontWeight: 800,
+                            color: "#0f172a",
+                            letterSpacing: "-0.03em",
+                            marginBottom: "0.375rem",
                         }}
                     >
-                        ecommers Backoffice
+                        ecommers <span style={{ color: "#2563eb" }}>Admin</span>
                     </h1>
-                    <p style={{ fontSize: "0.875rem", color: "#94a3b8" }}>
-                        Administrative Portal & Control Plane
+                    <p style={{ fontSize: "0.875rem", color: "#64748b" }}>
+                        Enterprise Control Plane & Store Operations
                     </p>
                 </div>
 
@@ -101,12 +116,80 @@ export default function AdminLoginPage() {
                 <Card
                     style={{
                         backgroundColor: "#ffffff",
-                        borderRadius: "12px",
-                        boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+                        borderRadius: "16px",
+                        boxShadow: "0 10px 30px -5px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02)",
                         border: "1px solid #e2e8f0",
-                        padding: "2rem",
+                        padding: "2.25rem",
                     }}
                 >
+                    {/* Quick Demo Credentials Bar */}
+                    <div
+                        style={{
+                            marginBottom: "1.5rem",
+                            padding: "0.875rem",
+                            backgroundColor: "#f8fafc",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: "10px",
+                        }}
+                    >
+                        <div
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.375rem",
+                                fontSize: "0.75rem",
+                                fontWeight: 600,
+                                color: "#475569",
+                                marginBottom: "0.5rem",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.05em",
+                            }}
+                        >
+                            <Sparkles size={14} color="#2563eb" />
+                            <span>Quick Demo Sign In</span>
+                        </div>
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                            <button
+                                type="button"
+                                onClick={() => handleQuickFill("superadmin@gmail.com", "SuperAdmin123!")}
+                                disabled={isLoggingIn}
+                                style={{
+                                    flex: 1,
+                                    padding: "0.375rem 0.5rem",
+                                    fontSize: "0.75rem",
+                                    fontWeight: 600,
+                                    borderRadius: "6px",
+                                    border: "1px solid #cbd5e1",
+                                    backgroundColor: "#ffffff",
+                                    color: "#1e293b",
+                                    cursor: isLoggingIn ? "not-allowed" : "pointer",
+                                    transition: "all 0.15s ease",
+                                }}
+                            >
+                                Super Admin
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleQuickFill("admin@ecommers.local", "AdminPass123!")}
+                                disabled={isLoggingIn}
+                                style={{
+                                    flex: 1,
+                                    padding: "0.375rem 0.5rem",
+                                    fontSize: "0.75rem",
+                                    fontWeight: 600,
+                                    borderRadius: "6px",
+                                    border: "1px solid #cbd5e1",
+                                    backgroundColor: "#ffffff",
+                                    color: "#1e293b",
+                                    cursor: isLoggingIn ? "not-allowed" : "pointer",
+                                    transition: "all 0.15s ease",
+                                }}
+                            >
+                                Admin Role
+                            </button>
+                        </div>
+                    </div>
+
                     <form onSubmit={handleSubmit(onSubmit)} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
                         {loginError && (
                             <div
@@ -136,9 +219,10 @@ export default function AdminLoginPage() {
                             <Input
                                 id="email"
                                 type="email"
-                                placeholder="admin@ecommers.local"
+                                placeholder="name@ecommers.com"
                                 leadingIcon={<Mail size={16} />}
                                 error={errors.email?.message}
+                                disabled={isLoggingIn}
                                 {...register("email")}
                             />
                         </FormField>
@@ -149,39 +233,74 @@ export default function AdminLoginPage() {
                             error={errors.password?.message}
                             id="password"
                         >
-                            <Input
-                                id="password"
-                                type="password"
-                                placeholder="••••••••"
-                                leadingIcon={<Lock size={16} />}
-                                error={errors.password?.message}
-                                {...register("password")}
-                            />
+                            <div style={{ position: "relative" }}>
+                                <Input
+                                    id="password"
+                                    type={showPassword ? "text" : "password"}
+                                    placeholder="••••••••"
+                                    leadingIcon={<Lock size={16} />}
+                                    error={errors.password?.message}
+                                    disabled={isLoggingIn}
+                                    {...register("password")}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    style={{
+                                        position: "absolute",
+                                        right: "12px",
+                                        top: "50%",
+                                        transform: "translateY(-50%)",
+                                        background: "none",
+                                        border: "none",
+                                        cursor: "pointer",
+                                        color: "#94a3b8",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        padding: "4px",
+                                    }}
+                                    tabIndex={-1}
+                                    title={showPassword ? "Hide password" : "Show password"}
+                                >
+                                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                </button>
+                            </div>
                         </FormField>
 
                         <Button
                             type="submit"
                             variant="primary"
                             size="lg"
-                            isLoading={isSubmitting}
-                            style={{ width: "100%", marginTop: "0.5rem" }}
+                            isLoading={isLoggingIn}
+                            disabled={isLoggingIn}
+                            style={{
+                                width: "100%",
+                                marginTop: "0.5rem",
+                                backgroundColor: "#2563eb",
+                                borderRadius: "8px",
+                                fontWeight: 600,
+                            }}
                         >
-                            Sign In to Portal
+                            {isLoggingIn ? "Authenticating session..." : "Sign in to Dashboard"}
                         </Button>
                     </form>
                 </Card>
 
                 {/* Secure Notice */}
-                <p
+                <div
                     style={{
-                        textAlign: "center",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "0.5rem",
+                        marginTop: "1.5rem",
                         fontSize: "0.75rem",
                         color: "#64748b",
-                        marginTop: "1.5rem",
                     }}
                 >
-                    Authorized personnel only. Sessions and access attempts are monitored and audited.
-                </p>
+                    <CheckCircle2 size={14} color="#16a34a" />
+                    <span>256-bit encrypted enterprise session • Audit-logged</span>
+                </div>
             </div>
         </div>
     );
