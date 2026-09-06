@@ -1,4 +1,4 @@
-import { WebhookNormalizedEvent } from "@shopsphere/types";
+import { WebhookNormalizedEvent } from "@ecommers/types";
 
 export interface CreatePaymentIntentParams {
     amountMinor: number;

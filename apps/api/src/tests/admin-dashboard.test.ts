@@ -50,7 +50,7 @@ describe("Admin Analytics & Dashboard Integration Tests", () => {
         const regA = await request(app)
             .post("/api/v1/auth/register")
             .send({
-                email: "customer.dash.a@shopsphere.test",
+                email: "customer.dash.a@ecommers.test",
                 password: "Password123!",
                 firstName: "Alice",
                 lastName: "AdminTest",
@@ -60,7 +60,7 @@ describe("Admin Analytics & Dashboard Integration Tests", () => {
         const loginA = await request(app)
             .post("/api/v1/auth/login")
             .send({
-                email: "customer.dash.a@shopsphere.test",
+                email: "customer.dash.a@ecommers.test",
                 password: "Password123!",
             });
         customerToken = loginA.body.data.accessToken;
@@ -69,7 +69,7 @@ describe("Admin Analytics & Dashboard Integration Tests", () => {
         const regB = await request(app)
             .post("/api/v1/auth/register")
             .send({
-                email: "customer.dash.b@shopsphere.test",
+                email: "customer.dash.b@ecommers.test",
                 password: "Password123!",
                 firstName: "Bob",
                 lastName: "AdminTest",
@@ -146,7 +146,7 @@ describe("Admin Analytics & Dashboard Integration Tests", () => {
             checkoutId: new Types.ObjectId(),
             paymentId: new Types.ObjectId(),
             customerId: new Types.ObjectId(customerAId),
-            customerEmailSnapshot: "customer.dash.a@shopsphere.test",
+            customerEmailSnapshot: "customer.dash.a@ecommers.test",
             items: [
                 {
                     productId: testProductId,
@@ -198,7 +198,7 @@ describe("Admin Analytics & Dashboard Integration Tests", () => {
             checkoutId: new Types.ObjectId(),
             paymentId: new Types.ObjectId(),
             customerId: new Types.ObjectId(customerBId),
-            customerEmailSnapshot: "customer.dash.b@shopsphere.test",
+            customerEmailSnapshot: "customer.dash.b@ecommers.test",
             items: [
                 {
                     productId: testProductId,
@@ -250,7 +250,7 @@ describe("Admin Analytics & Dashboard Integration Tests", () => {
             checkoutId: new Types.ObjectId(),
             paymentId: new Types.ObjectId(),
             customerId: new Types.ObjectId(customerAId),
-            customerEmailSnapshot: "customer.dash.a@shopsphere.test",
+            customerEmailSnapshot: "customer.dash.a@ecommers.test",
             items: [
                 {
                     productId: testProductId,
@@ -444,8 +444,8 @@ describe("Admin Analytics & Dashboard Integration Tests", () => {
         // Alice has Order 1 ($205.00) and Order 3 ($100 CANCELLED -> ignored in spend)
         // Bob has Order 2 ($165.00)
         // Sorted by spent descending: Alice first ($205.00), Bob second ($165.00)
-        const alice = res.body.data.find((c: any) => c.email === "customer.dash.a@shopsphere.test");
-        const bob = res.body.data.find((c: any) => c.email === "customer.dash.b@shopsphere.test");
+        const alice = res.body.data.find((c: any) => c.email === "customer.dash.a@ecommers.test");
+        const bob = res.body.data.find((c: any) => c.email === "customer.dash.b@ecommers.test");
 
         expect(alice).toBeDefined();
         expect(alice.orderCount).toBe(1); // active orders

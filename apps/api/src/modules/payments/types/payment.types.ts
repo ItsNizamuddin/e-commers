@@ -1,5 +1,5 @@
 import { Document, Types } from "mongoose";
-import { PaymentProvider, PaymentStatus, PaymentEventStatus } from "@shopsphere/types";
+import { PaymentProvider, PaymentStatus, PaymentEventStatus } from "@ecommers/types";
 
 export interface IPayment {
     checkoutId: Types.ObjectId;

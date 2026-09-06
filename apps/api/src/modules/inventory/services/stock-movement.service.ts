@@ -4,7 +4,7 @@ import {
     StockMovementResponse,
     StockMovementType,
     AdjustInventoryInput,
-} from "@shopsphere/types";
+} from "@ecommers/types";
 import { AppError } from "../../../utils/app-error.js";
 import { withTransaction } from "../../../database/transaction.js";
 import { StockMovementDocument } from "../types/stock-movement.types.js";

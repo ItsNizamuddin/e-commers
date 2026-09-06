@@ -9,7 +9,7 @@ import type {
     AddToWishlistInput,
     MoveWishlistItemToCartInput,
     MoveWishlistItemToCartResponse,
-} from "@shopsphere/types";
+} from "@ecommers/types";
 
 export class WishlistService {
     constructor(

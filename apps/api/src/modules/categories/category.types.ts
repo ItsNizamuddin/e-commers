@@ -1,7 +1,7 @@
 import { Types } from "mongoose";
-import { ICategorySEO, AuditActor } from "@shopsphere/types";
+import { ICategorySEO, AuditActor } from "@ecommers/types";
 
-export * from "@shopsphere/types";
+export * from "@ecommers/types";
 
 export interface ICategory {
     _id: Types.ObjectId;

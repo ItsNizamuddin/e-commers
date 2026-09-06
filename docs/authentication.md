@@ -1,12 +1,12 @@
-# ShopSphere — Authentication & Security Architecture
+# Ecommers — Authentication & Security Architecture
 
-This document specifies the authentication protocol, authorization models, password security standards, and security controls for **ShopSphere**.
+This document specifies the authentication protocol, authorization models, password security standards, and security controls for **Ecommers**.
 
 ---
 
 ## 1. Authentication Strategy
 
-ShopSphere utilizes a dual-token **JWT Access Token + Refresh Token** authentication pattern stored in `HttpOnly`, `SameSite=Strict` cookies or standard Bearer authorization headers.
+Ecommers utilizes a dual-token **JWT Access Token + Refresh Token** authentication pattern stored in `HttpOnly`, `SameSite=Strict` cookies or standard Bearer authorization headers.
 
 ```
 CLIENT (Browser/Mobile)                 EXPRESS API SERVER                  MONGODB DATABASE
@@ -53,7 +53,7 @@ res.cookie('refreshToken', token, {
 
 ## 2. Password Security & Storage
 
-ShopSphere strictly mandates secure password handling to protect user credentials:
+Ecommers strictly mandates secure password handling to protect user credentials:
 
 1. **Hashing Algorithm**: Argon2id (or bcrypt with salt round cost factor $\ge 12$).
 2. **Pepper / Salt**: Unique random salt per password automatically handled by the hashing library.
@@ -66,7 +66,7 @@ ShopSphere strictly mandates secure password handling to protect user credential
 
 ## 3. Role-Based Access Control (RBAC) & Fine-Grained Authorization
 
-ShopSphere enforces multi-tier enterprise authorization boundaries across 6 distinct user roles:
+Ecommers enforces multi-tier enterprise authorization boundaries across 6 distinct user roles:
 
 1. **`SUPER_ADMIN`**: Unrestricted executive access (system management, role administration, security, full catalog & order controls).
 2. **`ADMIN`**: General operational administrator (catalog management, sales operations, customer accounts, analytics).
@@ -129,7 +129,7 @@ Rate limits prevent brute-force attacks and denial-of-service attempts:
 - **General API Routes**: Max 100 requests per minute per IP.
 
 ### 4.3 CORS & Security Headers
-- **CORS Allowlist**: Configured strictly to allow requests only from trusted domains (e.g., `https://shopsphere.com`).
+- **CORS Allowlist**: Configured strictly to allow requests only from trusted domains (e.g., `https://ecommers.com`).
 - **Helmet Security Headers**:
   - `Strict-Transport-Security` (HSTS)
   - `X-Content-Type-Options: nosniff`

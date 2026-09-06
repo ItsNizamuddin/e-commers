@@ -1,6 +1,6 @@
-# ShopSphere — Production-Grade E-Commerce Platform
+# Ecommers — Production-Grade E-Commerce Platform
 
-ShopSphere is a realistic, enterprise-grade e-commerce platform built as a **Modular Monolith** using Next.js, Node.js + Express, and MongoDB.
+Ecommers is a realistic, enterprise-grade e-commerce platform built as a **Modular Monolith** using Next.js, Node.js + Express, and MongoDB.
 
 ---
 

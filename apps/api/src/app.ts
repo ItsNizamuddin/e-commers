@@ -26,9 +26,17 @@ declare global {
 const app = express();
 app.use(requestLogger);
 
+const allowedOrigins = env.corsOrigin.split(",").map((o) => o.trim());
+
 app.use(helmet());
 app.use(cors({
-    origin: env.corsOrigin,
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin) || env.nodeEnv === "development") {
+            callback(null, true);
+        } else {
+            callback(new Error("CORS request origin rejected"));
+        }
+    },
     credentials: true,
 }));
 app.use(express.json({

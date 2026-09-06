@@ -3,7 +3,7 @@ import {
     AuditActor,
     StockMovementType,
     MovementReferenceType,
-} from "@shopsphere/types";
+} from "@ecommers/types";
 import { AppError } from "../../../utils/app-error.js";
 import { InventoryModel } from "../models/inventory.model.js";
 import { InventoryDocument } from "../types/inventory.types.js";

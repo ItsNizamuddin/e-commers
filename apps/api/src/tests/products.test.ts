@@ -40,7 +40,7 @@ describe("Product & Catalog Module Integration Tests", () => {
             .post("/api/v1/admin/users")
             .set("Authorization", `Bearer ${superAdminToken}`)
             .send({
-                email: "support@shopsphere.com",
+                email: "support@ecommers.com",
                 password: "Password123!",
                 firstName: "Support",
                 lastName: "Agent",
@@ -50,7 +50,7 @@ describe("Product & Catalog Module Integration Tests", () => {
         const supportLogin = await request(app)
             .post("/api/v1/auth/admin/login")
             .send({
-                email: "support@shopsphere.com",
+                email: "support@ecommers.com",
                 password: "Password123!",
             });
         supportToken = supportLogin.body.data.accessToken;
@@ -142,7 +142,7 @@ describe("Product & Catalog Module Integration Tests", () => {
                     servingSize: "100g",
                 },
                 seo: {
-                    metaTitle: "Buy Organic Honeycrisp Apples | ShopSphere Fresh",
+                    metaTitle: "Buy Organic Honeycrisp Apples | Ecommers Fresh",
                     metaDescription: "Fresh organic honeycrisp apples delivered directly to your doorstep.",
                 },
             });

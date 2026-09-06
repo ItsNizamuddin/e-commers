@@ -72,7 +72,7 @@ describe("Payment & Order Module Enterprise Architecture Tests", () => {
         const regA = await request(app)
             .post("/api/v1/auth/register")
             .send({
-                email: "customer.order.a@shopsphere.test",
+                email: "customer.order.a@ecommers.test",
                 password: "Password123!",
                 firstName: "Customer",
                 lastName: "Alpha",
@@ -82,7 +82,7 @@ describe("Payment & Order Module Enterprise Architecture Tests", () => {
         const loginA = await request(app)
             .post("/api/v1/auth/login")
             .send({
-                email: "customer.order.a@shopsphere.test",
+                email: "customer.order.a@ecommers.test",
                 password: "Password123!",
             });
         customerAToken = loginA.body.data.accessToken;
@@ -91,7 +91,7 @@ describe("Payment & Order Module Enterprise Architecture Tests", () => {
         const regB = await request(app)
             .post("/api/v1/auth/register")
             .send({
-                email: "customer.order.b@shopsphere.test",
+                email: "customer.order.b@ecommers.test",
                 password: "Password123!",
                 firstName: "Customer",
                 lastName: "Beta",
@@ -101,7 +101,7 @@ describe("Payment & Order Module Enterprise Architecture Tests", () => {
         const loginB = await request(app)
             .post("/api/v1/auth/login")
             .send({
-                email: "customer.order.b@shopsphere.test",
+                email: "customer.order.b@ecommers.test",
                 password: "Password123!",
             });
         customerBToken = loginB.body.data.accessToken;
@@ -275,7 +275,7 @@ describe("Payment & Order Module Enterprise Architecture Tests", () => {
 
         // Initialize guest checkout
         const initRes = await agent.post("/api/v1/checkout").send({
-            email: "guest.shopper@shopsphere.test",
+            email: "guest.shopper@ecommers.test",
             shippingAddress: {
                 firstName: "Guest",
                 lastName: "Shopper",
@@ -811,7 +811,7 @@ describe("Payment & Order Module Enterprise Architecture Tests", () => {
         });
 
         const initRes = await agent.post("/api/v1/checkout").send({
-            email: "possession.guest@shopsphere.test",
+            email: "possession.guest@ecommers.test",
             shippingAddress: {
                 firstName: "Guest",
                 lastName: "User",

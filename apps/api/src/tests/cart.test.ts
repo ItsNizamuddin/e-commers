@@ -49,7 +49,7 @@ describe("Cart Module Enterprise & Production Architecture Tests", () => {
         const regA = await request(app)
             .post("/api/v1/auth/register")
             .send({
-                email: "customer.a@shopsphere.test",
+                email: "customer.a@ecommers.test",
                 password: "Password123!",
                 firstName: "Customer",
                 lastName: "Alpha",
@@ -59,7 +59,7 @@ describe("Cart Module Enterprise & Production Architecture Tests", () => {
         const loginA = await request(app)
             .post("/api/v1/auth/login")
             .send({
-                email: "customer.a@shopsphere.test",
+                email: "customer.a@ecommers.test",
                 password: "Password123!",
             });
         customerAToken = loginA.body.data.accessToken;
@@ -68,7 +68,7 @@ describe("Cart Module Enterprise & Production Architecture Tests", () => {
         const regB = await request(app)
             .post("/api/v1/auth/register")
             .send({
-                email: "customer.b@shopsphere.test",
+                email: "customer.b@ecommers.test",
                 password: "Password123!",
                 firstName: "Customer",
                 lastName: "Beta",
@@ -78,7 +78,7 @@ describe("Cart Module Enterprise & Production Architecture Tests", () => {
         const loginB = await request(app)
             .post("/api/v1/auth/login")
             .send({
-                email: "customer.b@shopsphere.test",
+                email: "customer.b@ecommers.test",
                 password: "Password123!",
             });
         customerBToken = loginB.body.data.accessToken;

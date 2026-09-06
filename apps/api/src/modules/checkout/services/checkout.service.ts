@@ -4,7 +4,7 @@ import {
     InitCheckoutInput,
     PriceDriftIssue,
     UpdateCheckoutAddressesInput,
-} from "@shopsphere/types";
+} from "@ecommers/types";
 import { AppError } from "../../../utils/app-error.js";
 import { withTransaction } from "../../../database/transaction.js";
 import { UserModel } from "../../users/user.model.js";

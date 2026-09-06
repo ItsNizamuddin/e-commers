@@ -1,5 +1,5 @@
 import { Types, ClientSession } from "mongoose";
-import { AuditActor } from "@shopsphere/types";
+import { AuditActor } from "@ecommers/types";
 import { CategoryModel, CategoryDocument } from "./category.model.js";
 import { CategoryQueryOptions, CreateCategoryInput, UpdateCategoryInput } from "./category.types.js";
 

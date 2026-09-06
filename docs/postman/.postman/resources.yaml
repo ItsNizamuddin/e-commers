@@ -4,6 +4,6 @@ workspace:
 
 localResources:
   collections:
-    - ../ShopSphere_API.postman_collection.json
+    - ../Ecommers_API.postman_collection.json
   environments:
-    - ../ShopSphere_Local.postman_environment.json
+    - ../Ecommers_Local.postman_environment.json

@@ -1,12 +1,12 @@
-# ShopSphere — System Design Document
+# Ecommers — System Design Document
 
-This document outlines the system design and architecture for **ShopSphere**, an enterprise-grade e-commerce platform.
+This document outlines the system design and architecture for **Ecommers**, an enterprise-grade e-commerce platform.
 
 ---
 
 ## 1. Target System Architecture
 
-ShopSphere adopts a decoupled architecture separating the presentation layer from backend business services and persistent storage:
+Ecommers adopts a decoupled architecture separating the presentation layer from backend business services and persistent storage:
 
 ```
                          ┌─────────────────┐
@@ -47,7 +47,7 @@ ShopSphere adopts a decoupled architecture separating the presentation layer fro
 
 ## 2. Architectural Choice: Modular Monolith
 
-ShopSphere is intentionally built as a **Modular Monolith** rather than microservices.
+Ecommers is intentionally built as a **Modular Monolith** rather than microservices.
 
 ### 2.1 Monolith Structure
 
@@ -67,7 +67,7 @@ All domain modules reside within a single Node.js / Express application, organiz
 
 ### 2.2 Microservices vs. Modular Monolith Trade-Off Analysis
 
-| Architectural Dimension | Microservices | Modular Monolith (ShopSphere) |
+| Architectural Dimension | Microservices | Modular Monolith (Ecommers) |
 | :--- | :--- | :--- |
 | **Service Discovery** | Requires Consul / Eureka / K8s DNS | Standard in-process function calls |
 | **Network Latency** | High (RPC/HTTP call per boundary) | Low (Zero network overhead between modules) |
@@ -76,7 +76,7 @@ All domain modules reside within a single Node.js / Express application, organiz
 | **Distributed Tracing** | Requires OpenTelemetry / Jaeger | Single request ID correlation log |
 | **Developer Overhead** | Very High (Contract management per service) | Low (Shared TypeScript domain interfaces) |
 
-> **Design Decision**: At initial phase, microservices add unnecessary operational tax without business benefit. ShopSphere enforces strict module isolation at the code level, enabling future extraction of modules (e.g., `Payments` or `Inventory`) into independent microservices if traffic demands it.
+> **Design Decision**: At initial phase, microservices add unnecessary operational tax without business benefit. Ecommers enforces strict module isolation at the code level, enabling future extraction of modules (e.g., `Payments` or `Inventory`) into independent microservices if traffic demands it.
 
 ---
 
@@ -163,7 +163,7 @@ Without Race Condition Protection:
 ```
 
 #### The Solution: Atomic Conditional Updates
-ShopSphere prevents overselling using **atomic database conditional updates** directly in MongoDB. We never check stock in application memory and update later.
+Ecommers prevents overselling using **atomic database conditional updates** directly in MongoDB. We never check stock in application memory and update later.
 
 ```sql
 UPDATE inventory 
@@ -191,7 +191,7 @@ if (!updatedInventory) {
 ```
 
 #### Optimistic Concurrency Control (OCC)
-For updates involving multi-field business rules, ShopSphere incorporates version-based OCC (`version` or `__v` field):
+For updates involving multi-field business rules, Ecommers incorporates version-based OCC (`version` or `__v` field):
 
 ```typescript
 const updatedProduct = await ProductModel.findOneAndUpdate(
@@ -209,7 +209,7 @@ if (!updatedProduct) {
 
 ## 5. Payment Architecture & Security Flow
 
-ShopSphere **never trusts the frontend** to verify payment success. The frontend only acts as an interface to capture card credentials via Payment Gateway SDKs (e.g., Stripe Elements).
+Ecommers **never trusts the frontend** to verify payment success. The frontend only acts as an interface to capture card credentials via Payment Gateway SDKs (e.g., Stripe Elements).
 
 ```
    CUSTOMER                NEXT.JS FRONTEND           EXPRESS API BACKEND            PAYMENT PROVIDER (STRIPE)

@@ -2,7 +2,7 @@
 
 * **Status**: Accepted
 * **Date**: 2026-08-30
-* **Deciders**: ShopSphere Engineering Team
+* **Deciders**: Ecommers Engineering Team
 
 ---
 
@@ -10,7 +10,7 @@
 
 When a user submits a checkout request or payment, transient network latency may cause the client to retry the request or prompt the user to double-click the "Pay" button. Without idempotency controls, retried write requests can result in **double charging** or **duplicate order creation**.
 
-How should ShopSphere guarantee idempotency for state-modifying HTTP API endpoints?
+How should Ecommers guarantee idempotency for state-modifying HTTP API endpoints?
 
 ## Decision Drivers
 
@@ -20,7 +20,7 @@ How should ShopSphere guarantee idempotency for state-modifying HTTP API endpoin
 
 ## Decision Outcome
 
-ShopSphere enforces an `X-Idempotency-Key` header requirement for critical write operations (`POST /checkout/initiate`, `POST /orders`).
+Ecommers enforces an `X-Idempotency-Key` header requirement for critical write operations (`POST /checkout/initiate`, `POST /orders`).
 
 ### Implementation Workflow
 1. Client generates a unique UUIDv4 string for every new transaction attempt and includes `X-Idempotency-Key: <UUIDv4>` in the request headers.

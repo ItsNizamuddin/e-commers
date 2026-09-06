@@ -1,5 +1,5 @@
 import { Document, Types } from "mongoose";
-import { CartStatus } from "@shopsphere/types";
+import { CartStatus } from "@ecommers/types";
 
 export interface ICartItemPriceSnapshot {
     currency: string;

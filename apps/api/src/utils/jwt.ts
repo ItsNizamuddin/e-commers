@@ -3,7 +3,7 @@ import jwt, {
     type JwtPayload,
 } from "jsonwebtoken";
 
-import type { UserRole } from "@shopsphere/types";
+import type { UserRole } from "@ecommers/types";
 import { env } from "../config/env.js";
 
 export type SessionType = "CUSTOMER" | "STAFF";

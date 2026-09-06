@@ -6,7 +6,7 @@ import {
     UpdateFulfillmentInput,
     CancelOrderInput,
     OrderFulfillmentStatus,
-} from "@shopsphere/types";
+} from "@ecommers/types";
 import { AppError } from "../../../utils/app-error.js";
 import { inventoryRepository, InventoryRepository } from "../../inventory/repositories/inventory.repository.js";
 import { inventoryService, InventoryService } from "../../inventory/services/inventory.service.js";

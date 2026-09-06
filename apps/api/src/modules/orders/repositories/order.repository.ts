@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { ClientSession, Types } from "mongoose";
-import { AuditActor, OrderListQuery, OrderFulfillmentStatus, OrderStatus } from "@shopsphere/types";
+import { AuditActor, OrderListQuery, OrderFulfillmentStatus, OrderStatus } from "@ecommers/types";
 import { OrderModel } from "../models/order.model.js";
 import { IOrder, OrderDocument } from "../types/order.types.js";
 

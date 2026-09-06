@@ -1,5 +1,5 @@
 import { ClientSession, Types } from "mongoose";
-import { CheckoutAddress, CheckoutStatus } from "@shopsphere/types";
+import { CheckoutAddress, CheckoutStatus } from "@ecommers/types";
 import { AppError } from "../../../utils/app-error.js";
 import { CheckoutModel } from "../models/checkout.model.js";
 import { CheckoutDocument, ICheckout, ICheckoutPricing } from "../types/checkout.types.js";

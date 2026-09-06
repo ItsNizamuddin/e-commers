@@ -1,5 +1,5 @@
 import { Schema } from "mongoose";
-import { SeoMetadata } from "@shopsphere/types";
+import { SeoMetadata } from "@ecommers/types";
 
 const ContentSectionSchema = new Schema(
     {

@@ -44,7 +44,7 @@ describe("Wishlist Module Integration Tests", () => {
         const regA = await request(app)
             .post("/api/v1/auth/register")
             .send({
-                email: "wishlist.alice@shopsphere.test",
+                email: "wishlist.alice@ecommers.test",
                 password: "Password123!",
                 firstName: "Alice",
                 lastName: "Wishlist",
@@ -54,7 +54,7 @@ describe("Wishlist Module Integration Tests", () => {
         const loginA = await request(app)
             .post("/api/v1/auth/login")
             .send({
-                email: "wishlist.alice@shopsphere.test",
+                email: "wishlist.alice@ecommers.test",
                 password: "Password123!",
             });
         customerAToken = loginA.body.data.accessToken;
@@ -63,7 +63,7 @@ describe("Wishlist Module Integration Tests", () => {
         const regB = await request(app)
             .post("/api/v1/auth/register")
             .send({
-                email: "wishlist.bob@shopsphere.test",
+                email: "wishlist.bob@ecommers.test",
                 password: "Password123!",
                 firstName: "Bob",
                 lastName: "Wishlist",
@@ -73,7 +73,7 @@ describe("Wishlist Module Integration Tests", () => {
         const loginB = await request(app)
             .post("/api/v1/auth/login")
             .send({
-                email: "wishlist.bob@shopsphere.test",
+                email: "wishlist.bob@ecommers.test",
                 password: "Password123!",
             });
         customerBToken = loginB.body.data.accessToken;
@@ -99,10 +99,10 @@ describe("Wishlist Module Integration Tests", () => {
             categoryId: new Types.ObjectId(testCategoryId),
             baseCurrency: "USD",
             status: "PUBLISHED",
-            thumbnail: "https://images.shopsphere.test/headphones-thumb.png",
+            thumbnail: "https://images.ecommers.test/headphones-thumb.png",
             images: [
-                "https://images.shopsphere.test/headphones-thumb.png",
-                "https://images.shopsphere.test/headphones-side.png",
+                "https://images.ecommers.test/headphones-thumb.png",
+                "https://images.ecommers.test/headphones-side.png",
             ],
             variants: [
                 {
@@ -312,7 +312,7 @@ describe("Wishlist Module Integration Tests", () => {
         const itemUsd = resUsd.body.data.items[0];
         expect(itemUsd.title).toBe("Pro Noise-Cancelling Headphones");
         expect(itemUsd.slug).toBe("pro-noise-cancelling-headphones-wishlist");
-        expect(itemUsd.thumbnail).toBe("https://images.shopsphere.test/headphones-thumb.png");
+        expect(itemUsd.thumbnail).toBe("https://images.ecommers.test/headphones-thumb.png");
         expect(itemUsd.price.currency).toBe("USD");
         expect(itemUsd.price.amount).toBe(299.99);
         expect(itemUsd.price.compareAtAmount).toBe(349.99);

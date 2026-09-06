@@ -3,7 +3,7 @@ import {
     AuditActor,
     StockMovementType,
     MovementReferenceType,
-} from "@shopsphere/types";
+} from "@ecommers/types";
 
 export interface IStockMovement {
     _id: Types.ObjectId;

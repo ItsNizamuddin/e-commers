@@ -1,15 +1,15 @@
-# ShopSphere — Requirements Specification
+# Ecommers — Requirements Specification
 
-This document details the functional and non-functional requirements for **ShopSphere**, a realistic, enterprise-grade e-commerce platform.
+This document details the functional and non-functional requirements for **Ecommers**, a realistic, enterprise-grade e-commerce platform.
 
 ---
 
 ## Step 1 — Product Definition & Personas
 
-ShopSphere serves two primary user roles with distinct capabilities and workflows:
+Ecommers serves two primary user roles with distinct capabilities and workflows:
 
 ```
-                    SHOPSPHERE APPLICATION
+                    ECOMMERS APPLICATION
                                │
             ┌──────────────────┴──────────────────┐
             │                                     │
@@ -68,7 +68,7 @@ An admin manages the platform's operational lifecycle, catalog, orders, and sale
 The system is partitioned into **14 domain modules** that serve as the blueprint for backend service implementation:
 
 ```
-ShopSphere Platform
+Ecommers Platform
 │
 ├── Authentication    # Sign-up, sign-in, JWT/Session tokens, password reset
 ├── Users             # User profiles, address book, role management
@@ -105,7 +105,7 @@ ShopSphere Platform
 
 ## Step 3 — Non-Functional Requirements (NFRs)
 
-To ensure ShopSphere operates as a production-grade system, the platform fulfills strict non-functional constraints:
+To ensure Ecommers operates as a production-grade system, the platform fulfills strict non-functional constraints:
 
 ### 3.1 Performance
 - **Response Time**: Catalog browsing and search requests must return within **< 200ms** (P95) and **< 100ms** (P50).

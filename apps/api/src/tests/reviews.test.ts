@@ -50,7 +50,7 @@ describe("Product Reviews & Ratings Integration Tests", () => {
         const regA = await request(app)
             .post("/api/v1/auth/register")
             .send({
-                email: "rev.customer.a@shopsphere.test",
+                email: "rev.customer.a@ecommers.test",
                 password: "Password123!",
                 firstName: "Alice",
                 lastName: "Reviewer",
@@ -60,7 +60,7 @@ describe("Product Reviews & Ratings Integration Tests", () => {
         const loginA = await request(app)
             .post("/api/v1/auth/login")
             .send({
-                email: "rev.customer.a@shopsphere.test",
+                email: "rev.customer.a@ecommers.test",
                 password: "Password123!",
             });
         customerAToken = loginA.body.data.accessToken;
@@ -69,7 +69,7 @@ describe("Product Reviews & Ratings Integration Tests", () => {
         const regB = await request(app)
             .post("/api/v1/auth/register")
             .send({
-                email: "rev.customer.b@shopsphere.test",
+                email: "rev.customer.b@ecommers.test",
                 password: "Password123!",
                 firstName: "Bob",
                 lastName: "Critic",
@@ -79,7 +79,7 @@ describe("Product Reviews & Ratings Integration Tests", () => {
         const loginB = await request(app)
             .post("/api/v1/auth/login")
             .send({
-                email: "rev.customer.b@shopsphere.test",
+                email: "rev.customer.b@ecommers.test",
                 password: "Password123!",
             });
         customerBToken = loginB.body.data.accessToken;
@@ -88,7 +88,7 @@ describe("Product Reviews & Ratings Integration Tests", () => {
         const regC = await request(app)
             .post("/api/v1/auth/register")
             .send({
-                email: "rev.customer.c@shopsphere.test",
+                email: "rev.customer.c@ecommers.test",
                 password: "Password123!",
                 firstName: "Charlie",
                 lastName: "Stranger",
@@ -98,7 +98,7 @@ describe("Product Reviews & Ratings Integration Tests", () => {
         const loginC = await request(app)
             .post("/api/v1/auth/login")
             .send({
-                email: "rev.customer.c@shopsphere.test",
+                email: "rev.customer.c@ecommers.test",
                 password: "Password123!",
             });
         customerCToken = loginC.body.data.accessToken;
@@ -162,7 +162,7 @@ describe("Product Reviews & Ratings Integration Tests", () => {
             checkoutId: new Types.ObjectId(),
             paymentId: new Types.ObjectId(),
             customerId: new Types.ObjectId(customerAId),
-            customerEmailSnapshot: "rev.customer.a@shopsphere.test",
+            customerEmailSnapshot: "rev.customer.a@ecommers.test",
             items: [
                 {
                     productId: testProductId,
@@ -213,7 +213,7 @@ describe("Product Reviews & Ratings Integration Tests", () => {
             checkoutId: new Types.ObjectId(),
             paymentId: new Types.ObjectId(),
             customerId: new Types.ObjectId(customerBId),
-            customerEmailSnapshot: "rev.customer.b@shopsphere.test",
+            customerEmailSnapshot: "rev.customer.b@ecommers.test",
             items: [
                 {
                     productId: testProductId,
@@ -264,7 +264,7 @@ describe("Product Reviews & Ratings Integration Tests", () => {
             checkoutId: new Types.ObjectId(),
             paymentId: new Types.ObjectId(),
             customerId: new Types.ObjectId(customerAId),
-            customerEmailSnapshot: "rev.customer.a@shopsphere.test",
+            customerEmailSnapshot: "rev.customer.a@ecommers.test",
             items: [
                 {
                     productId: otherProductId,

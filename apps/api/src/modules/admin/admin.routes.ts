@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { Permissions } from "@shopsphere/types";
+import { Permissions } from "@ecommers/types";
 
 import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/async-handler.js";

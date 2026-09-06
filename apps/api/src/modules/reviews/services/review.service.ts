@@ -4,7 +4,7 @@ import {
     ProductReviewsResponse,
     ProductReviewsSummary,
     ReviewRatingBreakdown,
-} from "@shopsphere/types";
+} from "@ecommers/types";
 import { AppError } from "../../../utils/app-error.js";
 import { ReviewModel, ReviewDocument } from "../models/review.model.js";
 import { ProductModel } from "../../products/product.model.js";

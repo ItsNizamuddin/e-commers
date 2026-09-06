@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { Types } from "mongoose";
-import type { UserRole } from "@shopsphere/types";
+import type { UserRole } from "@ecommers/types";
 import { AppError } from "../../utils/app-error.js";
 import { hashPassword, verifyPassword } from "../../utils/password.js";
 import {

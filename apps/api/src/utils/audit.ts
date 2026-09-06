@@ -1,4 +1,4 @@
-import { AuditActor, UserRole } from "@shopsphere/types";
+import { AuditActor, UserRole } from "@ecommers/types";
 import { UserModel } from "../modules/users/user.model.js";
 import { AppError } from "./app-error.js";
 

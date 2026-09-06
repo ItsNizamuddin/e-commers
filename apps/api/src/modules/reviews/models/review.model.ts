@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document, Types } from "mongoose";
-import { ReviewStatus } from "@shopsphere/types";
+import { ReviewStatus } from "@ecommers/types";
 
 export interface ReviewDocument extends Document {
     _id: Types.ObjectId;

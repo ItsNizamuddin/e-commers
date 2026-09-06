@@ -4,7 +4,7 @@ import type {
     SearchResponse,
     SearchFacets,
     SearchPagination,
-} from "@shopsphere/types";
+} from "@ecommers/types";
 
 export interface RawSearchProduct {
     _id: any;

@@ -52,7 +52,7 @@ describe("Inventory Module Architecture & Concurrency Tests", () => {
             .post("/api/v1/admin/users")
             .set("Authorization", `Bearer ${superAdminToken}`)
             .send({
-                email: "support.inventory@shopsphere.com",
+                email: "support.inventory@ecommers.com",
                 password: "Password123!",
                 firstName: "Support",
                 lastName: "Agent",
@@ -62,7 +62,7 @@ describe("Inventory Module Architecture & Concurrency Tests", () => {
         const supportLogin = await request(app)
             .post("/api/v1/auth/admin/login")
             .send({
-                email: "support.inventory@shopsphere.com",
+                email: "support.inventory@ecommers.com",
                 password: "Password123!",
             });
         supportToken = supportLogin.body.data.accessToken;

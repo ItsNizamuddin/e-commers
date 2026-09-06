@@ -2,7 +2,7 @@
 
 * **Status**: Accepted
 * **Date**: 2026-08-30
-* **Deciders**: ShopSphere Engineering Team
+* **Deciders**: Ecommers Engineering Team
 
 ---
 
@@ -10,7 +10,7 @@
 
 In e-commerce platforms, concurrent checkout requests for high-demand, low-stock products (e.g., stock = 1) can cause race conditions. If two users attempt to purchase the same unit at the same time, naive application logic (reading stock into memory, checking if `stock > 0`, and updating later) results in **overselling** (`stock` drops below 0).
 
-How can ShopSphere guarantee inventory correctness and prevent overselling under high concurrency?
+How can Ecommers guarantee inventory correctness and prevent overselling under high concurrency?
 
 ## Decision Drivers
 
@@ -28,7 +28,7 @@ How can ShopSphere guarantee inventory correctness and prevent overselling under
 
 Chosen Option: **Option 3 — Atomic Database Query Updates with Conditional Guards**.
 
-ShopSphere will execute inventory operations directly in MongoDB using atomic conditional updates:
+Ecommers will execute inventory operations directly in MongoDB using atomic conditional updates:
 
 ```typescript
 const result = await InventoryModel.findOneAndUpdate(

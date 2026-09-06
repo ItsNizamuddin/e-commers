@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { STAFF_ROLES, ALL_ROLES, type UserRole } from "@shopsphere/types";
+import { STAFF_ROLES, ALL_ROLES, type UserRole } from "@ecommers/types";
 
 export const createStaffUserSchema = z
     .object({

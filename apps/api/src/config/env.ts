@@ -20,7 +20,7 @@ const envSchema = z.object({
     CORS_ORIGIN: z
         .string()
         .min(1)
-        .default("http://localhost:3000"),
+        .default("http://localhost:3000,http://localhost:3001"),
 
     DATABASE_URL: z
         .string()

@@ -1,4 +1,4 @@
-import type { UserRole } from "@shopsphere/types";
+import type { UserRole } from "@ecommers/types";
 import { UserModel } from "./user.model.js";
 
 export const userRepository = {

@@ -65,12 +65,12 @@ describe("Category Module Integration Tests", () => {
                 name: "Fresh Organic Produce",
                 description: "Farm-fresh organic fruits, leafy vegetables, and seasonal harvests",
                 seo: {
-                    metaTitle: "Buy Fresh Organic Produce Online | ShopSphere Grocery",
+                    metaTitle: "Buy Fresh Organic Produce Online | Ecommers Grocery",
                     metaDescription: "Farm-fresh 100% organic fruits and vegetables delivered cold to your doorstep.",
                     metaRobots: "index, follow",
                     keywords: ["organic produce", "fresh fruits", "organic vegetables"],
                     internalSection: {
-                        title: "Why Choose ShopSphere Organic Produce?",
+                        title: "Why Choose Ecommers Organic Produce?",
                         value: "<p>Harvested daily from certified organic farms.</p>",
                     },
                     bottomSection: {
@@ -86,7 +86,7 @@ describe("Category Module Integration Tests", () => {
         expect(res.body.data.slug).toBe("fresh-organic-produce");
         expect(res.body.data.parentId).toBeNull();
         expect(res.body.data.ancestors).toEqual([]);
-        expect(res.body.data.seo.metaTitle).toBe("Buy Fresh Organic Produce Online | ShopSphere Grocery");
+        expect(res.body.data.seo.metaTitle).toBe("Buy Fresh Organic Produce Online | Ecommers Grocery");
         expect(res.body.data.createdBy).toBeDefined();
         expect(res.body.data.createdBy.email).toBe("superadmin@gmail.com");
         expect(res.body.data.createdBy.role).toBe("SUPER_ADMIN");

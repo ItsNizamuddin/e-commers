@@ -2,13 +2,13 @@
 
 * **Status**: Accepted
 * **Date**: 2026-08-30
-* **Deciders**: ShopSphere Engineering Team
+* **Deciders**: Ecommers Engineering Team
 
 ---
 
 ## Context and Problem Statement
 
-ShopSphere is an e-commerce platform designed to scale from initial launch to 100,000+ active users. When designing the backend architecture, we must choose between a **Microservices Architecture** and a **Monolithic Architecture**.
+Ecommers is an e-commerce platform designed to scale from initial launch to 100,000+ active users. When designing the backend architecture, we must choose between a **Microservices Architecture** and a **Monolithic Architecture**.
 
 Microservices are often advocated for enterprise e-commerce platforms. However, they introduce significant upfront operational complexity, network latency, distributed tracing demands, complex saga patterns for transactions, and multi-pipeline deployment friction.
 
@@ -29,7 +29,7 @@ Microservices are often advocated for enterprise e-commerce platforms. However, 
 
 Chosen Option: **Option 3 — Modular Monolith Architecture**.
 
-ShopSphere will be built as a single Express API application partitioned into **14 explicit domain modules** (`Auth`, `Users`, `Products`, `Categories`, `Search`, `Cart`, `Wishlist`, `Checkout`, `Payments`, `Orders`, `Inventory`, `Reviews`, `Admin`).
+Ecommers will be built as a single Express API application partitioned into **14 explicit domain modules** (`Auth`, `Users`, `Products`, `Categories`, `Search`, `Cart`, `Wishlist`, `Checkout`, `Payments`, `Orders`, `Inventory`, `Reviews`, `Admin`).
 
 ### Positive Consequences
 * **Zero Network Latency Between Modules**: Inter-module communication happens in-memory via service functions.

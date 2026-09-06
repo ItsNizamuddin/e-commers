@@ -1,5 +1,5 @@
 import { RequestHandler } from "express";
-import { PaymentProvider } from "@shopsphere/types";
+import { PaymentProvider } from "@ecommers/types";
 import { AppError } from "../../../utils/app-error.js";
 import { paymentService, PaymentService } from "../services/payment.service.js";
 import { resolveCartIdentity } from "../../cart/middleware/cart-identity.middleware.js";

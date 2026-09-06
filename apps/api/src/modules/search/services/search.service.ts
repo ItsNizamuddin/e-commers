@@ -10,7 +10,7 @@ import type {
     SearchFacetCategory,
     SearchFacetPrice,
     SearchPagination,
-} from "@shopsphere/types";
+} from "@ecommers/types";
 
 function escapeRegex(text: string): string {
     return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");

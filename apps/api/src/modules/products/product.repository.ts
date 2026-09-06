@@ -1,5 +1,5 @@
 import { Types, ClientSession } from "mongoose";
-import { AuditActor } from "@shopsphere/types";
+import { AuditActor } from "@ecommers/types";
 import { ProductModel, ProductDocument } from "./product.model.js";
 import {
     CreateProductInput,

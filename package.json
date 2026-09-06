@@ -1,14 +1,19 @@
 {
-  "name": "e-commerce-platform",
+  "name": "ecommers",
   "version": "1.0.0",
   "private": true,
-  "description": "Production-grade full-stack e-commerce platform",
+  "description": "Production-grade full-stack ecommers platform",
   "packageManager": "pnpm@11.24.0",
   "type": "module",
   "scripts": {
-    "dev": "pnpm --parallel --filter web --filter api dev",
+    "dev": "pnpm --parallel dev",
+    "dev:api": "pnpm --filter api dev",
+    "dev:web": "pnpm --filter web dev",
+    "dev:admin": "pnpm --filter admin dev",
+    "dev:all": "pnpm --parallel dev",
     "build": "pnpm --recursive build",
     "test": "pnpm --recursive test",
+    "typecheck": "pnpm --recursive typecheck",
     "lint": "pnpm --recursive lint"
   }
 }

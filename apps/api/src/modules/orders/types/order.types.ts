@@ -8,7 +8,7 @@ import {
     OrderAddressSnapshot,
     OrderFulfillmentInfo,
     AuditActor,
-} from "@shopsphere/types";
+} from "@ecommers/types";
 
 export interface IOrderItem extends OrderItemSnapshot {
     productId: string;

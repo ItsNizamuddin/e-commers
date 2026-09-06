@@ -4,7 +4,7 @@ import {
     type Permission,
     ROLE_PERMISSIONS,
     STAFF_ROLES,
-} from "@shopsphere/types";
+} from "@ecommers/types";
 
 import { AppError } from "../utils/app-error.js";
 

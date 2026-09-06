@@ -55,7 +55,7 @@ describe("Checkout Module Enterprise Architecture Tests", () => {
         const regA = await request(app)
             .post("/api/v1/auth/register")
             .send({
-                email: "customer.checkout.a@shopsphere.test",
+                email: "customer.checkout.a@ecommers.test",
                 password: "Password123!",
                 firstName: "Customer",
                 lastName: "Alpha",
@@ -65,7 +65,7 @@ describe("Checkout Module Enterprise Architecture Tests", () => {
         const loginA = await request(app)
             .post("/api/v1/auth/login")
             .send({
-                email: "customer.checkout.a@shopsphere.test",
+                email: "customer.checkout.a@ecommers.test",
                 password: "Password123!",
             });
         customerAToken = loginA.body.data.accessToken;
@@ -74,7 +74,7 @@ describe("Checkout Module Enterprise Architecture Tests", () => {
         const regB = await request(app)
             .post("/api/v1/auth/register")
             .send({
-                email: "customer.checkout.b@shopsphere.test",
+                email: "customer.checkout.b@ecommers.test",
                 password: "Password123!",
                 firstName: "Customer",
                 lastName: "Beta",
@@ -84,7 +84,7 @@ describe("Checkout Module Enterprise Architecture Tests", () => {
         const loginB = await request(app)
             .post("/api/v1/auth/login")
             .send({
-                email: "customer.checkout.b@shopsphere.test",
+                email: "customer.checkout.b@ecommers.test",
                 password: "Password123!",
             });
         customerBToken = loginB.body.data.accessToken;
@@ -352,7 +352,7 @@ describe("Checkout Module Enterprise Architecture Tests", () => {
             .set("Authorization", `Bearer ${customerAToken}`)
             .set("X-Idempotency-Key", idempKey)
             .send({
-                email: "customer.checkout.a@shopsphere.test",
+                email: "customer.checkout.a@ecommers.test",
             });
 
         expect(first.status).toBe(201);
@@ -368,7 +368,7 @@ describe("Checkout Module Enterprise Architecture Tests", () => {
             .set("Authorization", `Bearer ${customerAToken}`)
             .set("X-Idempotency-Key", idempKey)
             .send({
-                email: "customer.checkout.a@shopsphere.test",
+                email: "customer.checkout.a@ecommers.test",
             });
 
         expect(retry.status).toBe(201);
@@ -1021,7 +1021,7 @@ describe("Checkout Module Enterprise Architecture Tests", () => {
             .send();
 
         const checkoutId = initRes.body.data.id;
-        expect(initRes.body.data.customerEmailSnapshot).toBe("customer.checkout.a@shopsphere.test");
+        expect(initRes.body.data.customerEmailSnapshot).toBe("customer.checkout.a@ecommers.test");
 
         // User updates email on their profile
         await UserModel.updateOne(
@@ -1034,7 +1034,7 @@ describe("Checkout Module Enterprise Architecture Tests", () => {
             .get(`/api/v1/checkout/${checkoutId}`)
             .set("Authorization", `Bearer ${customerAToken}`);
 
-        expect(getRes.body.data.customerEmailSnapshot).toBe("customer.checkout.a@shopsphere.test");
+        expect(getRes.body.data.customerEmailSnapshot).toBe("customer.checkout.a@ecommers.test");
     });
 
     /* -------------------------------------------------------------------------- */

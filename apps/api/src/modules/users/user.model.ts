@@ -1,5 +1,5 @@
 import { Schema, model, models, Model, type InferSchemaType, type HydratedDocument } from "mongoose";
-import { ALL_ROLES } from "@shopsphere/types";
+import { ALL_ROLES } from "@ecommers/types";
 
 const userSchema = new Schema(
     {

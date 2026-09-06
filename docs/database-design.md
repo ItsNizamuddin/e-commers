@@ -1,6 +1,6 @@
-# ShopSphere — Database Design Specification
+# Ecommers — Database Design Specification
 
-This document defines the MongoDB database design, Mongoose schemas, relationships, indexing strategies, and data models for **ShopSphere**.
+This document defines the MongoDB database design, Mongoose schemas, relationships, indexing strategies, and data models for **Ecommers**.
 
 ---
 

@@ -1,5 +1,5 @@
 import { Schema, Types } from "mongoose";
-import { ProductVariantInput } from "@shopsphere/types";
+import { ProductVariantInput } from "@ecommers/types";
 import { VariantPriceSchema } from "./variant-price.schema.js";
 
 export const ProductVariantSchema = new Schema<ProductVariantInput>(

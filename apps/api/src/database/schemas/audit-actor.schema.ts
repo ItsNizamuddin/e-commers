@@ -1,5 +1,5 @@
 import { Schema } from "mongoose";
-import { AuditActor } from "@shopsphere/types";
+import { AuditActor } from "@ecommers/types";
 
 export const AuditActorSchema = new Schema<AuditActor>(
     {

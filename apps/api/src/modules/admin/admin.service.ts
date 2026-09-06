@@ -7,7 +7,7 @@ import type {
     SalesAnalyticsResponse,
     SalesAnalyticsPoint,
     CustomerListItem,
-} from "@shopsphere/types";
+} from "@ecommers/types";
 import { AppError } from "../../utils/app-error.js";
 import { hashPassword } from "../../utils/password.js";
 import { UserModel } from "../users/user.model.js";

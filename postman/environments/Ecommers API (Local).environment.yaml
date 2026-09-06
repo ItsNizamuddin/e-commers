@@ -1,4 +1,4 @@
-name: ShopSphere API (Local)
+name: Ecommers API (Local)
 values:
   - key: baseUrl
     value: 'http://localhost:5001/api/v1'

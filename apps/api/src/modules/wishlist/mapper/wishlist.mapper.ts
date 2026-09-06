@@ -7,7 +7,7 @@ import type {
     WishlistItemResponse,
     WishlistItemPrice,
     WishlistItemInventory,
-} from "@shopsphere/types";
+} from "@ecommers/types";
 
 export class WishlistMapper {
     async mapToResponse(

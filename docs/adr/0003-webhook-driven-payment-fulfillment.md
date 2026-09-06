@@ -2,7 +2,7 @@
 
 * **Status**: Accepted
 * **Date**: 2026-08-30
-* **Deciders**: ShopSphere Engineering Team
+* **Deciders**: Ecommers Engineering Team
 
 ---
 
@@ -10,7 +10,7 @@
 
 A common vulnerability in e-commerce applications occurs when the backend relies on the frontend client to report payment success (e.g. client sending `POST /orders` with `paymentSuccessful: true` after card processing). Malicious users can intercept client calls and forge payment confirmation without paying. Furthermore, network dropouts on the user's browser after payment processing can lead to paid orders remaining unfulfilled.
 
-How should ShopSphere authorize and confirm payment fulfillment safely and reliably?
+How should Ecommers authorize and confirm payment fulfillment safely and reliably?
 
 ## Decision Drivers
 
@@ -20,7 +20,7 @@ How should ShopSphere authorize and confirm payment fulfillment safely and relia
 
 ## Decision Outcome
 
-ShopSphere adopts a **Webhook-Driven Asynchronous Payment Fulfillment** model.
+Ecommers adopts a **Webhook-Driven Asynchronous Payment Fulfillment** model.
 
 1. **Server Price Lock**: Backend calculates cart total, locks price, reserves stock, and creates a PaymentIntent with the Payment Provider (e.g., Stripe).
 2. **Client Elements Only**: Frontend receives a `client_secret` and renders provider UI elements.

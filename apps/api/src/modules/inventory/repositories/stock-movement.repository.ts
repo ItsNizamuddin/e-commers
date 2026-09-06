@@ -1,5 +1,5 @@
 import { ClientSession, Types } from "mongoose";
-import { StockMovementType, MovementReferenceType, AuditActor } from "@shopsphere/types";
+import { StockMovementType, MovementReferenceType, AuditActor } from "@ecommers/types";
 import { StockMovementModel } from "../models/stock-movement.model.js";
 import { StockMovementDocument } from "../types/stock-movement.types.js";
 

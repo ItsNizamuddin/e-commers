@@ -1,5 +1,5 @@
 import { Document, Types } from "mongoose";
-import { CheckoutAddress, CheckoutStatus } from "@shopsphere/types";
+import { CheckoutAddress, CheckoutStatus } from "@ecommers/types";
 
 export interface ICheckoutItem {
     productId: Types.ObjectId;

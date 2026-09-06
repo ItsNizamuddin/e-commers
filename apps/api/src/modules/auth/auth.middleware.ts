@@ -1,5 +1,5 @@
 import type { RequestHandler } from "express";
-import { type UserRole, ALL_ROLES } from "@shopsphere/types";
+import { type UserRole, ALL_ROLES } from "@ecommers/types";
 import { AppError } from "../../utils/app-error.js";
 import { verifyAccessToken } from "../../utils/jwt.js";
 

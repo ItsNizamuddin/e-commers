@@ -5,9 +5,9 @@ import {
     ProductNutritionInfo,
     SeoMetadata,
     AuditActor,
-} from "@shopsphere/types";
+} from "@ecommers/types";
 
-export * from "@shopsphere/types";
+export * from "@ecommers/types";
 
 export interface IProduct {
     _id: Types.ObjectId;

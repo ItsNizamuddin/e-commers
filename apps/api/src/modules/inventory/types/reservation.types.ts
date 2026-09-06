@@ -1,5 +1,5 @@
 import { Document, Types } from "mongoose";
-import { ReservationStatus } from "@shopsphere/types";
+import { ReservationStatus } from "@ecommers/types";
 
 export interface IReservationItem {
     variantId: Types.ObjectId;

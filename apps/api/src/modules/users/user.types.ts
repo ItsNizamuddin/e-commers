@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ALL_ROLES, type UserRole } from "@shopsphere/types";
+import { ALL_ROLES, type UserRole } from "@ecommers/types";
 
 export const getUserByIdParamsSchema = z.object({
     id: z.string().min(1, "User ID is required"),

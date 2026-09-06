@@ -10,7 +10,7 @@ import {
     UpdateInventoryThresholdsInput,
     InventoryQueryOptions,
     StockMovementType,
-} from "@shopsphere/types";
+} from "@ecommers/types";
 import { AppError } from "../../../utils/app-error.js";
 import { InventoryDocument } from "../types/inventory.types.js";
 import {

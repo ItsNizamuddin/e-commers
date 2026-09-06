@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { AppError } from "../../../../utils/app-error.js";
 import { env } from "../../../../config/env.js";
 import { IPaymentGateway, CreatePaymentIntentParams } from "./payment-gateway.interface.js";
-import { WebhookNormalizedEvent } from "@shopsphere/types";
+import { WebhookNormalizedEvent } from "@ecommers/types";
 
 export class StripePaymentGateway implements IPaymentGateway {
     readonly providerName = "STRIPE" as const;

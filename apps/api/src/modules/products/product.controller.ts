@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { STAFF_ROLES } from "@shopsphere/types";
+import { STAFF_ROLES } from "@ecommers/types";
 import { productService, ProductService } from "./product.service.js";
 import {
     CreateProductInput,

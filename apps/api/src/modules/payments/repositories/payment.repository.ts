@@ -1,5 +1,5 @@
 import { ClientSession, Types } from "mongoose";
-import { PaymentProvider, PaymentStatus } from "@shopsphere/types";
+import { PaymentProvider, PaymentStatus } from "@ecommers/types";
 import { PaymentModel } from "../models/payment.model.js";
 import { PaymentEventModel } from "../models/payment-event.model.js";
 import {

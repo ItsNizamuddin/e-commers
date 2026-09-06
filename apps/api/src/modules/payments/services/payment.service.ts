@@ -3,7 +3,7 @@ import {
     PaymentProvider,
     PaymentIntentResult,
     PaymentResponse,
-} from "@shopsphere/types";
+} from "@ecommers/types";
 import { CartIdentity } from "../../cart/types/cart.types.js";
 import { AppError } from "../../../utils/app-error.js";
 import { IPaymentGateway, mockPaymentGateway, stripePaymentGateway } from "./gateways/index.js";

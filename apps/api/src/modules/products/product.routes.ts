@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { Permissions } from "@shopsphere/types";
+import { Permissions } from "@ecommers/types";
 import { productController } from "./product.controller.js";
 import { authenticate, optionalAuth } from "../auth/auth.middleware.js";
 import { requirePermission } from "../../middleware/authorize.middleware.js";

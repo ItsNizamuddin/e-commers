@@ -11,7 +11,7 @@ body:
       "name": "Fresh Organic Produce",
       "description": "Farm-fresh organic fruits, leafy vegetables, and seasonal harvests",
       "seo": {
-        "metaTitle": "Buy Fresh Organic Produce Online | ShopSphere Grocery",
+        "metaTitle": "Buy Fresh Organic Produce Online | Ecommers Grocery",
         "metaDescription": "Farm-fresh 100% organic fruits and vegetables delivered cold to your doorstep within 2 hours.",
         "metaRobots": "index, follow",
         "keywords": [
@@ -25,7 +25,7 @@ body:
         "ogType": "website",
         "twitterCard": "summary_large_image",
         "internalSection": {
-          "title": "Why Choose ShopSphere Organic Produce?",
+          "title": "Why Choose Ecommers Organic Produce?",
           "value": "<p>Our produce is harvested daily from certified organic farms, stored under climate-controlled refrigeration (2°C to 4°C), and delivered cold to guarantee peak freshness.</p>"
         },
         "bottomSection": {

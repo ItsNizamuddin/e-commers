@@ -3,7 +3,7 @@ import {
     AuditActor,
     ReservationResponse,
     CreateReservationInput,
-} from "@shopsphere/types";
+} from "@ecommers/types";
 import { AppError } from "../../../utils/app-error.js";
 import { withTransaction } from "../../../database/transaction.js";
 import { DEFAULT_WAREHOUSE_ID } from "../../../database/schemas/warehouse.schema.js";

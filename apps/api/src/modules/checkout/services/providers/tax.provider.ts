@@ -1,4 +1,4 @@
-import { CheckoutAddress } from "@shopsphere/types";
+import { CheckoutAddress } from "@ecommers/types";
 
 export interface TaxCalculationParams {
     subtotalMinor: number;

@@ -1,5 +1,5 @@
 import { Document, Types } from "mongoose";
-import { AuditActor } from "@shopsphere/types";
+import { AuditActor } from "@ecommers/types";
 
 export interface IInventory {
     _id: Types.ObjectId;

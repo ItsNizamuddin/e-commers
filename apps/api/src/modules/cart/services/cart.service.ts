@@ -7,7 +7,7 @@ import {
     MergeCartResultResponse,
     MergeStockIssue,
     UpdateCartItemQuantityInput,
-} from "@shopsphere/types";
+} from "@ecommers/types";
 import { AppError } from "../../../utils/app-error.js";
 import { withTransaction } from "../../../database/transaction.js";
 import { ProductModel } from "../../products/product.model.js";

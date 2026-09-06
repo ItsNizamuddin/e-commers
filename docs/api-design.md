@@ -1,6 +1,6 @@
-# ShopSphere — REST API Specification
+# Ecommers — REST API Specification
 
-This document defines the RESTful API design, versioning conventions, request/response formats, error codes, and endpoint specifications for **ShopSphere**.
+This document defines the RESTful API design, versioning conventions, request/response formats, error codes, and endpoint specifications for **Ecommers**.
 
 ---
 
@@ -10,7 +10,7 @@ This document defines the RESTful API design, versioning conventions, request/re
 All API routes are prefixed with `/api/v1/`.
 
 ```
-Base URL: https://api.shopsphere.com/api/v1
+Base URL: https://api.ecommers.com/api/v1
 ```
 
 Future breaking changes will be published under `/api/v2/` without disrupting existing client applications.

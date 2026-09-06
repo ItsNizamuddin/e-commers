@@ -1,4 +1,4 @@
-import type { UserResponse } from "@shopsphere/types";
+import type { UserResponse } from "@ecommers/types";
 import type { UserDocument } from "./user.model.js";
 
 export const toUserResponse = (
