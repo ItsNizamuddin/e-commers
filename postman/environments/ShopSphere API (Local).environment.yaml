@@ -6,3 +6,37 @@ values:
     value: ''
   - key: userId
     value: ''
+  - key: productId
+    value: ''
+  - key: productSlug
+    value: ''
+  - key: categoryId
+    value: ''
+  - key: variantId
+    value: ''
+  - key: warehouseId
+    value: ''
+  - key: inventoryId
+    value: ''
+  - key: movementId
+    value: ''
+  - key: reservationId
+    value: ''
+  - key: cartId
+    value: ''
+  - key: guestSessionId
+    value: ''
+  - key: checkoutId
+    value: ''
+  - key: checkoutVersion
+    value: '1'
+  - key: paymentId
+    value: ''
+  - key: paymentIntentId
+    value: ''
+  - key: orderId
+    value: ''
+  - key: orderNumber
+    value: ''
+  - key: guestAccessToken
+    value: ''

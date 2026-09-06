@@ -1,0 +1,5 @@
+$kind: collection
+description: |-
+  Enterprise Inventory Management & Stock Ledger API.
+  Includes multi-warehouse stock management, atomic reservation engine, immutable movement audit ledger, and public stock availability.
+order: 7000

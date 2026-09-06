@@ -1,0 +1,41 @@
+$kind: http-request
+description: List multi-warehouse stock counts with onHand, reserved, backordered, safetyStock, and computed available.
+url: "{{baseUrl}}/admin/inventory?page=1&limit=20"
+method: GET
+headers:
+  Authorization: Bearer {{accessToken}}
+queryParams:
+  - key: page
+    value: "1"
+  - key: limit
+    value: "20"
+  - key: productId
+    value: "{{productId}}"
+    disabled: true
+  - key: variantId
+    value: "{{variantId}}"
+    disabled: true
+  - key: lowStock
+    value: "true"
+    disabled: true
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 200 OK', function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test('Captures first inventory and variant IDs', function () {
+          var json = pm.response.json();
+          pm.expect(json.success).to.eql(true);
+          if (json.data && json.data.items && json.data.items.length > 0) {
+              var first = json.data.items[0];
+              pm.environment.set('inventoryId', first.id);
+              pm.environment.set('variantId', first.variantId);
+              pm.environment.set('warehouseId', first.warehouseId);
+              pm.collectionVariables.set('inventoryId', first.id);
+              pm.collectionVariables.set('variantId', first.variantId);
+              pm.collectionVariables.set('warehouseId', first.warehouseId);
+          }
+      });
+    language: text/javascript
+order: 1000

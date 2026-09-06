@@ -1,0 +1,48 @@
+$kind: http-request
+description: Initiates a checkout session. Validates published catalog items and price drift against cart snapshot. In a single atomic MongoDB transaction, locks the cart, reserves physical stock in inventory, and creates an authoritative temporary checkout snapshot with a 15-minute TTL.
+url: "{{baseUrl}}/checkout"
+method: POST
+headers:
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+  X-Idempotency-Key: chk_{{$timestamp}}
+body:
+  type: text
+  content: |-
+    {
+      "shippingAddress": {
+        "firstName": "Alice",
+        "lastName": "Smith",
+        "street": "123 Market St",
+        "city": "San Francisco",
+        "state": "CA",
+        "postalCode": "94105",
+        "country": "US"
+      },
+      "billingAddress": {
+        "firstName": "Alice",
+        "lastName": "Smith",
+        "street": "123 Market St",
+        "city": "San Francisco",
+        "state": "CA",
+        "postalCode": "94105",
+        "country": "US"
+      }
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 201 Created', function () {
+          pm.response.to.have.status(201);
+      });
+      pm.test('Checkout initiated and stock reserved', function () {
+          var json = pm.response.json();
+          pm.expect(json.success).to.eql(true);
+          pm.expect(json.data).to.have.property('id');
+          pm.expect(json.data.status).to.eql('INVENTORY_RESERVED');
+          pm.expect(json.data.pricing).to.have.property('grandTotalMinor');
+          pm.environment.set('checkoutId', json.data.id);
+          pm.environment.set('checkoutVersion', json.data.version);
+      });
+    language: text/javascript
+order: 1000

@@ -8,6 +8,20 @@ import routes from "./routes.js";
 import { requestLogger } from "./middleware/request-logger.js";
 import cookieParser from "cookie-parser";
 
+declare module "http" {
+    interface IncomingMessage {
+        rawBody?: Buffer;
+    }
+}
+
+declare global {
+    namespace Express {
+        interface Request {
+            rawBody?: Buffer;
+        }
+    }
+}
+
 const app = express();
 app.use(requestLogger);
 
@@ -16,7 +30,11 @@ app.use(cors({
     origin: env.corsOrigin,
     credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({
+    verify: (req, _res, buf) => {
+        req.rawBody = Buffer.from(buf);
+    },
+}));
 app.use(cookieParser());
 
 app.get("/api/v1/health", (_req, res) => {

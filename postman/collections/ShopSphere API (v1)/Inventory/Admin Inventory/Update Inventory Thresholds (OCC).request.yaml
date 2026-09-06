@@ -1,0 +1,30 @@
+$kind: http-request
+description: Updates safetyStock, reorderThreshold, and allowBackorder flag using Optimistic Concurrency Control (OCC).
+url: "{{baseUrl}}/admin/inventory/{{inventoryId}}/thresholds"
+method: PATCH
+headers:
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "expectedVersion": 1,
+      "safetyStock": 5,
+      "reorderThreshold": 15,
+      "allowBackorder": true
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 200 OK', function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test('Thresholds updated & version incremented', function () {
+          var json = pm.response.json();
+          pm.expect(json.success).to.eql(true);
+          pm.expect(json.data.safetyStock).to.eql(5);
+          pm.expect(json.data.allowBackorder).to.eql(true);
+      });
+    language: text/javascript
+order: 4000

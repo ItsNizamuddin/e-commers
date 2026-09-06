@@ -1,0 +1,27 @@
+$kind: http-request
+name: Payment Gateway Webhook (Succeeded / Failed)
+description: Payment gateway webhook handler. On payment.succeeded, commits physical inventory reservation, marks cart CONVERTED, and transitions checkout to COMPLETED. On payment.failed, releases inventory reservation and restores cart to ACTIVE.
+url: "{{baseUrl}}/checkout/webhook"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "event": "payment.succeeded",
+      "checkoutId": "{{checkoutId}}",
+      "paymentIntentId": "pi_stripe_mock_001"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 200 OK', function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test('Webhook handled successfully', function () {
+          var json = pm.response.json();
+          pm.expect(json.success).to.eql(true);
+      });
+    language: text/javascript
+order: 5000

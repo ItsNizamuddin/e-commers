@@ -1,0 +1,31 @@
+$kind: http-request
+description: Queries the immutable append-only stock movement ledger. Movement records can never be updated or deleted.
+url: "{{baseUrl}}/admin/inventory/movements?page=1&limit=20"
+method: GET
+headers:
+  Authorization: Bearer {{accessToken}}
+queryParams:
+  - key: page
+    value: "1"
+  - key: limit
+    value: "20"
+  - key: type
+    value: ADJUSTMENT
+    disabled: true
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 200 OK', function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test('Returns movement ledger entries', function () {
+          var json = pm.response.json();
+          pm.expect(json.success).to.eql(true);
+          pm.expect(json.data.items).to.be.an('array');
+          if (json.data.items.length > 0) {
+              pm.environment.set('movementId', json.data.items[0].id);
+              pm.collectionVariables.set('movementId', json.data.items[0].id);
+          }
+      });
+    language: text/javascript
+order: 5000

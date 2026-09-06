@@ -1,0 +1,3 @@
+$kind: collection
+description: "Enterprise checkout transaction lifecycle: cart locking, multi-currency pricing, address recalculation, physical inventory holds, and payment webhooks."
+order: 9000

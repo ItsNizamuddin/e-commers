@@ -1,0 +1,20 @@
+$kind: http-request
+description: Retrieves single warehouse inventory record with stock quantities and threshold configurations.
+url: "{{baseUrl}}/admin/inventory/{{inventoryId}}"
+method: GET
+headers:
+  Authorization: Bearer {{accessToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 200 OK', function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test('Verifies availability formula', function () {
+          var json = pm.response.json();
+          pm.expect(json.success).to.eql(true);
+          var expected = Math.max(0, json.data.onHand - json.data.reserved - json.data.safetyStock);
+          pm.expect(json.data.available).to.eql(expected);
+      });
+    language: text/javascript
+order: 2000

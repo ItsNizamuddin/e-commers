@@ -43,6 +43,10 @@ const envSchema = z.object({
     JWT_REFRESH_EXPIRES_IN: z
         .string()
         .default("7d"),
+
+    PAYMENT_WEBHOOK_SECRET: z
+        .string()
+        .default("whsec_mock_local_secret_for_tests"),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
@@ -64,4 +68,5 @@ export const env = {
     jwtRefreshSecret: parsedEnv.data.JWT_REFRESH_SECRET,
     jwtAccessExpiresIn: parsedEnv.data.JWT_ACCESS_EXPIRES_IN,
     jwtRefreshExpiresIn: parsedEnv.data.JWT_REFRESH_EXPIRES_IN,
+    paymentWebhookSecret: parsedEnv.data.PAYMENT_WEBHOOK_SECRET,
 } as const;

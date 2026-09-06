@@ -1,0 +1,19 @@
+$kind: http-request
+description: Retrieves the temporary checkout snapshot by ID. Enforces strict multi-tenant customer and guest session isolation.
+url: "{{baseUrl}}/checkout/{{checkoutId}}"
+method: GET
+headers:
+  Authorization: Bearer {{accessToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 200 OK', function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test('Retrieved valid checkout', function () {
+          var json = pm.response.json();
+          pm.expect(json.success).to.eql(true);
+          pm.expect(json.data.id).to.eql(pm.environment.get('checkoutId'));
+      });
+    language: text/javascript
+order: 2000

@@ -1,0 +1,35 @@
+$kind: http-request
+description: Updates shipping/billing addresses with OCC version checking. Recalculates tax and shipping totals atomically. Rejects mutations with 409 STATE_LOCKED once payment has been initiated (PAYMENT_PENDING).
+url: "{{baseUrl}}/checkout/{{checkoutId}}/addresses"
+method: PATCH
+headers:
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "shippingAddress": {
+        "firstName": "Alice",
+        "lastName": "Smith",
+        "street": "456 Mission Blvd",
+        "city": "San Jose",
+        "state": "CA",
+        "postalCode": "95112",
+        "country": "US"
+      },
+      "expectedVersion": 1
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 200 OK', function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test('Addresses updated and version incremented', function () {
+          var json = pm.response.json();
+          pm.expect(json.success).to.eql(true);
+          pm.environment.set('checkoutVersion', json.data.version);
+      });
+    language: text/javascript
+order: 3000

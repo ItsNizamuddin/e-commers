@@ -1,0 +1,40 @@
+$kind: http-request
+description: Adds item or increments existing variant quantity (one variant per cart). Snapshots current display price. Extends guest TTL by 30 days. Soft-checks stock availability.
+url: "{{baseUrl}}/cart/items"
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{accessToken}}
+    disabled: true
+  - key: Content-Type
+    value: application/json
+  - key: X-Idempotency-Key
+    value: cart_add_item_001
+    disabled: true
+    description: Optional mutation idempotency key
+body:
+  type: text
+  content: |-
+    {
+      "productId": "{{productId}}",
+      "variantId": "{{variantId}}",
+      "quantity": 2,
+      "currency": "USD"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 200 OK', function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test('Item added with priceSnapshot & lineTotal', function () {
+          var json = pm.response.json();
+          pm.expect(json.success).to.eql(true);
+          pm.expect(json.data.items.length).to.be.above(0);
+          var item = json.data.items[json.data.items.length - 1];
+          pm.expect(item.priceSnapshot).to.have.property('amount');
+          pm.expect(item.priceSnapshot).to.have.property('capturedAt');
+          pm.expect(item).to.have.property('lineTotal');
+      });
+    language: text/javascript
+order: 2000

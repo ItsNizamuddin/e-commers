@@ -1,0 +1,28 @@
+$kind: http-request
+description: "Retrieves current active cart. GET does NOT extend guest inactivity TTL. Never leaks sessionId in the response payload. Authenticated carts have expiresAt: null."
+url: "{{baseUrl}}/cart"
+method: GET
+headers:
+  - key: Authorization
+    value: Bearer {{accessToken}}
+    disabled: true
+    description: "Optional: If provided, retrieves user's persistent cart. If omitted, uses/sets HttpOnly guest session cookie."
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 200 OK', function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test('Cart response structure is valid', function () {
+          var json = pm.response.json();
+          pm.expect(json.success).to.eql(true);
+          pm.expect(json.data).to.have.property('id');
+          pm.expect(json.data).to.have.property('currency');
+          pm.expect(json.data).to.have.property('items');
+          pm.expect(json.data).to.have.property('summary');
+          pm.expect(json.data.sessionId).to.be.undefined;
+          pm.environment.set('cartId', json.data.id);
+          pm.collectionVariables.set('cartId', json.data.id);
+      });
+    language: text/javascript
+order: 1000

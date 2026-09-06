@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import { ClientSession, Types } from "mongoose";
 import {
     CheckoutResponse,
     InitCheckoutInput,
@@ -605,6 +605,76 @@ export class CheckoutService {
         }
 
         return expiredCount;
+    }
+
+    async markPaymentPending(
+        checkoutId: string,
+        paymentIntentId: string
+    ): Promise<CheckoutDocument> {
+        const checkout = await this.repo.findById(checkoutId);
+        if (!checkout) {
+            throw new AppError("Checkout not found", 404, "CHECKOUT_NOT_FOUND");
+        }
+        if (!["INITIATED", "INVENTORY_RESERVED"].includes(checkout.status)) {
+            throw new AppError(
+                `Cannot create payment intent for checkout in '${checkout.status}' state`,
+                400,
+                "INVALID_CHECKOUT_STATUS"
+            );
+        }
+        return await this.repo.transitionStatus(
+            checkoutId,
+            "PAYMENT_PENDING",
+            ["INITIATED", "INVENTORY_RESERVED"],
+            checkout.version,
+            { paymentIntentId }
+        );
+    }
+
+    async completeCheckout(
+        checkoutId: string | Types.ObjectId,
+        orderId: Types.ObjectId,
+        session: ClientSession
+    ): Promise<CheckoutDocument> {
+        const checkout = await this.repo.findById(checkoutId, session);
+        if (!checkout) {
+            throw new AppError("Checkout not found", 404, "CHECKOUT_NOT_FOUND");
+        }
+        return await this.repo.transitionStatus(
+            checkoutId,
+            "COMPLETED",
+            ["INITIATED", "INVENTORY_RESERVED", "PAYMENT_PENDING"],
+            checkout.version,
+            { orderId },
+            session
+        );
+    }
+
+    async failCheckout(
+        checkoutId: string | Types.ObjectId
+    ): Promise<CheckoutDocument> {
+        const checkout = await this.repo.findById(checkoutId);
+        if (!checkout) {
+            throw new AppError("Checkout not found", 404, "CHECKOUT_NOT_FOUND");
+        }
+        return await withTransaction(async (session) => {
+            if (checkout.reservationId) {
+                await this.resService.releaseReservation(
+                    checkout.reservationId.toString(),
+                    undefined,
+                    session
+                );
+            }
+            await this.cartRepo.unlockCart(checkout.cartId, session);
+            return await this.repo.transitionStatus(
+                checkoutId,
+                "PAYMENT_FAILED",
+                ["INITIATED", "INVENTORY_RESERVED", "PAYMENT_PENDING"],
+                checkout.version,
+                undefined,
+                session
+            );
+        });
     }
 }
 

@@ -1,0 +1,26 @@
+$kind: http-request
+description: Explicit customer abandonment / cancellation. Releases the reserved physical inventory hold back to available stock, unlocks the cart back to ACTIVE, and transitions checkout status to CANCELLED.
+url: "{{baseUrl}}/checkout/{{checkoutId}}/cancel"
+method: POST
+headers:
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "expectedVersion": 1
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 200 OK', function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test('Checkout cancelled and stock released', function () {
+          var json = pm.response.json();
+          pm.expect(json.success).to.eql(true);
+          pm.expect(json.data.status).to.eql('CANCELLED');
+      });
+    language: text/javascript
+order: 4000

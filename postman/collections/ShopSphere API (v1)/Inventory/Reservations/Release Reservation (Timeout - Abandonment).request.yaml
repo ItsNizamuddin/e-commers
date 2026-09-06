@@ -1,0 +1,20 @@
+$kind: http-request
+name: Release Reservation (Timeout / Abandonment)
+description: Releases reserved physical units back to available stock when checkout expires or user abandons purchase.
+url: "{{baseUrl}}/reservations/{{reservationId}}/release"
+method: POST
+headers:
+  Authorization: Bearer {{accessToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 200 OK', function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test('Reservation status is RELEASED', function () {
+          var json = pm.response.json();
+          pm.expect(json.success).to.eql(true);
+          pm.expect(json.data.status).to.eql('RELEASED');
+      });
+    language: text/javascript
+order: 3000

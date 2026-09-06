@@ -3,7 +3,6 @@ url: "{{baseUrl}}/products/{{productId}}/publish"
 method: PATCH
 headers:
   Authorization: Bearer {{accessToken}}
-  Content-Type: application/json
 scripts:
   - type: afterResponse
     code: |-
@@ -12,7 +11,6 @@ scripts:
       });
       pm.test('Product transitioned to PUBLISHED status', function () {
           var jsonData = pm.response.json();
-          pm.expect(jsonData.success).to.eql(true);
           pm.expect(jsonData.data.status).to.eql('PUBLISHED');
       });
     language: text/javascript

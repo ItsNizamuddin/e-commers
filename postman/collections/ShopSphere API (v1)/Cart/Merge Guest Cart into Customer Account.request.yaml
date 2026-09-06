@@ -1,0 +1,28 @@
+$kind: http-request
+description: Atomic MongoDB transaction that merges the guest cart items into the authenticated customer cart. Caches and caps quantities against current inventory availability and returns structured issues ({ requested, resulting, available, reason }). Transitions guest cart to MERGED and clears session cookie.
+url: "{{baseUrl}}/cart/merge"
+method: POST
+headers:
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "sessionId": "{{guestSessionId}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 200 OK', function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test('Merge completed with issues array', function () {
+          var json = pm.response.json();
+          pm.expect(json.success).to.eql(true);
+          pm.expect(json.data).to.have.property('cart');
+          pm.expect(json.data).to.have.property('merged');
+          pm.expect(json.data).to.have.property('issues');
+      });
+    language: text/javascript
+order: 6000

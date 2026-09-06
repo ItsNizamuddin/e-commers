@@ -7,6 +7,8 @@ import productRoutes from "./modules/products/product.routes.js";
 import { reservationRouter } from "./modules/inventory/inventory.routes.js";
 import { cartRoutes } from "./modules/cart/index.js";
 import { checkoutRoutes } from "./modules/checkout/index.js";
+import { paymentRoutes } from "./modules/payments/index.js";
+import { orderRoutes } from "./modules/orders/index.js";
 
 const router = Router();
 
@@ -18,5 +20,7 @@ router.use("/products", productRoutes);
 router.use("/reservations", reservationRouter);
 router.use("/cart", cartRoutes);
 router.use("/checkout", checkoutRoutes);
+router.use("/payments", paymentRoutes);
+router.use("/orders", orderRoutes);
 
 export default router;

@@ -1,0 +1,16 @@
+$kind: http-request
+name: Get Order by ID (Customer / Guest)
+description: Retrieves order details for an authenticated customer or guest with valid possession token.
+url: "{{baseUrl}}/orders/{{orderId}}"
+method: GET
+headers:
+  Authorization: Bearer {{accessToken}}
+  x-guest-token: "{{guestAccessToken}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 200 OK', function () {
+          pm.response.to.have.status(200);
+      });
+    language: text/javascript
+order: 2000

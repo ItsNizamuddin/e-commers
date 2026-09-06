@@ -1,0 +1,27 @@
+$kind: http-request
+description: Creates a provider payment intent for an INVENTORY_RESERVED checkout, transitioning it to PAYMENT_PENDING.
+url: "{{baseUrl}}/payments/intents"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+body:
+  type: text
+  content: |-
+    {
+      "checkoutId": "{{checkoutId}}",
+      "provider": "MOCK"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 201 Created or 200 OK', function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 201]);
+      });
+      var json = pm.response.json();
+      if (json.data) {
+          if (json.data.paymentId) pm.environment.set('paymentId', json.data.paymentId);
+          if (json.data.paymentIntentId) pm.environment.set('paymentIntentId', json.data.paymentIntentId);
+      }
+    language: text/javascript
+order: 1000

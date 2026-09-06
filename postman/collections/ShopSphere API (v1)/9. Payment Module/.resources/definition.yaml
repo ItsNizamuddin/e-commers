@@ -1,0 +1,3 @@
+$kind: collection
+description: Production-grade payment intents, state retrieval, and HMAC-signed webhook deduplication ledger.
+order: 10000

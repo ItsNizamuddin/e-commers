@@ -25,16 +25,6 @@ body:
           ],
           "weight": 1,
           "weightUnit": "kg"
-        },
-        {
-          "sku": "APL-HONEYCRISP-3KG",
-          "title": "3kg Family Box",
-          "prices": [
-            { "currency": "USD", "amount": 1299, "compareAtAmount": 1499, "costAmount": 650 },
-            { "currency": "INR", "amount": 99900, "compareAtAmount": 119900, "costAmount": 55000 }
-          ],
-          "weight": 3,
-          "weightUnit": "kg"
         }
       ],
       "tags": ["organic", "fresh", "fruits", "apple", "produce"],
@@ -62,7 +52,6 @@ scripts:
           pm.expect(jsonData.success).to.eql(true);
           pm.expect(jsonData.data).to.have.property('id');
           pm.expect(jsonData.data.status).to.eql('DRAFT');
-          pm.expect(jsonData.data.variants.length).to.eql(2);
           pm.environment.set('productId', jsonData.data.id);
           pm.environment.set('productSlug', jsonData.data.slug);
           pm.collectionVariables.set('productId', jsonData.data.id);

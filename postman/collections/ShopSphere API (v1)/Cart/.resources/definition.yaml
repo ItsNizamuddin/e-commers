@@ -1,0 +1,5 @@
+$kind: collection
+description: |-
+  Enterprise Cart Module API.
+  Supports anonymous guest session cookies (HttpOnly, SameSite=Lax), authenticated persistent carts, soft inventory availability tagging, price snapshot integrity, mutation idempotency, and atomic guest cart merging with stock issue reporting.
+order: 8000

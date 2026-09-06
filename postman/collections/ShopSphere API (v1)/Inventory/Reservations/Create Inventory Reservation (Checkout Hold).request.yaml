@@ -1,0 +1,36 @@
+$kind: http-request
+description: Atomically reserves stock across warehouses with all-or-nothing rollback semantics. Sets 15-minute TTL.
+url: "{{baseUrl}}/reservations"
+method: POST
+headers:
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "items": [
+        {
+          "variantId": "{{variantId}}",
+          "quantity": 2
+        }
+      ],
+      "idempotencyKey": "res_checkout_hold_001",
+      "orderId": "draft_checkout_123"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 201 Created', function () {
+          pm.response.to.have.status(201);
+      });
+      pm.test('Reservation created & ID saved', function () {
+          var json = pm.response.json();
+          pm.expect(json.success).to.eql(true);
+          pm.expect(json.data).to.have.property('id');
+          pm.expect(json.data.status).to.eql('PENDING');
+          pm.environment.set('reservationId', json.data.id);
+          pm.collectionVariables.set('reservationId', json.data.id);
+      });
+    language: text/javascript
+order: 1000

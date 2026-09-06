@@ -1,0 +1,19 @@
+$kind: http-request
+description: Fetches active reservation and checks expiration timer.
+url: "{{baseUrl}}/reservations/{{reservationId}}"
+method: GET
+headers:
+  Authorization: Bearer {{accessToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status code is 200 OK', function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test('Reservation is valid', function () {
+          var json = pm.response.json();
+          pm.expect(json.success).to.eql(true);
+          pm.expect(json.data.id).to.eql(pm.environment.get('reservationId'));
+      });
+    language: text/javascript
+order: 2000
