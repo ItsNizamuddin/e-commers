@@ -10,6 +10,7 @@ import { checkoutRoutes } from "./modules/checkout/index.js";
 import { paymentRoutes } from "./modules/payments/index.js";
 import { orderRoutes } from "./modules/orders/index.js";
 import { reviewRoutes } from "./modules/reviews/index.js";
+import { wishlistRoutes } from "./modules/wishlist/index.js";
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use("/checkout", checkoutRoutes);
 router.use("/payments", paymentRoutes);
 router.use("/orders", orderRoutes);
 router.use("/reviews", reviewRoutes);
+router.use("/wishlist", wishlistRoutes);
 
 export default router;
