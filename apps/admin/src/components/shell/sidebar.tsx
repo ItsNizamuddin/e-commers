@@ -16,6 +16,8 @@ import {
     UserCheck,
     ChevronRight,
 } from "lucide-react";
+import { useAppSelector } from "../../store";
+import type { UserRole } from "@ecommers/types";
 
 interface NavGroup {
     title: string;
@@ -26,6 +28,7 @@ interface NavGroup {
         badge?: string;
         badgeColor?: string;
         hasSub?: boolean;
+        allowedRoles?: UserRole[];
     }[];
 }
 
@@ -40,38 +43,47 @@ const NAV_GROUPS: NavGroup[] = [
     {
         title: "INFRASTRUCTURE & TOOLS",
         items: [
-            { label: "Orders", href: "/orders", icon: ShoppingBag, hasSub: true },
-            { label: "Products", href: "/products", icon: Package, hasSub: true },
-            { label: "Categories", href: "/categories", icon: FolderTree },
-            { label: "Inventory Matrix", href: "/inventory", icon: Warehouse, hasSub: true },
+            { label: "Orders", href: "/orders", icon: ShoppingBag, hasSub: true, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SALES", "SUPPORT_AGENT"] },
+            { label: "Products", href: "/products", icon: Package, hasSub: true, allowedRoles: ["SUPER_ADMIN", "ADMIN", "PUBLISHER", "SALES", "SUPPORT_AGENT"] },
+            { label: "Categories", href: "/categories", icon: FolderTree, allowedRoles: ["SUPER_ADMIN", "ADMIN", "PUBLISHER"] },
+            { label: "Inventory Matrix", href: "/inventory", icon: Warehouse, hasSub: true, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SALES", "SUPPORT_AGENT"] },
         ],
     },
     {
         title: "GROWTH & REVENUE",
         items: [
-            { label: "Sales Analytics", href: "/analytics", icon: BarChart3 },
-            { label: "Customer LTV", href: "/customers", icon: Users },
-            { label: "Product Reviews", href: "/reviews", icon: Star },
+            { label: "Sales Analytics", href: "/analytics", icon: BarChart3, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SALES"] },
+            { label: "Customer LTV", href: "/customers", icon: Users, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SALES", "SUPPORT_AGENT"] },
+            { label: "Product Reviews", href: "/reviews", icon: Star, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT_AGENT", "PUBLISHER"] },
         ],
     },
     {
         title: "PLATFORM & ACCESS",
         items: [
-            { label: "Staff & RBAC", href: "/staff", icon: ShieldCheck },
+            { label: "Staff & RBAC", href: "/staff", icon: ShieldCheck, allowedRoles: ["SUPER_ADMIN", "ADMIN"] },
         ],
     },
 ];
 
 export function Sidebar() {
     const pathname = usePathname();
+    const role = useAppSelector((state) => state.auth.role);
+
+    const filteredGroups = NAV_GROUPS.map((group) => ({
+        ...group,
+        items: group.items.filter((item) => {
+            if (!role || !item.allowedRoles) return true;
+            return item.allowedRoles.includes(role);
+        }),
+    })).filter((group) => group.items.length > 0);
 
     return (
         <aside
             style={{
                 width: "230px",
                 minWidth: "230px",
-                backgroundColor: "#ffffff",
-                borderRight: "1px solid #f1f5f9",
+                backgroundColor: "var(--ec-surface, #ffffff)",
+                borderRight: "1px solid var(--ec-border, #f1f5f9)",
                 height: "calc(100vh - 64px)",
                 display: "flex",
                 flexDirection: "column",
@@ -91,14 +103,14 @@ export function Sidebar() {
                     gap: "1.25rem",
                 }}
             >
-                {NAV_GROUPS.map((group) => (
+                {filteredGroups.map((group) => (
                     <div key={group.title}>
                         <div
                             style={{
                                 fontSize: "0.6875rem",
                                 fontWeight: 700,
                                 letterSpacing: "0.06em",
-                                color: "#94a3b8",
+                                color: "var(--ec-text-muted, #94a3b8)",
                                 padding: "0 0.5rem 0.5rem 0.5rem",
                                 textTransform: "uppercase",
                             }}
@@ -123,8 +135,8 @@ export function Sidebar() {
                                             padding: "0.5rem 0.625rem",
                                             borderRadius: "8px",
                                             textDecoration: "none",
-                                            backgroundColor: isActive ? "#f8fafc" : "transparent",
-                                            color: isActive ? "#0f172a" : "#475569",
+                                            backgroundColor: isActive ? "var(--ec-bg-subtle, #f8fafc)" : "transparent",
+                                            color: isActive ? "var(--ec-text-primary, #0f172a)" : "var(--ec-text-secondary, #475569)",
                                             fontWeight: isActive ? 600 : 500,
                                             fontSize: "0.8125rem",
                                             transition: "all 0.15s ease",
@@ -171,12 +183,12 @@ export function Sidebar() {
             <div
                 style={{
                     padding: "0.875rem 1rem",
-                    borderTop: "1px solid #f1f5f9",
+                    borderTop: "1px solid var(--ec-border, #f1f5f9)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
                     fontSize: "0.6875rem",
-                    color: "#94a3b8",
+                    color: "var(--ec-text-muted, #94a3b8)",
                     fontWeight: 600,
                     letterSpacing: "0.05em",
                 }}

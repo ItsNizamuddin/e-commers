@@ -42,6 +42,7 @@ export default function AdminLoginPage() {
         setIsLoggingIn(true);
         try {
             const res = await api.auth.adminLogin(data);
+            document.cookie = "admin_session_active=1; path=/; max-age=604800; SameSite=Lax";
             setAccessToken(res.accessToken);
             dispatch(setSession(res.user));
             router.replace("/dashboard");

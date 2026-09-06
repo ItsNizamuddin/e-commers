@@ -3,8 +3,9 @@ import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
+    const sessionCookie = request.cookies.get("admin_session_active");
     const staffCookie = request.cookies.get("staffRefreshToken");
-    const hasSessionCookie = Boolean(staffCookie?.value);
+    const hasSession = Boolean(sessionCookie?.value || staffCookie?.value);
 
     const isAuthRoute = pathname.startsWith("/login");
     const isPublicStatic =
@@ -17,13 +18,13 @@ export function middleware(request: NextRequest) {
     }
 
     // Unauthenticated user trying to access protected backoffice routes
-    if (!hasSessionCookie && !isAuthRoute) {
+    if (!hasSession && !isAuthRoute) {
         const loginUrl = new URL("/login", request.url);
         return NextResponse.redirect(loginUrl);
     }
 
     // Authenticated user visiting login page
-    if (hasSessionCookie && isAuthRoute) {
+    if (hasSession && isAuthRoute) {
         const dashboardUrl = new URL("/dashboard", request.url);
         return NextResponse.redirect(dashboardUrl);
     }

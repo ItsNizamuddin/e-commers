@@ -1,6 +1,7 @@
 import React from "react";
 import type { Metadata } from "next";
 import { StoreProvider } from "../store/provider";
+import { ThemeProvider } from "../components/theme-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,9 +17,11 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body>
-                <StoreProvider>
-                    {children}
-                </StoreProvider>
+                <ThemeProvider>
+                    <StoreProvider>
+                        {children}
+                    </StoreProvider>
+                </ThemeProvider>
             </body>
         </html>
     );

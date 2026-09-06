@@ -8,7 +8,7 @@ import type { LoginInput, RegisterInput } from "./auth.validation.js";
 const COOKIE_OPTIONS = {
     httpOnly: true,
     secure: env.nodeEnv === "production",
-    sameSite: "strict" as const,
+    sameSite: (env.nodeEnv === "production" ? "strict" : "lax") as "strict" | "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 

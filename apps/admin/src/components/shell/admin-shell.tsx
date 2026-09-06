@@ -11,7 +11,7 @@ interface AdminShellProps {
 
 export function AdminShell({ children }: AdminShellProps) {
     return (
-        <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", backgroundColor: "#f8fafc" }}>
+        <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", backgroundColor: "var(--ec-bg-app, #f8fafc)", color: "var(--ec-text-primary, #0f172a)" }}>
             {/* Full-width sticky topbar */}
             <Topbar />
 

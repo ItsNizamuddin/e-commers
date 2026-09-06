@@ -89,11 +89,11 @@ export default function AccountPage() {
             {/* Reference-Matched Main Card */}
             <Card
                 style={{
-                    backgroundColor: "#ffffff",
+                    backgroundColor: "var(--ec-surface, #ffffff)",
                     borderRadius: "16px",
-                    border: "1px solid #e2e8f0",
+                    border: "1px solid var(--ec-border, #e2e8f0)",
                     padding: "2rem",
-                    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+                    boxShadow: "var(--ec-shadow-card, 0 1px 3px rgba(0, 0, 0, 0.04))",
                 }}
             >
                 {/* Card Header */}
@@ -103,7 +103,7 @@ export default function AccountPage() {
                         alignItems: "flex-start",
                         justifyContent: "space-between",
                         paddingBottom: "1.75rem",
-                        borderBottom: "1px solid #f1f5f9",
+                        borderBottom: "1px solid var(--ec-border, #f1f5f9)",
                     }}
                 >
                     <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
@@ -112,7 +112,7 @@ export default function AccountPage() {
                                 width: "32px",
                                 height: "32px",
                                 borderRadius: "8px",
-                                backgroundColor: "#eff6ff",
+                                backgroundColor: "rgba(37, 99, 235, 0.1)",
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
@@ -127,13 +127,13 @@ export default function AccountPage() {
                                 style={{
                                     fontSize: "1.125rem",
                                     fontWeight: 700,
-                                    color: "#0f172a",
+                                    color: "var(--ec-text-primary, #0f172a)",
                                     letterSpacing: "-0.02em",
                                 }}
                             >
                                 Account information
                             </h1>
-                            <p style={{ fontSize: "0.8125rem", color: "#64748b", marginTop: "0.25rem" }}>
+                            <p style={{ fontSize: "0.8125rem", color: "var(--ec-text-muted, #64748b)", marginTop: "0.25rem" }}>
                                 Manage your personal information and contact details.
                             </p>
                         </div>
@@ -146,9 +146,9 @@ export default function AccountPage() {
                         onClick={() => setIsEditModalOpen(true)}
                         style={{
                             borderRadius: "8px",
-                            borderColor: "#bfdbfe",
-                            backgroundColor: "#eff6ff",
-                            color: "#2563eb",
+                            borderColor: "var(--ec-border, #bfdbfe)",
+                            backgroundColor: "var(--ec-bg-subtle, #eff6ff)",
+                            color: "var(--ec-primary, #2563eb)",
                             fontWeight: 600,
                             padding: "0.375rem 0.875rem",
                         }}
@@ -172,13 +172,13 @@ export default function AccountPage() {
                                 fontSize: "0.6875rem",
                                 fontWeight: 700,
                                 letterSpacing: "0.06em",
-                                color: "#64748b",
+                                color: "var(--ec-text-muted, #64748b)",
                                 textTransform: "uppercase",
                             }}
                         >
                             USERNAME
                         </div>
-                        <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "#0f172a", marginTop: "0.375rem" }}>
+                        <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--ec-text-primary, #0f172a)", marginTop: "0.375rem" }}>
                             {userName}
                         </div>
                     </div>
@@ -189,13 +189,13 @@ export default function AccountPage() {
                                 fontSize: "0.6875rem",
                                 fontWeight: 700,
                                 letterSpacing: "0.06em",
-                                color: "#64748b",
+                                color: "var(--ec-text-muted, #64748b)",
                                 textTransform: "uppercase",
                             }}
                         >
                             EMAIL ADDRESS
                         </div>
-                        <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "#0f172a", marginTop: "0.375rem" }}>
+                        <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--ec-text-primary, #0f172a)", marginTop: "0.375rem" }}>
                             {emailAddress}
                         </div>
                     </div>
@@ -206,27 +206,27 @@ export default function AccountPage() {
                                 fontSize: "0.6875rem",
                                 fontWeight: 700,
                                 letterSpacing: "0.06em",
-                                color: "#64748b",
+                                color: "var(--ec-text-muted, #64748b)",
                                 textTransform: "uppercase",
                             }}
                         >
                             INTERNAL USER ID
                         </div>
-                        <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "#0f172a", marginTop: "0.375rem" }}>
+                        <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--ec-text-primary, #0f172a)", marginTop: "0.375rem" }}>
                             {internalUserId}
                         </div>
                     </div>
                 </div>
 
                 {/* Lifecycle & Presence Section */}
-                <div style={{ paddingTop: "1.75rem", borderTop: "1px solid #f1f5f9" }}>
+                <div style={{ paddingTop: "1.75rem", borderTop: "1px solid var(--ec-border, #f1f5f9)" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
                         <Globe size={16} color="#2563eb" />
-                        <h2 style={{ fontSize: "0.9375rem", fontWeight: 700, color: "#0f172a" }}>
+                        <h2 style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--ec-text-primary, #0f172a)" }}>
                             Lifecycle & Presence
                         </h2>
                     </div>
-                    <p style={{ fontSize: "0.8125rem", color: "#64748b", marginBottom: "1.5rem" }}>
+                    <p style={{ fontSize: "0.8125rem", color: "var(--ec-text-muted, #64748b)", marginBottom: "1.5rem" }}>
                         Track your account status and presence within the platform.
                     </p>
 
@@ -310,13 +310,13 @@ export default function AccountPage() {
                                     fontSize: "0.6875rem",
                                     fontWeight: 700,
                                     letterSpacing: "0.06em",
-                                    color: "#64748b",
+                                    color: "var(--ec-text-muted, #64748b)",
                                     textTransform: "uppercase",
                                 }}
                             >
                                 LAST AUTHENTICATION
                             </div>
-                            <div style={{ fontSize: "0.875rem", fontWeight: 700, color: "#0f172a", marginTop: "0.375rem" }}>
+                            <div style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--ec-text-primary, #0f172a)", marginTop: "0.375rem" }}>
                                 {formattedLastAuth}
                             </div>
                         </div>
@@ -328,13 +328,13 @@ export default function AccountPage() {
                                     fontSize: "0.6875rem",
                                     fontWeight: 700,
                                     letterSpacing: "0.06em",
-                                    color: "#64748b",
+                                    color: "var(--ec-text-muted, #64748b)",
                                     textTransform: "uppercase",
                                 }}
                             >
                                 REGISTRATION DATE
                             </div>
-                            <div style={{ fontSize: "0.875rem", fontWeight: 700, color: "#0f172a", marginTop: "0.375rem" }}>
+                            <div style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--ec-text-primary, #0f172a)", marginTop: "0.375rem" }}>
                                 {formattedRegDate}
                             </div>
                         </div>

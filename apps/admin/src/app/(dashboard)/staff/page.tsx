@@ -29,6 +29,7 @@ import {
     Lock,
     CheckCircle2,
 } from "lucide-react";
+import { RequireRole } from "../../../components/auth/require-role";
 
 export default function StaffPage() {
     const [staff, setStaff] = useState<UserResponse[]>([]);
@@ -155,7 +156,8 @@ export default function StaffPage() {
     };
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        <RequireRole allowedRoles={["SUPER_ADMIN", "ADMIN"]}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
             {/* Header */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
@@ -432,6 +434,7 @@ export default function StaffPage() {
                     </div>
                 </form>
             </Modal>
-        </div>
+            </div>
+        </RequireRole>
     );
 }

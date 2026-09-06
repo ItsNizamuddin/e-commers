@@ -82,3 +82,45 @@
 .ec-animate-spin {
   animation: ec-spin 0.75s linear infinite;
 }
+
+[data-theme="dark"], .dark {
+  /* Surfaces & Backgrounds */
+  --ec-surface: #0f172a;
+  --ec-bg-app: #020617;
+  --ec-bg-subtle: #1e293b;
+  --ec-bg-muted: #334155;
+
+  /* Typography Colors */
+  --ec-text-primary: #f8fafc;
+  --ec-text-secondary: #cbd5e1;
+  --ec-text-muted: #94a3b8;
+  --ec-text-subtle: #64748b;
+  --ec-text-inverse: #0f172a;
+
+  /* Borders */
+  --ec-border: #1e293b;
+  --ec-border-strong: #334155;
+  --ec-border-focus: #3b82f6;
+
+  /* Status Colors */
+  --ec-success: #34d399;
+  --ec-success-bg: rgba(5, 150, 105, 0.15);
+  --ec-success-border: rgba(5, 150, 105, 0.3);
+
+  --ec-warning: #fbbf24;
+  --ec-warning-bg: rgba(217, 119, 6, 0.15);
+  --ec-warning-border: rgba(217, 119, 6, 0.3);
+
+  --ec-danger: #f87171;
+  --ec-danger-bg: rgba(220, 38, 38, 0.15);
+  --ec-danger-border: rgba(220, 38, 38, 0.3);
+
+  --ec-info: #38bdf8;
+  --ec-info-bg: rgba(2, 132, 199, 0.15);
+  --ec-info-border: rgba(2, 132, 199, 0.3);
+
+  /* Shadows */
+  --ec-shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(51, 65, 85, 0.5);
+  --ec-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+  --ec-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+}

@@ -21,6 +21,7 @@ function SessionHydrator({ children }: { children: React.ReactNode }) {
                 }
             } catch {
                 if (isMounted) {
+                    document.cookie = "admin_session_active=; path=/; max-age=0; SameSite=Lax";
                     setAccessToken(null);
                     dispatch(clearSession());
                 }

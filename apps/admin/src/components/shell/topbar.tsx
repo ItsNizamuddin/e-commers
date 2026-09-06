@@ -6,6 +6,7 @@ import {
     LogOut,
     Search,
     Sun,
+    Moon,
     Bell,
     ChevronDown,
     Loader2,
@@ -13,10 +14,12 @@ import {
 import { useAppDispatch, useAppSelector } from "../../store";
 import { clearSession } from "../../store/auth-slice";
 import { api, setAccessToken } from "../../lib/api";
+import { useTheme } from "../theme-provider";
 
 export function Topbar() {
     const router = useRouter();
     const dispatch = useAppDispatch();
+    const { theme, toggleTheme } = useTheme();
     const user = useAppSelector((state) => state.auth.user);
     const role = useAppSelector((state) => state.auth.role);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -29,6 +32,7 @@ export function Topbar() {
         } catch {
             // Even if network fails, proceed with client cleanup
         } finally {
+            document.cookie = "admin_session_active=; path=/; max-age=0; SameSite=Lax";
             setAccessToken(null);
             dispatch(clearSession());
             router.replace("/login");
@@ -47,8 +51,8 @@ export function Topbar() {
         <header
             style={{
                 height: "64px",
-                backgroundColor: "#ffffff",
-                borderBottom: "1px solid #f1f5f9",
+                backgroundColor: "var(--ec-surface, #ffffff)",
+                borderBottom: "1px solid var(--ec-border, #f1f5f9)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
@@ -57,6 +61,7 @@ export function Topbar() {
                 top: 0,
                 zIndex: 40,
                 boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.02)",
+                transition: "background-color 0.15s ease, border-color 0.15s ease",
             }}
         >
             {/* Left: Brand Identity */}
@@ -84,7 +89,7 @@ export function Topbar() {
                             fontSize: "1.125rem",
                             fontWeight: 800,
                             letterSpacing: "-0.03em",
-                            color: "#0f172a",
+                            color: "var(--ec-text-primary, #0f172a)",
                         }}
                     >
                         ecommers
@@ -111,14 +116,14 @@ export function Topbar() {
                         display: "flex",
                         alignItems: "center",
                         gap: "0.5rem",
-                        backgroundColor: "#f8fafc",
-                        border: "1px solid #e2e8f0",
+                        backgroundColor: "var(--ec-bg-subtle, #f8fafc)",
+                        border: "1px solid var(--ec-border, #e2e8f0)",
                         borderRadius: "9999px",
                         padding: "0.3125rem 0.75rem",
                         width: "180px",
                     }}
                 >
-                    <Search size={14} color="#94a3b8" />
+                    <Search size={14} color="var(--ec-text-subtle, #94a3b8)" />
                     <input
                         type="text"
                         placeholder="Search..."
@@ -128,15 +133,15 @@ export function Topbar() {
                             fontSize: "0.75rem",
                             outline: "none",
                             width: "100%",
-                            color: "#0f172a",
+                            color: "var(--ec-text-primary, #0f172a)",
                         }}
                     />
                     <span
                         style={{
-                            fontSize: "0.6875rem",
-                            color: "#94a3b8",
-                            backgroundColor: "#ffffff",
-                            border: "1px solid #e2e8f0",
+                            fontSize: "0.625rem",
+                            color: "var(--ec-text-muted, #64748b)",
+                            backgroundColor: "var(--ec-surface, #ffffff)",
+                            border: "1px solid var(--ec-border, #e2e8f0)",
                             borderRadius: "4px",
                             padding: "0 4px",
                             lineHeight: "16px",
@@ -150,21 +155,23 @@ export function Topbar() {
                 {/* Theme Toggle */}
                 <button
                     type="button"
-                    title="Toggle Theme"
+                    onClick={toggleTheme}
+                    title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
                     style={{
                         width: "32px",
                         height: "32px",
                         borderRadius: "50%",
-                        border: "1px solid #e2e8f0",
-                        backgroundColor: "#ffffff",
-                        color: "#64748b",
+                        border: "1px solid var(--ec-border, #e2e8f0)",
+                        backgroundColor: "var(--ec-surface, #ffffff)",
+                        color: "var(--ec-text-secondary, #64748b)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         cursor: "pointer",
+                        transition: "all 0.15s ease",
                     }}
                 >
-                    <Sun size={15} />
+                    {theme === "dark" ? <Sun size={15} color="#f59e0b" /> : <Moon size={15} />}
                 </button>
 
                 {/* Notifications Bell */}
@@ -176,13 +183,14 @@ export function Topbar() {
                         width: "32px",
                         height: "32px",
                         borderRadius: "50%",
-                        border: "1px solid #e2e8f0",
-                        backgroundColor: "#ffffff",
-                        color: "#64748b",
+                        border: "1px solid var(--ec-border, #e2e8f0)",
+                        backgroundColor: "var(--ec-surface, #ffffff)",
+                        color: "var(--ec-text-secondary, #64748b)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         cursor: "pointer",
+                        transition: "all 0.15s ease",
                     }}
                 >
                     <Bell size={15} />

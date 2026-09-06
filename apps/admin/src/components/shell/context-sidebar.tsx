@@ -97,8 +97,8 @@ export function ContextSidebar() {
             style={{
                 width: "220px",
                 minWidth: "220px",
-                backgroundColor: "#ffffff",
-                borderRight: "1px solid #f1f5f9",
+                backgroundColor: "var(--ec-surface, #ffffff)",
+                borderRight: "1px solid var(--ec-border, #f1f5f9)",
                 height: "calc(100vh - 64px)",
                 display: "flex",
                 flexDirection: "column",
@@ -116,8 +116,8 @@ export function ContextSidebar() {
                     alignItems: "center",
                     gap: "0.75rem",
                     padding: "0.75rem",
-                    backgroundColor: "#f8fafc",
-                    border: "1px solid #e2e8f0",
+                    backgroundColor: "var(--ec-bg-subtle, #f8fafc)",
+                    border: "1px solid var(--ec-border, #e2e8f0)",
                     borderRadius: "12px",
                 }}
             >
@@ -143,7 +143,7 @@ export function ContextSidebar() {
                             fontSize: "0.6875rem",
                             fontWeight: 700,
                             letterSpacing: "0.05em",
-                            color: "#64748b",
+                            color: "var(--ec-text-muted, #64748b)",
                             textTransform: "uppercase",
                         }}
                     >
@@ -153,7 +153,7 @@ export function ContextSidebar() {
                         style={{
                             fontSize: "0.875rem",
                             fontWeight: 700,
-                            color: "#0f172a",
+                            color: "var(--ec-text-primary, #0f172a)",
                             marginTop: "2px",
                         }}
                     >
@@ -181,13 +181,13 @@ export function ContextSidebar() {
                                 textDecoration: "none",
                                 fontSize: "0.8125rem",
                                 fontWeight: isActive ? 600 : 500,
-                                backgroundColor: isActive ? "#eff6ff" : "transparent",
-                                color: isActive ? "#2563eb" : "#475569",
+                                backgroundColor: isActive ? "rgba(37, 99, 235, 0.1)" : "transparent",
+                                color: isActive ? "var(--ec-primary, #2563eb)" : "var(--ec-text-secondary, #475569)",
                                 transition: "all 0.15s ease",
                             }}
                         >
                             <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
-                                <Icon size={16} color={isActive ? "#2563eb" : "#64748b"} />
+                                <Icon size={16} color={isActive ? "#2563eb" : "var(--ec-text-muted, #64748b)"} />
                                 <span>{item.label}</span>
                             </div>
                             {isActive && <ChevronRight size={14} color="#2563eb" />}
