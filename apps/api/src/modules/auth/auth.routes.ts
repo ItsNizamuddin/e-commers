@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/async-handler.js";
+import { authLimiter } from "../../middleware/rate-limiter.js";
 import {
     register,
     loginCustomer,
@@ -18,12 +19,14 @@ const router = Router();
 // Storefront Customer Endpoints
 router.post(
     "/register",
+    authLimiter,
     validate(registerSchema, "body"),
     asyncHandler(register),
 );
 
 router.post(
     "/login",
+    authLimiter,
     validate(loginSchema, "body"),
     asyncHandler(loginCustomer),
 );
@@ -41,6 +44,7 @@ router.post(
 // Admin & Staff Portal Endpoints
 router.post(
     "/admin/login",
+    authLimiter,
     validate(loginSchema, "body"),
     asyncHandler(loginAdmin),
 );

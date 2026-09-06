@@ -7,6 +7,7 @@ import { env } from "./config/env.js";
 import routes from "./routes.js";
 import { requestLogger } from "./middleware/request-logger.js";
 import cookieParser from "cookie-parser";
+import { globalLimiter } from "./middleware/rate-limiter.js";
 
 declare module "http" {
     interface IncomingMessage {
@@ -36,6 +37,7 @@ app.use(express.json({
     },
 }));
 app.use(cookieParser());
+app.use(globalLimiter);
 
 app.get("/api/v1/health", (_req, res) => {
     res.status(200).json({

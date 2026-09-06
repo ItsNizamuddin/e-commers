@@ -40,7 +40,6 @@ const wishlistSchema = new Schema<IWishlistDocument>(
             type: Schema.Types.ObjectId,
             ref: "User",
             required: true,
-            unique: true,
         },
         items: {
             type: [wishlistItemSchema],

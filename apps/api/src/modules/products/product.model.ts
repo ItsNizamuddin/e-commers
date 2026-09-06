@@ -139,6 +139,8 @@ const ProductSchema = new Schema<ProductDocument>(
 
 ProductSchema.index({ categoryId: 1, status: 1 });
 ProductSchema.index({ "variants.sku": 1 }, { unique: true, sparse: true });
+ProductSchema.index({ status: 1, brand: 1 });
+ProductSchema.index({ status: 1, averageRating: -1 });
 ProductSchema.index({ status: 1, "variants.prices.currency": 1, "variants.prices.amount": 1 });
 ProductSchema.index({ title: "text", description: "text", brand: "text", tags: "text" });
 
