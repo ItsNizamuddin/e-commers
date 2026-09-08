@@ -3,7 +3,7 @@ import { categoryController } from "./category.controller.js";
 import { authenticate, optionalAuth } from "../auth/auth.middleware.js";
 import { requirePermission } from "../../middleware/authorize.middleware.js";
 import { validate } from "../../middleware/validate.js";
-import { createCategorySchema, updateCategorySchema, categoryQuerySchema } from "./category.validation.js";
+import { createCategorySchema, updateCategorySchema, categoryQuerySchema, reorderCategoriesSchema } from "./category.validation.js";
 
 const router = Router();
 
@@ -26,6 +26,14 @@ router.get(
     "/slug/:slug",
     optionalAuth,
     categoryController.getCategoryBySlug
+);
+
+router.patch(
+    "/reorder",
+    authenticate,
+    requirePermission("category.update"),
+    validate(reorderCategoriesSchema, "body"),
+    categoryController.reorderCategories
 );
 
 router.get(

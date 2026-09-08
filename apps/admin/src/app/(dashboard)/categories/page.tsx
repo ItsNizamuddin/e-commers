@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "../../../lib/api";
 import type { CategoryResponse } from "@ecommers/types";
 import {
@@ -15,10 +16,10 @@ import {
     TableHead,
     TableCell,
     Button,
-    Modal,
-    Input,
-    FormField,
+    TableAction,
+    TableActionGroup,
     ConfirmDialog,
+    toast,
 } from "@ecommers/ui";
 import {
     FolderTree,
@@ -26,24 +27,39 @@ import {
     Edit,
     Trash2,
     RefreshCw,
-    CheckCircle2,
     Folder,
+    Search,
+    Globe,
+    ListFilter,
+    ChevronsDownUp,
+    ChevronsUpDown,
+    X,
+    Layers,
+    Check,
 } from "lucide-react";
+import {
+    buildCategoryTree,
+    flattenCategoryTree,
+    getAllBranchIds,
+    filterCategoryTree,
+    reorderCategoryList,
+} from "../../../components/categories/category-tree-utils";
+import { CategoryTreeTable } from "../../../components/categories/category-tree-table";
 
 export default function CategoriesPage() {
+    const router = useRouter();
     const [categories, setCategories] = useState<CategoryResponse[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Modal state
-    const [isCreateOpen, setIsCreateOpen] = useState(false);
-    const [editingCategory, setEditingCategory] = useState<CategoryResponse | null>(null);
-    const [name, setName] = useState("");
-    const [slug, setSlug] = useState("");
-    const [description, setDescription] = useState("");
-    const [parentId, setParentId] = useState("");
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    // View mode & Tree state
+    const [viewMode, setViewMode] = useState<"tree" | "flat">("tree");
+    const [searchQuery, setSearchQuery] = useState("");
+    const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+    // Status toggle & Reorder feedback states
+    const [togglingActiveId, setTogglingActiveId] = useState<string | null>(null);
 
     // Delete state
     const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
@@ -55,7 +71,12 @@ export default function CategoriesPage() {
         setError(null);
         try {
             const data = await api.categories.list();
-            setCategories(data || []);
+            const list = data || [];
+            setCategories(list);
+
+            // Auto-expand branches initially
+            const tree = buildCategoryTree(list);
+            setExpandedIds(getAllBranchIds(tree));
         } catch (err: unknown) {
             if (err instanceof Error) {
                 setError(err.message);
@@ -72,65 +93,112 @@ export default function CategoriesPage() {
         loadCategories();
     }, []);
 
-    const openCreateModal = () => {
-        setEditingCategory(null);
-        setName("");
-        setSlug("");
-        setDescription("");
-        setParentId("");
-        setIsCreateOpen(true);
+    // Tree calculation and search filtering
+    const { filteredTree, matchedIds, autoExpandIds } = useMemo(() => {
+        return filterCategoryTree(categories, searchQuery);
+    }, [categories, searchQuery]);
+
+    // Automatically expand ancestors of matching items when searching
+    useEffect(() => {
+        if (searchQuery.trim() && autoExpandIds.size > 0) {
+            setExpandedIds((prev) => {
+                const next = new Set(prev);
+                autoExpandIds.forEach((id) => next.add(id));
+                return next;
+            });
+        }
+    }, [searchQuery, autoExpandIds]);
+
+    // Flatten tree for table rendering
+    const flattenedRows = useMemo(() => {
+        return flattenCategoryTree(filteredTree, expandedIds);
+    }, [filteredTree, expandedIds]);
+
+    // Flat mode search filtering
+    const flatFilteredCategories = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) return categories;
+        return categories.filter(
+            (c) =>
+                c.name.toLowerCase().includes(q) ||
+                c.slug.toLowerCase().includes(q) ||
+                (c.description || "").toLowerCase().includes(q)
+        );
+    }, [categories, searchQuery]);
+
+    // Tree Expansion Handlers
+    const handleToggleExpand = (id: string) => {
+        setExpandedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
     };
 
-    const openEditModal = (cat: CategoryResponse) => {
-        setEditingCategory(cat);
-        setName(cat.name);
-        setSlug(cat.slug);
-        setDescription(cat.description || "");
-        setParentId(cat.parentId || "");
-        setIsCreateOpen(true);
+    const handleExpandAll = () => {
+        const allBranchIds = getAllBranchIds(filteredTree);
+        setExpandedIds(allBranchIds);
     };
 
-    const handleNameChange = (val: string) => {
-        setName(val);
-        if (!editingCategory) {
-            setSlug(
-                val
-                    .toLowerCase()
-                    .replace(/[^a-z0-9]+/g, "-")
-                    .replace(/^-+|-+$/g, "")
+    const handleCollapseAll = () => {
+        setExpandedIds(new Set());
+    };
+
+    // Toggle Active / Hidden Status Handler
+    const handleToggleActive = async (id: string, newActive: boolean) => {
+        setTogglingActiveId(id);
+        const targetCategory = categories.find((c) => c.id === id);
+        const catName = targetCategory?.name || "Category";
+
+        // Optimistic UI update
+        setCategories((prev) =>
+            prev.map((c) => (c.id === id ? { ...c, isActive: newActive } : c))
+        );
+
+        try {
+            await api.categories.update(id, { isActive: newActive });
+            toast.success(`${catName} is now ${newActive ? "Active" : "Hidden"}`);
+        } catch (err: unknown) {
+            // Revert state on error
+            setCategories((prev) =>
+                prev.map((c) => (c.id === id ? { ...c, isActive: !newActive } : c))
             );
+            toast.error(err instanceof Error ? `Failed to update status: ${err.message}` : "Failed to update category status.");
+        } finally {
+            setTogglingActiveId(null);
         }
     };
 
-    const handleSaveCategory = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!name.trim()) return;
+    // Drag and Drop Reordering Handler
+    const handleReorder = async (
+        sourceId: string,
+        targetId: string,
+        position: "before" | "after"
+    ) => {
+        const result = reorderCategoryList(categories, sourceId, targetId, position);
+        if (!result) return;
 
-        setIsSubmitting(true);
+        const { updatedCategories, changedCategories } = result;
+
+        // Optimistic update in UI
+        setCategories(updatedCategories);
+
+        // Persist updated sortOrder using dedicated reorder API
         try {
-            if (editingCategory) {
-                await api.categories.update(editingCategory.id, {
-                    name: name.trim(),
-                    slug: slug.trim() || undefined,
-                    description: description.trim() || undefined,
-                    parentId: parentId || undefined,
-                });
-            } else {
-                await api.categories.create({
-                    name: name.trim(),
-                    slug: slug.trim() || undefined,
-                    description: description.trim() || undefined,
-                    parentId: parentId || undefined,
-                });
-            }
-            setIsCreateOpen(false);
-            loadCategories(true);
+            await api.categories.reorder(
+                changedCategories.map((item) => ({
+                    id: item.id,
+                    sortOrder: item.sortOrder,
+                }))
+            );
+            toast.success("Category order updated.");
         } catch (err: unknown) {
-            if (err instanceof Error) {
-                alert(`Error saving category: ${err.message}`);
-            }
-        } finally {
-            setIsSubmitting(false);
+            console.error("Failed to persist category order:", err);
+            toast.error(err instanceof Error ? err.message : "Failed to save new order to server.");
         }
     };
 
@@ -140,76 +208,199 @@ export default function CategoriesPage() {
         try {
             await api.categories.delete(categoryToDelete);
             setCategoryToDelete(null);
+            toast.success("Category deleted successfully.");
             loadCategories(true);
         } catch (err: unknown) {
             if (err instanceof Error) {
-                alert(`Delete failed: ${err.message}`);
+                toast.error(`Delete failed: ${err.message}`);
+            } else {
+                toast.error("Failed to delete category.");
             }
         } finally {
             setIsDeleting(false);
         }
     };
 
+    // Summary Statistics
+    const totalCount = categories.length;
+    const rootCount = categories.filter((c) => !c.parentId).length;
+    const subCount = categories.filter((c) => Boolean(c.parentId)).length;
+    const seoCount = categories.filter((c) => Boolean(c.seo?.metaTitle || c.seo?.metaDescription)).length;
+
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        <div className="flex flex-col gap-4">
             {/* Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <div
-                            style={{
-                                width: "32px",
-                                height: "32px",
-                                borderRadius: "8px",
-                                backgroundColor: "#eff6ff",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                color: "#2563eb",
-                            }}
-                        >
-                            <FolderTree size={18} />
+                    <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/60 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                            <FolderTree size={15} />
                         </div>
-                        <h1 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#0f172a", letterSpacing: "-0.02em" }}>
-                            Categories & Taxonomy
+                        <h1 className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
+                            Categories
                         </h1>
                     </div>
-                    <p style={{ fontSize: "0.8125rem", color: "#64748b", marginTop: "0.25rem" }}>
-                        Structure catalog hierarchies, manage parent-child relationships, and taxonomy slugs.
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Organize your store taxonomy, category hierarchy, and search engine metadata.
                     </p>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <div className="flex items-center gap-2">
                     <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         onClick={() => loadCategories(true)}
                         isLoading={refreshing}
-                        style={{ borderRadius: "8px" }}
+                        className="gap-1.5 h-8 text-xs"
                     >
-                        <RefreshCw size={14} />
+                        <RefreshCw size={13} />
                         <span>Refresh</span>
                     </Button>
                     <Button
                         type="button"
                         variant="primary"
                         size="sm"
-                        onClick={openCreateModal}
-                        style={{ backgroundColor: "#2563eb", borderRadius: "8px", gap: "0.375rem" }}
+                        onClick={() => router.push("/categories/new")}
+                        className="gap-1.5 h-8 text-xs"
                     >
-                        <Plus size={15} />
+                        <Plus size={14} />
                         <span>Add Category</span>
                     </Button>
                 </div>
             </div>
 
-            {/* Categories Table Card */}
-            <Card style={{ backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", padding: "1.25rem" }}>
+            {/* Quick Metrics Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="p-2.5 px-3 rounded-lg border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#111111] flex items-center justify-between">
+                    <div>
+                        <span className="text-[11px] text-slate-500 dark:text-neutral-400 font-medium">Total</span>
+                        <div className="text-sm font-bold text-slate-900 dark:text-white">{totalCount}</div>
+                    </div>
+                    <div className="w-6 h-6 rounded bg-slate-100 dark:bg-neutral-800 flex items-center justify-center text-slate-600 dark:text-neutral-300">
+                        <Folder size={13} />
+                    </div>
+                </div>
+
+                <div className="p-2.5 px-3 rounded-lg border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#111111] flex items-center justify-between">
+                    <div>
+                        <span className="text-[11px] text-slate-500 dark:text-neutral-400 font-medium">Top-Level</span>
+                        <div className="text-sm font-bold text-blue-600 dark:text-blue-400">{rootCount}</div>
+                    </div>
+                    <div className="w-6 h-6 rounded bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                        <FolderTree size={13} />
+                    </div>
+                </div>
+
+                <div className="p-2.5 px-3 rounded-lg border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#111111] flex items-center justify-between">
+                    <div>
+                        <span className="text-[11px] text-slate-500 dark:text-neutral-400 font-medium">Subcategories</span>
+                        <div className="text-sm font-bold text-indigo-600 dark:text-indigo-400">{subCount}</div>
+                    </div>
+                    <div className="w-6 h-6 rounded bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                        <Layers size={13} />
+                    </div>
+                </div>
+
+                <div className="p-2.5 px-3 rounded-lg border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#111111] flex items-center justify-between">
+                    <div>
+                        <span className="text-[11px] text-slate-500 dark:text-neutral-400 font-medium">SEO Ready</span>
+                        <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{seoCount}</div>
+                    </div>
+                    <div className="w-6 h-6 rounded bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                        <Globe size={13} />
+                    </div>
+                </div>
+            </div>
+
+            {/* Main Table Card */}
+            <Card className="p-3.5 sm:p-4">
+                {/* Search & View Controls Toolbar */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5 pb-3 mb-3 border-b border-slate-100 dark:border-neutral-800">
+                    {/* Live Search Input */}
+                    <div className="relative flex-1 min-w-[220px] max-w-sm">
+                        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search categories by name, slug..."
+                            className="w-full h-8 pl-8 pr-7 text-xs rounded-md border border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-900 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                        />
+                        {searchQuery && (
+                            <button
+                                type="button"
+                                onClick={() => setSearchQuery("")}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-neutral-300"
+                            >
+                                <X size={13} />
+                            </button>
+                        )}
+                    </div>
+
+                    {/* View Mode & Tree Controls */}
+                    <div className="flex items-center gap-2">
+                        {viewMode === "tree" && (
+                            <div className="flex items-center gap-1">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleExpandAll}
+                                    title="Expand all categories"
+                                    className="h-8 text-[11px] px-2 gap-1"
+                                >
+                                    <ChevronsUpDown size={13} />
+                                    <span>Expand All</span>
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleCollapseAll}
+                                    title="Collapse all subcategories"
+                                    className="h-8 text-[11px] px-2 gap-1"
+                                >
+                                    <ChevronsDownUp size={13} />
+                                    <span>Collapse All</span>
+                                </Button>
+                            </div>
+                        )}
+
+                        {/* Segmented View Toggle Button */}
+                        <div className="inline-flex rounded-lg p-0.5 bg-slate-100 dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700">
+                            <button
+                                type="button"
+                                onClick={() => setViewMode("tree")}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
+                                    viewMode === "tree"
+                                        ? "bg-white dark:bg-neutral-900 text-blue-600 dark:text-blue-400 shadow-xs"
+                                        : "text-slate-600 dark:text-neutral-400 hover:text-slate-900 dark:hover:text-white"
+                                }`}
+                            >
+                                <FolderTree size={12} />
+                                <span>Hierarchy Tree</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setViewMode("flat")}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
+                                    viewMode === "flat"
+                                        ? "bg-white dark:bg-neutral-900 text-blue-600 dark:text-blue-400 shadow-xs"
+                                        : "text-slate-600 dark:text-neutral-400 hover:text-slate-900 dark:hover:text-white"
+                                }`}
+                            >
+                                <ListFilter size={12} />
+                                <span>Flat Table</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 {loading ? (
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "4rem 0", gap: "1rem" }}>
+                    <div className="flex flex-col items-center justify-center py-12 gap-2">
                         <Spinner size="md" />
-                        <p style={{ color: "#64748b", fontSize: "0.875rem" }}>Loading taxonomy hierarchy...</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Loading categories...</p>
                     </div>
                 ) : error ? (
                     <ErrorState
@@ -217,7 +408,22 @@ export default function CategoriesPage() {
                         message={error}
                         onRetry={() => loadCategories()}
                     />
+                ) : viewMode === "tree" ? (
+                    /* Modular Hierarchical Tree Table with DnD and Status Toggle */
+                    <CategoryTreeTable
+                        rows={flattenedRows}
+                        matchedIds={matchedIds}
+                        onToggleExpand={handleToggleExpand}
+                        onEdit={(id) => router.push(`/categories/${id}`)}
+                        onDelete={(id) => setCategoryToDelete(id)}
+                        onAddSubcategory={(parentId) => router.push(`/categories/new?parentId=${parentId}`)}
+                        onToggleActive={handleToggleActive}
+                        togglingActiveId={togglingActiveId}
+                        onReorder={handleReorder}
+                        isSearchActive={Boolean(searchQuery.trim())}
+                    />
                 ) : (
+                    /* Flat Table View */
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -225,31 +431,46 @@ export default function CategoriesPage() {
                                 <TableHead>Slug</TableHead>
                                 <TableHead>Parent Category</TableHead>
                                 <TableHead>Status</TableHead>
-                                <TableHead style={{ textAlign: "right" }}>Actions</TableHead>
+                                <TableHead>SEO Health</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {categories.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={5} style={{ textAlign: "center", color: "#64748b", padding: "3rem 0" }}>
-                                        No categories defined yet.
+                            {flatFilteredCategories.length === 0 ? (
+                                <TableRow noHover>
+                                    <TableCell colSpan={6} className="text-center text-slate-400 dark:text-neutral-500 py-10 text-xs">
+                                        {searchQuery
+                                            ? "No categories match your search criteria."
+                                            : "No categories defined yet. Click 'Add Category' to create one."}
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                categories.map((c) => {
+                                flatFilteredCategories.map((c) => {
                                     const parentName = categories.find((p) => p.id === c.parentId)?.name || "Root (None)";
+                                    const hasSeo = Boolean(c.seo?.metaTitle || c.seo?.metaDescription);
 
                                     return (
                                         <TableRow key={c.id}>
                                             <TableCell>
-                                                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                                    <Folder size={16} color="#3b82f6" />
-                                                    <span style={{ fontWeight: 600, color: "#0f172a" }}>{c.name}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-6 h-6 rounded-md bg-slate-100 dark:bg-neutral-800 flex items-center justify-center text-slate-600 dark:text-slate-300">
+                                                        <Folder size={13} className="text-blue-500" />
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-semibold text-slate-900 dark:text-neutral-100 text-xs">
+                                                            {c.name}
+                                                        </span>
+                                                        {c.description && (
+                                                            <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate max-w-xs">
+                                                                {c.description}
+                                                            </p>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                <span style={{ fontFamily: "monospace", fontSize: "0.75rem", color: "#64748b" }}>
-                                                    {c.slug}
+                                                <span className="font-mono text-xs text-slate-500 dark:text-neutral-400">
+                                                    /{c.slug}
                                                 </span>
                                             </TableCell>
                                             <TableCell>
@@ -257,32 +478,79 @@ export default function CategoriesPage() {
                                                     {parentName}
                                                 </Badge>
                                             </TableCell>
+                                            {/* Interactive Status Switch in Flat Table */}
                                             <TableCell>
-                                                <Badge variant="success" size="sm">
-                                                    Active
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell style={{ textAlign: "right" }}>
-                                                <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.25rem" }}>
-                                                    <Button
+                                                <div className="flex items-center gap-2">
+                                                    <button
                                                         type="button"
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => openEditModal(c)}
-                                                        style={{ color: "#2563eb", padding: "0.25rem 0.5rem" }}
+                                                        role="switch"
+                                                        aria-checked={c.isActive !== false}
+                                                        onClick={() => handleToggleActive(c.id, !c.isActive)}
+                                                        disabled={togglingActiveId === c.id}
+                                                        title={c.isActive !== false ? "Active: click to hide" : "Hidden: click to activate"}
+                                                        className={`relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                                            c.isActive !== false
+                                                                ? "bg-emerald-500 hover:bg-emerald-600"
+                                                                : "bg-slate-200 dark:bg-neutral-700 hover:bg-slate-300 dark:hover:bg-neutral-600"
+                                                        } ${togglingActiveId === c.id ? "opacity-50 cursor-wait" : ""}`}
                                                     >
-                                                        <Edit size={14} />
-                                                    </Button>
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => setCategoryToDelete(c.id)}
-                                                        style={{ color: "#dc2626", padding: "0.25rem 0.5rem" }}
+                                                        <span
+                                                            className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out my-auto ${
+                                                                c.isActive !== false ? "translate-x-3.5" : "translate-x-0.5"
+                                                            }`}
+                                                        />
+                                                    </button>
+                                                    <span
+                                                        className={`text-[11px] font-medium select-none ${
+                                                            c.isActive !== false
+                                                                ? "text-emerald-700 dark:text-emerald-400"
+                                                                : "text-slate-400 dark:text-neutral-500"
+                                                        }`}
                                                     >
-                                                        <Trash2 size={14} />
-                                                    </Button>
+                                                        {togglingActiveId === c.id
+                                                            ? "..."
+                                                            : c.isActive !== false
+                                                            ? "Active"
+                                                            : "Hidden"}
+                                                    </span>
                                                 </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                {hasSeo ? (
+                                                    <div className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                                                        <Globe size={12} />
+                                                        <span>Configured</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="inline-flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
+                                                        <span>Missing</span>
+                                                    </div>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <TableActionGroup>
+                                                    <TableAction
+                                                        icon={<Plus size={13} />}
+                                                        label="Add Sub"
+                                                        variant="default"
+                                                        onClick={() => router.push(`/categories/new?parentId=${c.id}`)}
+                                                        title={`Add subcategory under "${c.name}"`}
+                                                    />
+                                                    <TableAction
+                                                        icon={<Edit size={14} />}
+                                                        label="Edit"
+                                                        variant="primary"
+                                                        onClick={() => router.push(`/categories/${c.id}`)}
+                                                        title="Edit Category & SEO"
+                                                    />
+                                                    <TableAction
+                                                        icon={<Trash2 size={14} />}
+                                                        label="Delete"
+                                                        variant="destructive"
+                                                        onClick={() => setCategoryToDelete(c.id)}
+                                                        title="Delete Category"
+                                                    />
+                                                </TableActionGroup>
                                             </TableCell>
                                         </TableRow>
                                     );
@@ -293,110 +561,30 @@ export default function CategoriesPage() {
                 )}
             </Card>
 
-            {/* Create/Edit Modal */}
-            <Modal
-                isOpen={isCreateOpen}
-                onClose={() => !isSubmitting && setIsCreateOpen(false)}
-                title={editingCategory ? "Edit Category" : "Add New Category"}
-                description="Configure category taxonomy and parent-child tree relationships."
-            >
-                <form onSubmit={handleSaveCategory} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                    <FormField label="Category Name" required>
-                        <Input
-                            value={name}
-                            onChange={(e) => handleNameChange(e.target.value)}
-                            placeholder="e.g. Consumer Electronics"
-                            disabled={isSubmitting}
-                        />
-                    </FormField>
-
-                    <FormField label="URL Slug" required>
-                        <Input
-                            value={slug}
-                            onChange={(e) => setSlug(e.target.value)}
-                            placeholder="e.g. consumer-electronics"
-                            disabled={isSubmitting}
-                        />
-                    </FormField>
-
-                    <FormField label="Parent Category">
-                        <select
-                            value={parentId}
-                            onChange={(e) => setParentId(e.target.value)}
-                            disabled={isSubmitting}
-                            style={{
-                                width: "100%",
-                                padding: "0.5rem 0.75rem",
-                                borderRadius: "8px",
-                                border: "1px solid #e2e8f0",
-                                backgroundColor: "#f8fafc",
-                                fontSize: "0.8125rem",
-                                color: "#0f172a",
-                                outline: "none",
-                            }}
-                        >
-                            <option value="">Root Category (No Parent)</option>
-                            {categories
-                                .filter((c) => !editingCategory || c.id !== editingCategory.id)
-                                .map((c) => (
-                                    <option key={c.id} value={c.id}>
-                                        {c.name}
-                                    </option>
-                                ))}
-                        </select>
-                    </FormField>
-
-                    <FormField label="Description">
-                        <textarea
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Optional category description..."
-                            rows={3}
-                            disabled={isSubmitting}
-                            style={{
-                                width: "100%",
-                                padding: "0.5rem 0.75rem",
-                                borderRadius: "8px",
-                                border: "1px solid #e2e8f0",
-                                backgroundColor: "#f8fafc",
-                                fontSize: "0.8125rem",
-                                color: "#0f172a",
-                                outline: "none",
-                                fontFamily: "inherit",
-                            }}
-                        />
-                    </FormField>
-
-                    <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.75rem" }}>
-                        <Button
-                            type="button"
-                            variant="secondary"
-                            onClick={() => setIsCreateOpen(false)}
-                            disabled={isSubmitting}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            type="submit"
-                            variant="primary"
-                            isLoading={isSubmitting}
-                            disabled={isSubmitting}
-                            style={{ backgroundColor: "#2563eb" }}
-                        >
-                            {editingCategory ? "Save Changes" : "Create Category"}
-                        </Button>
-                    </div>
-                </form>
-            </Modal>
-
+            {/* Delete Confirmation Modal (Requires typing 'delete' to confirm) */}
             <ConfirmDialog
                 isOpen={!!categoryToDelete}
                 onClose={() => !isDeleting && setCategoryToDelete(null)}
                 onConfirm={handleDelete}
                 title="Delete Category"
-                description="Are you sure you want to delete this category? Subcategories will become root categories."
-                confirmLabel={isDeleting ? "Deleting..." : "Delete"}
+                description={
+                    categoryToDelete
+                        ? `Are you sure you want to delete category "${categories.find((c) => c.id === categoryToDelete)?.name || ""}"? Subcategories will become root categories. This action cannot be undone.`
+                        : "Are you sure you want to delete this category?"
+                }
+                confirmLabel={isDeleting ? "Deleting..." : "Delete Permanently"}
                 variant="danger"
+                requireTypedConfirmation={true}
+                confirmationExpectedText="delete"
+                confirmationPrompt={
+                    <span>
+                        To confirm deletion, please type{" "}
+                        <strong className="text-red-600 dark:text-red-400 font-semibold font-mono">
+                            delete
+                        </strong>{" "}
+                        below:
+                    </span>
+                }
             />
         </div>
     );

@@ -1,8 +1,10 @@
 import type { Request, Response } from "express";
+import { AuditActions } from "@ecommers/types";
 
 import { env } from "../../config/env.js";
 import { toUserResponse } from "../users/user.mapper.js";
 import { authService } from "./auth.service.js";
+import { auditLogService } from "../audit/audit-log.service.js";
 import type { LoginInput, RegisterInput } from "./auth.validation.js";
 
 const COOKIE_OPTIONS = {
@@ -59,6 +61,28 @@ export const loginAdmin = async (
     const ip = req.ip || req.socket.remoteAddress;
 
     const result = await authService.loginAdmin(input, userAgent, ip);
+
+    // Record immutable audit log entry
+    void auditLogService.record({
+        action: AuditActions.AUTH_LOGIN_SUCCESS,
+        actor: {
+            id: result.user.id,
+            name: `${result.user.firstName} ${result.user.lastName}`.trim(),
+            email: result.user.email,
+            role: result.user.role,
+        },
+        target: {
+            resource: "auth",
+            resourceId: result.user.id,
+            details: {
+                email: result.user.email,
+                role: result.user.role,
+            },
+        },
+        ipAddress: typeof ip === "string" ? ip : undefined,
+        userAgent,
+        status: "SUCCESS",
+    });
 
     res.cookie("staffRefreshToken", result.tokens.refreshToken, {
         ...COOKIE_OPTIONS,

@@ -1,5 +1,7 @@
 import type { Request, Response } from "express";
+import { AuditActions } from "@ecommers/types";
 import { adminService } from "./admin.service.js";
+import { auditLogService } from "../audit/audit-log.service.js";
 import type {
     CreateStaffUserInput,
     ListStaffUsersQuery,
@@ -22,6 +24,21 @@ export const createStaffUser = async (
         operator.role,
         input,
     );
+
+    void auditLogService.recordFromRequest(req, {
+        action: AuditActions.STAFF_CREATED,
+        actor: operator,
+        target: {
+            resource: "staff",
+            resourceId: user.id,
+            details: {
+                email: user.email,
+                role: user.role,
+                firstName: user.firstName,
+                lastName: user.lastName,
+            },
+        },
+    });
 
     res.status(201).json({
         success: true,
@@ -59,6 +76,19 @@ export const updateUserRole = async (
         role,
     );
 
+    void auditLogService.recordFromRequest(req, {
+        action: AuditActions.STAFF_ROLE_UPDATED,
+        actor: operator,
+        target: {
+            resource: "staff",
+            resourceId: user.id,
+            details: {
+                email: user.email,
+                newRole: role,
+            },
+        },
+    });
+
     res.status(200).json({
         success: true,
         data: user,
@@ -79,6 +109,19 @@ export const updateUserStatus = async (
         id,
         isActive,
     );
+
+    void auditLogService.recordFromRequest(req, {
+        action: AuditActions.STAFF_STATUS_UPDATED,
+        actor: operator,
+        target: {
+            resource: "staff",
+            resourceId: user.id,
+            details: {
+                email: user.email,
+                isActive,
+            },
+        },
+    });
 
     res.status(200).json({
         success: true,

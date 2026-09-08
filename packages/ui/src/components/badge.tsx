@@ -6,116 +6,36 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
     size?: "sm" | "md";
 }
 
-const sizeStyles = {
-    sm: {
-        fontSize: "0.6875rem",
-        padding: "0.125rem 0.5rem",
-        height: "20px",
-    },
-    md: {
-        fontSize: "0.75rem",
-        padding: "0.25rem 0.625rem",
-        height: "24px",
-    },
+const sizeClasses = {
+    sm: "text-[10px] px-1.5 py-0.5 h-4.5 leading-none",
+    md: "text-[11px] px-2 py-0.5 h-5 leading-none",
 };
 
-const subtleStyles = {
-    neutral: {
-        backgroundColor: "var(--ec-bg-subtle, #f1f5f9)",
-        color: "var(--ec-text-secondary, #334155)",
-        border: "1px solid var(--ec-border, #e2e8f0)",
-    },
-    primary: {
-        backgroundColor: "var(--ec-primary-50, #eff6ff)",
-        color: "var(--ec-primary-700, #1d4ed8)",
-        border: "1px solid var(--ec-primary-100, #dbeafe)",
-    },
-    success: {
-        backgroundColor: "var(--ec-success-bg, #ecfdf5)",
-        color: "var(--ec-success, #059669)",
-        border: "1px solid var(--ec-success-border, #a7f3d0)",
-    },
-    warning: {
-        backgroundColor: "var(--ec-warning-bg, #fffbeb)",
-        color: "var(--ec-warning, #d97706)",
-        border: "1px solid var(--ec-warning-border, #fde68a)",
-    },
-    danger: {
-        backgroundColor: "var(--ec-danger-bg, #fef2f2)",
-        color: "var(--ec-danger, #dc2626)",
-        border: "1px solid var(--ec-danger-border, #fecaca)",
-    },
-    info: {
-        backgroundColor: "var(--ec-info-bg, #f0f9ff)",
-        color: "var(--ec-info, #0284c7)",
-        border: "1px solid var(--ec-info-border, #bae6fd)",
-    },
+const subtleClasses = {
+    neutral: "bg-slate-100 dark:bg-neutral-800 text-slate-700 dark:text-neutral-300 border border-slate-200 dark:border-neutral-700",
+    primary: "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800",
+    success: "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800",
+    warning: "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800",
+    danger: "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800",
+    info: "bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800",
 };
 
-const solidStyles = {
-    neutral: {
-        backgroundColor: "var(--ec-text-primary, #0f172a)",
-        color: "#ffffff",
-        border: "1px solid transparent",
-    },
-    primary: {
-        backgroundColor: "var(--ec-primary-600, #2563eb)",
-        color: "#ffffff",
-        border: "1px solid transparent",
-    },
-    success: {
-        backgroundColor: "var(--ec-success, #059669)",
-        color: "#ffffff",
-        border: "1px solid transparent",
-    },
-    warning: {
-        backgroundColor: "var(--ec-warning, #d97706)",
-        color: "#ffffff",
-        border: "1px solid transparent",
-    },
-    danger: {
-        backgroundColor: "var(--ec-danger, #dc2626)",
-        color: "#ffffff",
-        border: "1px solid transparent",
-    },
-    info: {
-        backgroundColor: "var(--ec-info, #0284c7)",
-        color: "#ffffff",
-        border: "1px solid transparent",
-    },
+const solidClasses = {
+    neutral: "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 border border-transparent",
+    primary: "bg-blue-600 text-white border border-transparent",
+    success: "bg-emerald-600 text-white border border-transparent",
+    warning: "bg-amber-600 text-white border border-transparent",
+    danger: "bg-red-600 text-white border border-transparent",
+    info: "bg-sky-600 text-white border border-transparent",
 };
 
-const outlineStyles = {
-    neutral: {
-        backgroundColor: "transparent",
-        color: "var(--ec-text-secondary, #334155)",
-        border: "1px solid var(--ec-border-strong, #cbd5e1)",
-    },
-    primary: {
-        backgroundColor: "transparent",
-        color: "var(--ec-primary-600, #2563eb)",
-        border: "1px solid var(--ec-primary-300, #93c5fd)",
-    },
-    success: {
-        backgroundColor: "transparent",
-        color: "var(--ec-success, #059669)",
-        border: "1px solid var(--ec-success-border, #a7f3d0)",
-    },
-    warning: {
-        backgroundColor: "transparent",
-        color: "var(--ec-warning, #d97706)",
-        border: "1px solid var(--ec-warning-border, #fde68a)",
-    },
-    danger: {
-        backgroundColor: "transparent",
-        color: "var(--ec-danger, #dc2626)",
-        border: "1px solid var(--ec-danger-border, #fecaca)",
-    },
-    info: {
-        backgroundColor: "transparent",
-        color: "var(--ec-info, #0284c7)",
-        border: "1px solid var(--ec-info-border, #bae6fd)",
-    },
+const outlineClasses = {
+    neutral: "bg-transparent text-slate-700 dark:text-neutral-300 border border-slate-300 dark:border-neutral-700",
+    primary: "bg-transparent text-blue-600 dark:text-blue-400 border border-blue-300 dark:border-blue-700",
+    success: "bg-transparent text-emerald-600 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-700",
+    warning: "bg-transparent text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-700",
+    danger: "bg-transparent text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700",
+    info: "bg-transparent text-sky-600 dark:text-sky-400 border border-sky-300 dark:border-sky-700",
 };
 
 export function Badge({
@@ -127,30 +47,17 @@ export function Badge({
     style,
     ...props
 }: BadgeProps) {
-    const sz = sizeStyles[size];
-    const palette =
+    const paletteClass =
         styleType === "solid"
-            ? solidStyles[variant]
+            ? solidClasses[variant]
             : styleType === "outline"
-            ? outlineStyles[variant]
-            : subtleStyles[variant];
+            ? outlineClasses[variant]
+            : subtleClasses[variant];
 
     return (
         <span
-            className={`ec-badge ${className}`}
-            style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 600,
-                borderRadius: "9999px",
-                whiteSpace: "nowrap",
-                lineHeight: 1,
-                boxSizing: "border-box",
-                ...sz,
-                ...palette,
-                ...style,
-            }}
+            className={`inline-flex items-center justify-center font-medium rounded-md whitespace-nowrap transition-colors ${sizeClasses[size]} ${paletteClass} ${className}`}
+            style={style}
             {...props}
         >
             {children}

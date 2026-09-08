@@ -9,59 +9,23 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
     rightIcon?: React.ReactNode;
 }
 
-const sizeStyles = {
-    sm: {
-        height: "32px",
-        padding: "0 0.75rem",
-        fontSize: "0.75rem",
-        gap: "0.375rem",
-        borderRadius: "6px",
-    },
-    md: {
-        height: "38px",
-        padding: "0 1rem",
-        fontSize: "0.875rem",
-        gap: "0.5rem",
-        borderRadius: "8px",
-    },
-    lg: {
-        height: "44px",
-        padding: "0 1.25rem",
-        fontSize: "0.9375rem",
-        gap: "0.5rem",
-        borderRadius: "8px",
-    },
+const sizeClasses = {
+    sm: "h-7 px-2.5 text-xs gap-1.5 rounded-md",
+    md: "h-8 px-3 text-[13px] gap-1.5 rounded-md",
+    lg: "h-9 px-4 text-sm gap-2 rounded-md",
 };
 
-const variantStyles = {
-    primary: {
-        backgroundColor: "var(--ec-primary-600, #2563eb)",
-        color: "#ffffff",
-        border: "1px solid transparent",
-        boxShadow: "0 1px 2px 0 rgba(37, 99, 235, 0.2)",
-    },
-    secondary: {
-        backgroundColor: "var(--ec-bg-subtle, #f1f5f9)",
-        color: "var(--ec-text-primary, #0f172a)",
-        border: "1px solid var(--ec-border, #e2e8f0)",
-        boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.03)",
-    },
-    outline: {
-        backgroundColor: "transparent",
-        color: "var(--ec-text-secondary, #334155)",
-        border: "1px solid var(--ec-border-strong, #cbd5e1)",
-    },
-    ghost: {
-        backgroundColor: "transparent",
-        color: "var(--ec-text-secondary, #334155)",
-        border: "1px solid transparent",
-    },
-    danger: {
-        backgroundColor: "var(--ec-danger, #dc2626)",
-        color: "#ffffff",
-        border: "1px solid transparent",
-        boxShadow: "0 1px 2px 0 rgba(220, 38, 38, 0.2)",
-    },
+const variantClasses = {
+    primary:
+        "bg-blue-600 hover:bg-blue-700 text-white shadow-xs active:scale-[0.99] border border-transparent font-medium",
+    secondary:
+        "bg-slate-100 dark:bg-neutral-800 hover:bg-slate-200 dark:hover:bg-neutral-700 text-slate-800 dark:text-neutral-100 border border-slate-200 dark:border-neutral-700 active:scale-[0.99] font-medium",
+    outline:
+        "bg-transparent hover:bg-slate-50 dark:hover:bg-neutral-800 text-slate-700 dark:text-neutral-200 border border-slate-200 dark:border-neutral-800 active:scale-[0.99] font-medium",
+    ghost:
+        "bg-transparent hover:bg-slate-100 dark:hover:bg-neutral-800 text-slate-600 dark:text-neutral-300 border border-transparent active:scale-[0.99] font-medium",
+    danger:
+        "bg-red-600 hover:bg-red-700 text-white shadow-xs active:scale-[0.99] border border-transparent font-medium",
 };
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -81,8 +45,6 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         },
         ref
     ) => {
-        const sz = sizeStyles[size];
-        const vr = variantStyles[variant];
         const isDisabled = disabled || isLoading;
 
         return (
@@ -90,22 +52,10 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
                 ref={ref}
                 type={type}
                 disabled={isDisabled}
-                className={`ec-button ${className}`}
-                style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontWeight: 600,
-                    cursor: isDisabled ? "not-allowed" : "pointer",
-                    opacity: isDisabled ? 0.75 : 1,
-                    transition: "var(--ec-transition, all 0.15s cubic-bezier(0.4, 0, 0.2, 1))",
-                    userSelect: "none",
-                    whiteSpace: "nowrap",
-                    boxSizing: "border-box",
-                    ...sz,
-                    ...vr,
-                    ...style,
-                }}
+                className={`inline-flex items-center justify-center select-none whitespace-nowrap transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none cursor-pointer [&_svg]:size-[14px] ${
+                    sizeClasses[size]
+                } ${variantClasses[variant]} ${className}`}
+                style={style}
                 {...props}
             >
                 {isLoading ? (
@@ -113,7 +63,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
                 ) : (
                     leftIcon
                 )}
-                {children && <span>{children}</span>}
+                {children}
                 {!isLoading && rightIcon}
             </button>
         );

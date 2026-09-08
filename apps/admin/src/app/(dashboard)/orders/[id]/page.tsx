@@ -11,6 +11,7 @@ import {
     ErrorState,
     Button,
     Input,
+    Select,
     FormField,
     ConfirmDialog,
 } from "@ecommers/ui";
@@ -119,16 +120,16 @@ export default function OrderDetailPage() {
 
     if (loading) {
         return (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "6rem 0", gap: "1rem" }}>
+            <div className="flex flex-col items-center justify-center py-24 gap-4">
                 <Spinner size="lg" />
-                <p style={{ color: "#64748b", fontSize: "0.875rem" }}>Loading order details...</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Loading order details...</p>
             </div>
         );
     }
 
     if (error || !order) {
         return (
-            <div style={{ padding: "2rem 0" }}>
+            <div className="py-8">
                 <ErrorState
                     title="Order not found"
                     message={error || "Could not retrieve the requested order."}
@@ -142,15 +143,15 @@ export default function OrderDetailPage() {
     const pricing = order.pricing;
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        <div className="flex flex-col gap-6">
             {/* Top Navigation */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div className="flex items-center justify-between">
                 <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => router.push("/orders")}
-                    style={{ borderRadius: "8px", gap: "0.375rem" }}
+                    className="gap-1.5"
                 >
                     <ArrowLeft size={14} />
                     <span>Back to Orders</span>
@@ -162,7 +163,7 @@ export default function OrderDetailPage() {
                         variant="danger"
                         size="sm"
                         onClick={() => setIsCancelDialogOpen(true)}
-                        style={{ borderRadius: "8px" }}
+                        className="gap-1.5"
                     >
                         <XCircle size={14} />
                         <span>Cancel Order</span>
@@ -171,25 +172,25 @@ export default function OrderDetailPage() {
             </div>
 
             {/* Header Card */}
-            <Card style={{ backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", padding: "1.5rem" }}>
-                <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
+            <Card className="p-4">
+                <div className="flex flex-wrap justify-between items-center gap-3">
                     <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                            <span style={{ fontSize: "1.25rem", fontWeight: 800, color: "#0f172a", fontFamily: "monospace" }}>
+                        <div className="flex items-center gap-2.5">
+                            <span className="text-lg font-bold text-slate-900 dark:text-white font-mono">
                                 {order.orderNumber}
                             </span>
-                            <Badge variant={order.orderStatus === "CONFIRMED" ? "success" : order.orderStatus === "CANCELLED" ? "danger" : "warning"} size="md">
+                            <Badge variant={order.orderStatus === "CONFIRMED" ? "success" : order.orderStatus === "CANCELLED" ? "danger" : "warning"} size="sm">
                                 {order.orderStatus}
                             </Badge>
                         </div>
-                        <p style={{ fontSize: "0.8125rem", color: "#64748b", marginTop: "0.25rem" }}>
+                        <p className="text-xs text-slate-500 dark:text-neutral-400 mt-0.5">
                             Placed on {new Date(order.createdAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
                         </p>
                     </div>
 
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
-                        <Badge variant="primary" size="md">Payment: {order.paymentStatus}</Badge>
-                        <Badge variant={order.fulfillmentStatus === "DELIVERED" ? "success" : "neutral"} size="md">
+                    <div className="flex gap-2">
+                        <Badge variant="primary" size="sm">Payment: {order.paymentStatus}</Badge>
+                        <Badge variant={order.fulfillmentStatus === "DELIVERED" ? "success" : "neutral"} size="sm">
                             Fulfillment: {order.fulfillmentStatus}
                         </Badge>
                     </div>
@@ -197,30 +198,30 @@ export default function OrderDetailPage() {
             </Card>
 
             {/* Two-Column Grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: "1.5rem" }}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* Left Column: Items & Financial Breakdown */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                <div className="flex flex-col gap-4">
                     {/* Line Items Card */}
-                    <Card style={{ backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", padding: "1.5rem" }}>
-                        <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#0f172a", marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                            <Package size={18} color="#2563eb" />
+                    <Card className="p-4">
+                        <h2 className="text-xs font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                            <Package size={15} className="text-blue-600 dark:text-blue-400" />
                             <span>Order Items ({order.items?.length || 0})</span>
                         </h2>
 
-                        <div style={{ display: "flex", flexDirection: "column" }}>
+                        <div className="flex flex-col divide-y divide-slate-100 dark:divide-neutral-800">
                             {(order.items || []).map((item, idx) => (
-                                <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.875rem 0", borderBottom: "1px solid #f1f5f9" }}>
+                                <div key={idx} className="flex justify-between items-center py-2.5">
                                     <div>
-                                        <div style={{ fontWeight: 600, fontSize: "0.875rem", color: "#0f172a" }}>{item.productTitle}</div>
-                                        <div style={{ fontSize: "0.75rem", fontFamily: "monospace", color: "#64748b", marginTop: "2px" }}>
+                                        <div className="font-semibold text-xs text-slate-900 dark:text-white">{item.productTitle}</div>
+                                        <div className="text-[11px] font-mono text-slate-400 dark:text-neutral-500">
                                             SKU: {item.sku}
                                         </div>
                                     </div>
-                                    <div style={{ textAlign: "right" }}>
-                                        <div style={{ fontSize: "0.875rem", fontWeight: 700, color: "#0f172a" }}>
+                                    <div className="text-right">
+                                        <div className="text-xs font-bold text-slate-900 dark:text-white">
                                             ${(item.lineTotalMinor / 100).toFixed(2)}
                                         </div>
-                                        <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                                        <div className="text-[11px] text-slate-500 dark:text-neutral-400">
                                             Qty: {item.quantity} × ${(item.unitPriceMinor / 100).toFixed(2)}
                                         </div>
                                     </div>
@@ -229,22 +230,22 @@ export default function OrderDetailPage() {
                         </div>
 
                         {/* Financial Totals */}
-                        <div style={{ marginTop: "1.25rem", paddingTop: "1rem", borderTop: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8125rem", color: "#64748b" }}>
+                        <div className="mt-4 pt-3 border-t border-slate-200/80 dark:border-neutral-800 flex flex-col gap-1.5">
+                            <div className="flex justify-between text-xs text-slate-500 dark:text-neutral-400">
                                 <span>Subtotal</span>
                                 <span>${((pricing?.subtotalMinor || 0) / 100).toFixed(2)}</span>
                             </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8125rem", color: "#64748b" }}>
+                            <div className="flex justify-between text-xs text-slate-500 dark:text-neutral-400">
                                 <span>Shipping Fee</span>
                                 <span>${((pricing?.shippingMinor || 0) / 100).toFixed(2)}</span>
                             </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8125rem", color: "#64748b" }}>
+                            <div className="flex justify-between text-xs text-slate-500 dark:text-neutral-400">
                                 <span>Tax</span>
                                 <span>${((pricing?.taxMinor || 0) / 100).toFixed(2)}</span>
                             </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "1rem", fontWeight: 800, color: "#0f172a", paddingTop: "0.5rem", borderTop: "1px solid #f1f5f9" }}>
+                            <div className="flex justify-between text-xs font-bold text-slate-900 dark:text-white pt-2 border-t border-slate-100 dark:border-neutral-800">
                                 <span>Grand Total</span>
-                                <span style={{ color: "#2563eb" }}>
+                                <span className="text-blue-600 dark:text-blue-400">
                                     ${((pricing?.grandTotalMinor || 0) / 100).toFixed(2)} ({pricing?.currency || "USD"})
                                 </span>
                             </div>
@@ -252,43 +253,43 @@ export default function OrderDetailPage() {
                     </Card>
 
                     {/* Payment Info Card */}
-                    <Card style={{ backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", padding: "1.5rem" }}>
-                        <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#0f172a", marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                            <CreditCard size={18} color="#2563eb" />
+                    <Card className="p-4">
+                        <h2 className="text-xs font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                            <CreditCard size={15} className="text-blue-600 dark:text-blue-400" />
                             <span>Payment Information</span>
                         </h2>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", fontSize: "0.8125rem" }}>
+                        <div className="grid grid-cols-2 gap-3 text-xs">
                             <div>
-                                <span style={{ color: "#64748b" }}>Payment Status:</span>
-                                <div style={{ fontWeight: 600, color: "#0f172a", marginTop: "2px" }}>{order.paymentStatus}</div>
+                                <span className="text-slate-500 dark:text-neutral-400">Payment Status:</span>
+                                <div className="font-semibold text-slate-900 dark:text-white mt-0.5">{order.paymentStatus}</div>
                             </div>
                             <div>
-                                <span style={{ color: "#64748b" }}>Currency:</span>
-                                <div style={{ fontWeight: 600, color: "#0f172a", marginTop: "2px" }}>{pricing?.currency || "USD"}</div>
+                                <span className="text-slate-500 dark:text-neutral-400">Currency:</span>
+                                <div className="font-semibold text-slate-900 dark:text-white mt-0.5">{pricing?.currency || "USD"}</div>
                             </div>
                         </div>
                     </Card>
                 </div>
 
                 {/* Right Column: Customer Details & Fulfillment Action Card */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                <div className="flex flex-col gap-4">
                     {/* Customer Info Card */}
-                    <Card style={{ backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", padding: "1.5rem" }}>
-                        <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#0f172a", marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                            <User size={18} color="#2563eb" />
+                    <Card className="p-4">
+                        <h2 className="text-xs font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                            <User size={15} className="text-blue-600 dark:text-blue-400" />
                             <span>Customer & Delivery Details</span>
                         </h2>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", fontSize: "0.8125rem" }}>
+                        <div className="flex flex-col gap-2.5 text-xs">
                             <div>
-                                <span style={{ color: "#64748b" }}>Email:</span>
-                                <div style={{ fontWeight: 600, color: "#0f172a" }}>{order.customerEmailSnapshot || "N/A"}</div>
+                                <span className="text-slate-500 dark:text-neutral-400">Email:</span>
+                                <div className="font-semibold text-slate-900 dark:text-white mt-0.5">{order.customerEmailSnapshot || "N/A"}</div>
                             </div>
                             {order.shippingAddressSnapshot && (
                                 <div>
-                                    <span style={{ color: "#64748b", display: "flex", alignItems: "center", gap: "4px" }}>
-                                        <MapPin size={13} /> Shipping Address:
+                                    <span className="text-slate-500 dark:text-neutral-400 flex items-center gap-1">
+                                        <MapPin size={12} /> Shipping Address:
                                     </span>
-                                    <div style={{ fontWeight: 500, color: "#0f172a", marginTop: "2px" }}>
+                                    <div className="font-medium text-slate-800 dark:text-neutral-200 mt-0.5 leading-relaxed text-xs">
                                         {order.shippingAddressSnapshot.firstName} {order.shippingAddressSnapshot.lastName}<br />
                                         {order.shippingAddressSnapshot.street}<br />
                                         {order.shippingAddressSnapshot.city}, {order.shippingAddressSnapshot.state} {order.shippingAddressSnapshot.postalCode}<br />
@@ -300,45 +301,36 @@ export default function OrderDetailPage() {
                     </Card>
 
                     {/* Fulfillment Controls Card */}
-                    <Card style={{ backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", padding: "1.5rem" }}>
-                        <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#0f172a", marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                            <Truck size={18} color="#2563eb" />
+                    <Card className="p-4">
+                        <h2 className="text-xs font-semibold text-slate-900 dark:text-white mb-1 flex items-center gap-2">
+                            <Truck size={15} className="text-blue-600 dark:text-blue-400" />
                             <span>Fulfillment Dispatch</span>
                         </h2>
-                        <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "1rem" }}>
+                        <p className="text-xs text-slate-500 dark:text-neutral-400 mb-3">
                             Update tracking credentials and advance fulfillment state machine.
                         </p>
 
                         {fulfillmentNotice && (
-                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.625rem", backgroundColor: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: "8px", color: "#065f46", fontSize: "0.75rem", marginBottom: "1rem" }}>
+                            <div className="flex items-center gap-2 p-2.5 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 rounded-lg text-emerald-700 dark:text-emerald-300 text-xs mb-4">
                                 <CheckCircle2 size={14} />
                                 <span>{fulfillmentNotice}</span>
                             </div>
                         )}
 
-                        <form onSubmit={handleUpdateFulfillment} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                        <form onSubmit={handleUpdateFulfillment} className="flex flex-col gap-3">
                             <FormField label="Fulfillment State" required>
-                                <select
+                                <Select
+                                    size="md"
                                     value={targetFulfillment}
                                     onChange={(e) => setTargetFulfillment(e.target.value as OrderFulfillmentStatus)}
                                     disabled={isOrderCancelled || isUpdatingFulfillment}
-                                    style={{
-                                        padding: "0.5rem 0.75rem",
-                                        borderRadius: "8px",
-                                        border: "1px solid #e2e8f0",
-                                        backgroundColor: "#f8fafc",
-                                        fontSize: "0.8125rem",
-                                        color: "#0f172a",
-                                        outline: "none",
-                                        width: "100%",
-                                    }}
                                 >
                                     <option value="UNFULFILLED">UNFULFILLED</option>
                                     <option value="PROCESSING">PROCESSING</option>
                                     <option value="SHIPPED">SHIPPED</option>
                                     <option value="DELIVERED">DELIVERED</option>
                                     <option value="RETURNED">RETURNED</option>
-                                </select>
+                                </Select>
                             </FormField>
 
                             <FormField label="Carrier (FedEx, UPS, DHL)">
@@ -364,7 +356,7 @@ export default function OrderDetailPage() {
                                 variant="primary"
                                 isLoading={isUpdatingFulfillment}
                                 disabled={isOrderCancelled || isUpdatingFulfillment}
-                                style={{ backgroundColor: "#2563eb", borderRadius: "8px" }}
+                                className="w-full mt-2"
                             >
                                 Update Fulfillment
                             </Button>

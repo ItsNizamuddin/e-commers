@@ -17,18 +17,18 @@ import {
     TableCell,
     Pagination,
     Button,
+    Input,
+    Select,
+    TableAction,
+    TableActionGroup,
 } from "@ecommers/ui";
 import {
     ShoppingBag,
     Search,
-    Clock,
-    Truck,
-    CheckCircle2,
-    XCircle,
     ArrowRight,
     RefreshCw,
-    Filter,
 } from "lucide-react";
+import { RequireRole } from "../../../components/auth/require-role";
 
 export default function OrdersPage() {
     const router = useRouter();
@@ -124,162 +124,114 @@ export default function OrdersPage() {
         : orders;
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        <RequireRole allowedRoles={["SUPER_ADMIN", "ADMIN", "SALES", "SUPPORT_AGENT"]}>
+            <div className="flex flex-col gap-4">
             {/* Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div className="flex justify-between items-start">
                 <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <div
-                            style={{
-                                width: "32px",
-                                height: "32px",
-                                borderRadius: "8px",
-                                backgroundColor: "#eff6ff",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                color: "#2563eb",
-                            }}
-                        >
-                            <ShoppingBag size={18} />
+                    <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-md bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                            <ShoppingBag size={16} />
                         </div>
-                        <h1 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#0f172a", letterSpacing: "-0.02em" }}>
-                            Orders Ledger
+                        <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+                            Orders
                         </h1>
                     </div>
-                    <p style={{ fontSize: "0.8125rem", color: "#64748b", marginTop: "0.25rem" }}>
-                        Monitor real-time fulfillment pipelines, manage customer orders, and issue tracking.
+                    <p className="text-xs text-slate-500 dark:text-neutral-400 mt-0.5">
+                        Manage customer purchases, fulfillment stages, and payments.
                     </p>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <div className="flex items-center gap-2">
                     <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         onClick={() => fetchOrders(true)}
                         isLoading={refreshing}
-                        style={{ borderRadius: "8px" }}
                     >
-                        <RefreshCw size={14} />
+                        <RefreshCw size={13} className="mr-1.5" />
                         <span>Refresh</span>
                     </Button>
                 </div>
             </div>
 
             {/* Filter Bar Card */}
-            <Card style={{ padding: "1.25rem", backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", alignItems: "center" }}>
+            <Card className="p-3">
+                <div className="flex flex-wrap gap-2.5 items-center">
                     {/* Search Input */}
-                    <div
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.5rem",
-                            backgroundColor: "#f8fafc",
-                            border: "1px solid #e2e8f0",
-                            borderRadius: "8px",
-                            padding: "0.4rem 0.75rem",
-                            flex: "1 1 240px",
-                        }}
-                    >
-                        <Search size={16} color="#94a3b8" />
-                        <input
-                            type="text"
+                    <div className="flex-1 min-w-[200px]">
+                        <Input
+                            size="sm"
+                            leadingIcon={<Search size={14} />}
                             placeholder="Search by order # or email..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            style={{
-                                border: "none",
-                                background: "transparent",
-                                fontSize: "0.8125rem",
-                                outline: "none",
-                                width: "100%",
-                                color: "#0f172a",
-                            }}
                         />
                     </div>
 
                     {/* Order Status Dropdown */}
-                    <select
-                        value={orderStatus}
-                        onChange={(e) => {
-                            setOrderStatus(e.target.value);
-                            setPage(1);
-                        }}
-                        style={{
-                            padding: "0.45rem 0.75rem",
-                            borderRadius: "8px",
-                            border: "1px solid #e2e8f0",
-                            backgroundColor: "#f8fafc",
-                            fontSize: "0.8125rem",
-                            color: "#0f172a",
-                            outline: "none",
-                        }}
-                    >
-                        <option value="">All Order Statuses</option>
-                        <option value="PENDING">Pending</option>
-                        <option value="CONFIRMED">Confirmed</option>
-                        <option value="COMPLETED">Completed</option>
-                        <option value="CANCELLED">Cancelled</option>
-                    </select>
+                    <div className="w-40">
+                        <Select
+                            size="sm"
+                            value={orderStatus}
+                            onChange={(e) => {
+                                setOrderStatus(e.target.value);
+                                setPage(1);
+                            }}
+                        >
+                            <option value="">All Order Statuses</option>
+                            <option value="PENDING">Pending</option>
+                            <option value="CONFIRMED">Confirmed</option>
+                            <option value="COMPLETED">Completed</option>
+                            <option value="CANCELLED">Cancelled</option>
+                        </Select>
+                    </div>
 
                     {/* Fulfillment Status Dropdown */}
-                    <select
-                        value={fulfillmentStatus}
-                        onChange={(e) => {
-                            setFulfillmentStatus(e.target.value);
-                            setPage(1);
-                        }}
-                        style={{
-                            padding: "0.45rem 0.75rem",
-                            borderRadius: "8px",
-                            border: "1px solid #e2e8f0",
-                            backgroundColor: "#f8fafc",
-                            fontSize: "0.8125rem",
-                            color: "#0f172a",
-                            outline: "none",
-                        }}
-                    >
-                        <option value="">All Fulfillment States</option>
-                        <option value="UNFULFILLED">Unfulfilled</option>
-                        <option value="PROCESSING">Processing</option>
-                        <option value="SHIPPED">Shipped</option>
-                        <option value="DELIVERED">Delivered</option>
-                        <option value="RETURNED">Returned</option>
-                    </select>
+                    <div className="w-44">
+                        <Select
+                            size="sm"
+                            value={fulfillmentStatus}
+                            onChange={(e) => {
+                                setFulfillmentStatus(e.target.value);
+                                setPage(1);
+                            }}
+                        >
+                            <option value="">All Fulfillment States</option>
+                            <option value="UNFULFILLED">Unfulfilled</option>
+                            <option value="PROCESSING">Processing</option>
+                            <option value="SHIPPED">Shipped</option>
+                            <option value="DELIVERED">Delivered</option>
+                            <option value="RETURNED">Returned</option>
+                        </Select>
+                    </div>
 
                     {(search || orderStatus || fulfillmentStatus) && (
-                        <button
+                        <Button
                             type="button"
+                            variant="ghost"
+                            size="sm"
                             onClick={() => {
                                 setSearch("");
                                 setOrderStatus("");
                                 setFulfillmentStatus("");
                                 setPage(1);
                             }}
-                            style={{
-                                background: "none",
-                                border: "none",
-                                color: "#2563eb",
-                                fontSize: "0.8125rem",
-                                fontWeight: 600,
-                                cursor: "pointer",
-                                padding: "0.25rem 0.5rem",
-                            }}
+                            className="text-xs text-blue-600 dark:text-blue-400"
                         >
                             Reset filters
-                        </button>
+                        </Button>
                     )}
                 </div>
             </Card>
 
             {/* Content Table Card */}
-            <Card style={{ backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", padding: "1.25rem" }}>
+            <Card className="p-3.5">
                 {loading ? (
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "4rem 0", gap: "1rem" }}>
+                    <div className="flex flex-col items-center justify-center py-12 gap-2.5">
                         <Spinner size="md" />
-                        <p style={{ color: "#64748b", fontSize: "0.875rem" }}>Loading order records...</p>
+                        <p className="text-xs text-slate-500 dark:text-neutral-400">Loading order records...</p>
                     </div>
                 ) : error ? (
                     <ErrorState
@@ -299,14 +251,26 @@ export default function OrdersPage() {
                                     <TableHead>Payment</TableHead>
                                     <TableHead>Fulfillment</TableHead>
                                     <TableHead>Date</TableHead>
-                                    <TableHead style={{ textAlign: "right" }}>Actions</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {displayedOrders.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={8} style={{ textAlign: "center", color: "#64748b", padding: "3rem 0" }}>
-                                            No matching orders found.
+                                    <TableRow noHover>
+                                        <TableCell colSpan={8} className="text-center py-10">
+                                            <div className="flex flex-col items-center justify-center gap-2">
+                                                <div className="w-8 h-8 rounded-md bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                                                    <ShoppingBag size={18} />
+                                                </div>
+                                                <div>
+                                                    <div className="text-xs font-semibold text-slate-900 dark:text-white">
+                                                        No orders found
+                                                    </div>
+                                                    <p className="text-[11px] text-slate-400 dark:text-neutral-500 mt-0.5">
+                                                        No customer orders matching your selected criteria.
+                                                    </p>
+                                                </div>
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 ) : (
@@ -322,39 +286,32 @@ export default function OrdersPage() {
                                                 <TableCell>
                                                     <span
                                                         onClick={() => router.push(`/orders/${order.id}`)}
-                                                        style={{
-                                                            fontFamily: "monospace",
-                                                            fontWeight: 700,
-                                                            color: "#2563eb",
-                                                            cursor: "pointer",
-                                                        }}
+                                                        className="font-mono font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer text-xs"
                                                     >
                                                         {order.orderNumber}
                                                     </span>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <div style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.8125rem" }}>
+                                                    <div className="font-semibold text-slate-900 dark:text-neutral-100 text-xs">
                                                         {order.customerEmailSnapshot || "Guest Checkout"}
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>{order.items?.length || 0} items</TableCell>
-                                                <TableCell style={{ fontWeight: 700, color: "#0f172a" }}>
+                                                <TableCell className="font-semibold text-slate-900 dark:text-neutral-100">
                                                     ${(order.pricing?.grandTotalMinor ? order.pricing.grandTotalMinor / 100 : 0).toFixed(2)}
                                                 </TableCell>
                                                 <TableCell>{getPaymentBadge(order.paymentStatus)}</TableCell>
                                                 <TableCell>{getFulfillmentBadge(order.fulfillmentStatus)}</TableCell>
-                                                <TableCell style={{ color: "#64748b", fontSize: "0.75rem" }}>{dateStr}</TableCell>
-                                                <TableCell style={{ textAlign: "right" }}>
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => router.push(`/orders/${order.id}`)}
-                                                        style={{ color: "#2563eb", fontWeight: 600 }}
-                                                    >
-                                                        <span>View</span>
-                                                        <ArrowRight size={13} />
-                                                    </Button>
+                                                <TableCell className="text-slate-500 dark:text-neutral-400 text-xs">{dateStr}</TableCell>
+                                                <TableCell className="text-right">
+                                                    <TableActionGroup>
+                                                        <TableAction
+                                                            icon={<ArrowRight size={14} />}
+                                                            label="View"
+                                                            variant="primary"
+                                                            onClick={() => router.push(`/orders/${order.id}`)}
+                                                        />
+                                                    </TableActionGroup>
                                                 </TableCell>
                                             </TableRow>
                                         );
@@ -365,8 +322,8 @@ export default function OrdersPage() {
 
                         {/* Pagination Bar */}
                         {totalPages > 1 && (
-                            <div style={{ marginTop: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                            <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
+                                <span>
                                     Showing page {page} of {totalPages} ({totalItems} orders)
                                 </span>
                                 <Pagination
@@ -380,5 +337,6 @@ export default function OrdersPage() {
                 )}
             </Card>
         </div>
+    </RequireRole>
     );
 }

@@ -16,13 +16,15 @@ import {
     TableCell,
     Button,
     ConfirmDialog,
+    Select,
+    TableAction,
+    TableActionGroup,
 } from "@ecommers/ui";
 import {
     Star,
     Trash2,
     RefreshCw,
     CheckCircle2,
-    MessageSquare,
     ThumbsUp,
 } from "lucide-react";
 
@@ -105,91 +107,72 @@ export default function ReviewsPage() {
     };
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        <div className="flex flex-col gap-4">
             {/* Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div className="flex justify-between items-start">
                 <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <div
-                            style={{
-                                width: "32px",
-                                height: "32px",
-                                borderRadius: "8px",
-                                backgroundColor: "#eff6ff",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                color: "#2563eb",
-                            }}
-                        >
-                            <Star size={18} />
+                    <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/60 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                            <Star size={15} />
                         </div>
-                        <h1 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#0f172a", letterSpacing: "-0.02em" }}>
+                        <h1 className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
                             Reviews Moderation
                         </h1>
                     </div>
-                    <p style={{ fontSize: "0.8125rem", color: "#64748b", marginTop: "0.25rem" }}>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                         Moderate customer feedback, verify purchases, and maintain catalog ratings integrity.
                     </p>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <div className="flex items-center gap-2">
                     <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         onClick={() => fetchReviews(true)}
                         isLoading={refreshing}
-                        style={{ borderRadius: "8px" }}
+                        className="gap-1.5"
                     >
-                        <RefreshCw size={14} />
+                        <RefreshCw size={13} />
                         <span>Refresh</span>
                     </Button>
                 </div>
             </div>
 
             {notice && (
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.75rem 1rem", backgroundColor: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: "8px", color: "#065f46", fontSize: "0.875rem" }}>
-                    <CheckCircle2 size={16} />
+                <div className="flex items-center gap-2 p-2.5 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 rounded-lg text-emerald-700 dark:text-emerald-300 text-xs">
+                    <CheckCircle2 size={15} />
                     <span>{notice}</span>
                 </div>
             )}
 
             {/* Product Selector Card */}
-            <Card style={{ padding: "1.25rem", backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
-                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "1rem" }}>
-                    <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#475569" }}>
+            <Card className="p-3 sm:p-3.5">
+                <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 whitespace-nowrap">
                         Select Product:
                     </span>
-                    <select
-                        value={selectedProductId}
-                        onChange={(e) => setSelectedProductId(e.target.value)}
-                        style={{
-                            padding: "0.45rem 0.75rem",
-                            borderRadius: "8px",
-                            border: "1px solid #e2e8f0",
-                            backgroundColor: "#f8fafc",
-                            fontSize: "0.8125rem",
-                            color: "#0f172a",
-                            outline: "none",
-                            flex: "1 1 300px",
-                        }}
-                    >
-                        {products.length === 0 ? (
-                            <option value="">No products available</option>
-                        ) : (
-                            products.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                    {p.title} ({p.reviewCount || 0} reviews • ★{p.averageRating?.toFixed(1) || "5.0"})
-                                </option>
-                            ))
-                        )}
-                    </select>
+                    <div className="flex-1 min-w-[280px]">
+                        <Select
+                            value={selectedProductId}
+                            onChange={(e) => setSelectedProductId(e.target.value)}
+                        >
+                            {products.length === 0 ? (
+                                <option value="">No products available</option>
+                            ) : (
+                                products.map((p) => (
+                                    <option key={p.id} value={p.id}>
+                                        {p.title} ({p.reviewCount || 0} reviews • ★{p.averageRating?.toFixed(1) || "5.0"})
+                                    </option>
+                                ))
+                            )}
+                        </Select>
+                    </div>
 
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginLeft: "auto" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
-                            <Star size={16} fill="#f59e0b" color="#f59e0b" />
-                            <span style={{ fontWeight: 700, fontSize: "1rem" }}>{avgRating.toFixed(1)}</span>
+                    <div className="flex items-center gap-3 ml-auto">
+                        <div className="flex items-center gap-1.5">
+                            <Star size={15} className="fill-amber-400 text-amber-400" />
+                            <span className="font-bold text-sm text-slate-900 dark:text-white">{avgRating.toFixed(1)}</span>
                         </div>
                         <Badge variant="neutral" size="sm">{totalReviews} total reviews</Badge>
                     </div>
@@ -197,11 +180,11 @@ export default function ReviewsPage() {
             </Card>
 
             {/* Reviews Table Card */}
-            <Card style={{ backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", padding: "1.25rem" }}>
+            <Card className="p-3.5 sm:p-4">
                 {loading ? (
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "4rem 0", gap: "1rem" }}>
+                    <div className="flex flex-col items-center justify-center py-16 gap-3">
                         <Spinner size="md" />
-                        <p style={{ color: "#64748b", fontSize: "0.875rem" }}>Loading reviews...</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Loading reviews...</p>
                     </div>
                 ) : error ? (
                     <ErrorState title="Failed to load reviews" message={error} onRetry={() => fetchReviews()} />
@@ -215,13 +198,13 @@ export default function ReviewsPage() {
                                 <TableHead>Verified</TableHead>
                                 <TableHead>Helpful</TableHead>
                                 <TableHead>Date</TableHead>
-                                <TableHead style={{ textAlign: "right" }}>Actions</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {reviews.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={7} style={{ textAlign: "center", color: "#64748b", padding: "3rem 0" }}>
+                                <TableRow noHover>
+                                    <TableCell colSpan={7} className="text-center text-slate-400 dark:text-slate-500 py-12">
                                         No reviews posted for this product yet.
                                     </TableCell>
                                 </TableRow>
@@ -236,18 +219,17 @@ export default function ReviewsPage() {
                                     return (
                                         <TableRow key={r.id}>
                                             <TableCell>
-                                                <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                                                <div className="font-bold text-slate-900 dark:text-slate-100">
                                                     {r.userName || "Customer"}
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                <div style={{ display: "flex", gap: "2px" }}>
+                                                <div className="flex gap-0.5">
                                                     {[1, 2, 3, 4, 5].map((s) => (
                                                         <Star
                                                             key={s}
                                                             size={12}
-                                                            fill={s <= r.rating ? "#f59e0b" : "#e2e8f0"}
-                                                            color={s <= r.rating ? "#f59e0b" : "#e2e8f0"}
+                                                            className={s <= r.rating ? "fill-amber-400 text-amber-400" : "text-slate-200 dark:text-slate-700"}
                                                         />
                                                     ))}
                                                 </div>
@@ -255,11 +237,11 @@ export default function ReviewsPage() {
                                             <TableCell>
                                                 <div>
                                                     {r.title && (
-                                                        <div style={{ fontWeight: 600, fontSize: "0.8125rem", color: "#0f172a" }}>
+                                                        <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">
                                                             {r.title}
                                                         </div>
                                                     )}
-                                                    <div style={{ fontSize: "0.75rem", color: "#475569", marginTop: "2px" }}>
+                                                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-md">
                                                         {r.comment}
                                                     </div>
                                                 </div>
@@ -272,24 +254,24 @@ export default function ReviewsPage() {
                                                 )}
                                             </TableCell>
                                             <TableCell>
-                                                <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.75rem", color: "#64748b" }}>
+                                                <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                                                     <ThumbsUp size={12} />
                                                     <span>{r.helpfulVotes || 0}</span>
                                                 </div>
                                             </TableCell>
-                                            <TableCell style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                                            <TableCell className="text-xs text-slate-500 dark:text-slate-400">
                                                 {dateStr}
                                             </TableCell>
-                                            <TableCell style={{ textAlign: "right" }}>
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => setReviewToDelete(r.id)}
-                                                    style={{ color: "#dc2626", padding: "0.25rem 0.5rem" }}
-                                                >
-                                                    <Trash2 size={14} />
-                                                </Button>
+                                            <TableCell className="text-right">
+                                                <TableActionGroup>
+                                                    <TableAction
+                                                        icon={<Trash2 size={14} />}
+                                                        label="Delete"
+                                                        variant="destructive"
+                                                        onClick={() => setReviewToDelete(r.id)}
+                                                        title="Delete Review"
+                                                    />
+                                                </TableActionGroup>
                                             </TableCell>
                                         </TableRow>
                                     );

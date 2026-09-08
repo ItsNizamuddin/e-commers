@@ -34,17 +34,20 @@ CLIENT (Browser/Mobile)                 EXPRESS API SERVER                  MONG
 
 ### 1.1 Token Configuration
 
-| Token Type | Storage Location | Lifetime | Purpose |
-| :--- | :--- | :--- | :--- |
-| **Access Token** | Memory / Authorization Header | 15 Minutes | Short-lived stateless access token for API requests |
-| **Refresh Token** | `HttpOnly`, `Secure` Cookie | 7 Days | Long-lived token used exclusively to fetch new access tokens |
+| Token Type | Storage Location | Lifetime | Scope / Path | Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| **Access Token** | Memory (JS Closure) / Bearer Header | 15 Minutes | Global (API Client) | Short-lived stateless access token for API requests. Never persisted to disk. |
+| **Customer Refresh** | `HttpOnly`, `Secure` Cookie (`customerRefreshToken`) | 7 Days | `/api/v1/auth` | Long-lived token used to refresh storefront customer sessions. |
+| **Staff Refresh** | `HttpOnly`, `Secure` Cookie (`staffRefreshToken`) | 7 Days | `/api/v1/auth/admin` | Long-lived token isolated strictly to staff/admin rehydration. |
 
 ### 1.2 Cookie Security Directive
 ```typescript
-res.cookie('refreshToken', token, {
+// Staff cookie directive (Scoped strictly to admin auth endpoints)
+res.cookie('staffRefreshToken', refreshToken, {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict',
+  sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+  path: '/api/v1/auth/admin',
   maxAge: 7 * 24 * 60 * 60 * 1000 // 7 Days
 });
 ```
@@ -139,3 +142,55 @@ Rate limits prevent brute-force attacks and denial-of-service attempts:
 ### 4.4 Secrets Management
 - Application secrets (`JWT_SECRET`, `STRIPE_SECRET_KEY`, `MONGODB_URI`) are injected exclusively via environment variables (`process.env`).
 - Commit hooks block any accidental push of `.env` files to git repositories.
+
+---
+
+## 5. Client-Side Authentication Architecture & Security Boundaries
+
+The frontend Admin application operates on a strict three-tier storage model to defend against Cross-Site Scripting (XSS) and token theft:
+
+```
+Browser Client
+├── HttpOnly Cookie (Inaccessible to JS)
+│   └── staffRefreshToken (Path: /api/v1/auth/admin)
+│
+├── In-Memory JavaScript Closure (Ephemeral RAM)
+│   └── inMemoryAccessToken (API Client Bearer Header)
+│
+└── Redux Toolkit State (UI Convenience Only)
+    └── authSlice (user profile, role, permissions, isHydrated)
+```
+
+### 5.1 Three Core Security Boundaries
+
+#### Boundary 1: `admin_session_active` is a Navigation Hint, Never Authoritative
+- `admin_session_active=1` is a client-readable cookie (`document.cookie`) used exclusively by Next.js Edge Middleware (`middleware.ts`) to avoid UI redirection flicker.
+- **Security Rule**: This cookie represents: *"There might be an active admin session."* It **never** guarantees authentication. Real authority remains downstream with Express verifying cryptographic tokens.
+
+#### Boundary 2: Narrow Cookie Path (`Path=/api/v1/auth/admin`)
+- The `staffRefreshToken` is scoped strictly to `/api/v1/auth/admin`.
+- Because of this narrow boundary, Next.js page requests (e.g. `localhost:3001/dashboard`) never receive this cookie.
+- Rehydration must therefore happen explicitly via the client-side `<SessionHydrator>` component dispatching `POST /api/v1/auth/admin/refresh`.
+
+#### Boundary 3: Redux Permissions are Presentational, Never Authoritative
+- Redux stores `state.auth.permissions` and `state.auth.role` solely to render or hide UI elements (e.g., sidebar links, action buttons).
+- The frontend permissions list is never treated as a security boundary. All mutations and sensitive read queries are authenticated and authorized on the Express server (`requireRole`, `requirePermission`).
+
+### 5.2 Production Auth Lifecycle
+
+1. **Admin Login**:
+   - Admin submits credentials via `POST /api/v1/auth/admin/login`.
+   - Express validates credentials, issues `staffRefreshToken` via `HttpOnly` cookie (`Path=/api/v1/auth/admin`), and returns `accessToken` + `user` in the JSON response body.
+   - Client sets `admin_session_active=1` (navigation hint), stores `accessToken` in a JavaScript memory closure, and dispatches `user`, `role`, and `permissions` into the Redux store.
+
+2. **Normal API Requests**:
+   - Client passes `accessToken` in the `Authorization: Bearer <token>` header.
+   - Express authenticates the JWT signature and enforces RBAC permissions per route.
+
+3. **Page Refresh / Session Rehydration (F5)**:
+   - On hard refresh, the in-memory access token and Redux state are purged.
+   - Next.js Edge Middleware allows route entry optimistically via `admin_session_active`.
+   - `<SessionHydrator>` executes `POST /api/v1/auth/admin/refresh` (browser automatically transmits the `staffRefreshToken` cookie).
+   - Express validates the session hash in MongoDB and returns a fresh access token and user profile.
+   - If invalid/expired, `SessionHydrator` clears `admin_session_active`, purges Redux, and redirects to `/login`.
+

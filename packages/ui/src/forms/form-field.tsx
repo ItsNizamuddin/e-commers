@@ -22,38 +22,15 @@ export function FormField({
     style,
 }: FormFieldProps) {
     return (
-        <div
-            className={`ec-form-field ${className}`}
-            style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.375rem",
-                width: "100%",
-                textAlign: "left",
-                boxSizing: "border-box",
-                ...style,
-            }}
-        >
+        <div className={`flex flex-col gap-1.5 w-full text-left ${className}`} style={style}>
             {label && (
                 <label
                     htmlFor={id}
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        fontSize: "0.8125rem",
-                        fontWeight: 600,
-                        color: "var(--ec-text-secondary, #334155)",
-                    }}
+                    className="flex items-center text-xs font-semibold text-slate-700 dark:text-slate-300"
                 >
                     <span>{label}</span>
                     {required && (
-                        <span
-                            style={{
-                                color: "var(--ec-danger, #dc2626)",
-                                marginLeft: "0.25rem",
-                                fontWeight: 700,
-                            }}
-                        >
+                        <span className="text-rose-500 ml-1 font-bold">
                             *
                         </span>
                     )}
@@ -63,24 +40,11 @@ export function FormField({
             {children}
 
             {error ? (
-                <p
-                    style={{
-                        fontSize: "0.75rem",
-                        color: "var(--ec-danger, #dc2626)",
-                        marginTop: "0.25rem",
-                        fontWeight: 500,
-                    }}
-                >
+                <p className="text-xs text-rose-500 dark:text-rose-400 mt-1 font-medium">
                     {error}
                 </p>
             ) : helperText ? (
-                <p
-                    style={{
-                        fontSize: "0.75rem",
-                        color: "var(--ec-text-muted, #64748b)",
-                        marginTop: "0.25rem",
-                    }}
-                >
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     {helperText}
                 </p>
             ) : null}

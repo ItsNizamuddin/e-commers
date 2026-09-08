@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
-import { STAFF_ROLES } from "@ecommers/types";
+import { STAFF_ROLES, AuditActions } from "@ecommers/types";
 import { productService, ProductService } from "./product.service.js";
+import { auditLogService } from "../audit/audit-log.service.js";
 import {
     CreateProductInput,
     UpdateProductInput,
@@ -18,6 +19,20 @@ export class ProductController {
         try {
             const input: CreateProductInput = req.body;
             const product = await this.service.createProduct(input, req.user?.id);
+
+            void auditLogService.recordFromRequest(req, {
+                action: AuditActions.PRODUCT_CREATED,
+                target: {
+                    resource: "product",
+                    resourceId: product.id,
+                    details: {
+                        title: product.title,
+                        slug: product.slug,
+                        status: product.status,
+                    },
+                },
+            });
+
             res.status(201).json({
                 success: true,
                 message: "Product created successfully",
@@ -80,6 +95,19 @@ export class ProductController {
             const { id } = req.params;
             const input: UpdateProductInput = req.body;
             const product = await this.service.updateProduct(id as string, input, req.user?.id);
+
+            void auditLogService.recordFromRequest(req, {
+                action: AuditActions.PRODUCT_UPDATED,
+                target: {
+                    resource: "product",
+                    resourceId: id as string,
+                    details: {
+                        title: product.title,
+                        updatedFields: Object.keys(input),
+                    },
+                },
+            });
+
             res.status(200).json({
                 success: true,
                 message: "Product updated successfully",
@@ -94,6 +122,19 @@ export class ProductController {
         try {
             const { id } = req.params;
             const product = await this.service.publishProduct(id as string, req.user?.id);
+
+            void auditLogService.recordFromRequest(req, {
+                action: AuditActions.PRODUCT_PUBLISHED,
+                target: {
+                    resource: "product",
+                    resourceId: id as string,
+                    details: {
+                        title: product.title,
+                        status: product.status,
+                    },
+                },
+            });
+
             res.status(200).json({
                 success: true,
                 message: "Product published successfully",
@@ -108,6 +149,15 @@ export class ProductController {
         try {
             const { id } = req.params;
             await this.service.deleteProduct(id as string, req.user?.id);
+
+            void auditLogService.recordFromRequest(req, {
+                action: AuditActions.PRODUCT_DELETED,
+                target: {
+                    resource: "product",
+                    resourceId: id as string,
+                },
+            });
+
             res.status(200).json({
                 success: true,
                 message: "Product archived successfully",

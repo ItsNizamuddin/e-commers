@@ -9,6 +9,8 @@ import {
     Badge,
     Button,
     Input,
+    Select,
+    Textarea,
     FormField,
     Spinner,
     ErrorState,
@@ -40,6 +42,9 @@ export default function EditProductPage() {
     const [description, setDescription] = useState("");
     const [categoryId, setCategoryId] = useState("");
     const [status, setStatus] = useState<"DRAFT" | "PUBLISHED" | "ARCHIVED">("PUBLISHED");
+    const [storageInstructions, setStorageInstructions] = useState("");
+    const [allergens, setAllergens] = useState("");
+    const [tags, setTags] = useState<string[]>([]);
 
     const [isSaving, setIsSaving] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
@@ -63,11 +68,14 @@ export default function EditProductPage() {
             setDescription(prod.description || "");
             setCategoryId(prod.categoryId || "");
             setStatus(prod.status as any);
+            setStorageInstructions(prod.storageInstructions || "");
+            setAllergens((prod.allergens || []).join(", "));
+            setTags(prod.tags || []);
         } catch (err: unknown) {
             if (err instanceof Error) {
                 setError(err.message);
             } else {
-                setError("Failed to load product.");
+                setError("Failed to load food item.");
             }
         } finally {
             setLoading(false);
@@ -83,14 +91,22 @@ export default function EditProductPage() {
         setIsSaving(true);
         setSaveNotice(null);
         try {
+            const allergenList = allergens
+                .split(",")
+                .map((a) => a.trim())
+                .filter(Boolean);
+
             await api.products.update(id, {
                 title: title.trim(),
                 brand: brand.trim() || undefined,
                 description: description.trim() || undefined,
                 categoryId: categoryId || undefined,
                 status,
+                storageInstructions: storageInstructions.trim() || undefined,
+                allergens: allergenList.length > 0 ? allergenList : undefined,
+                tags,
             });
-            setSaveNotice("Product updated successfully.");
+            setSaveNotice("Food item updated successfully.");
             setTimeout(() => setSaveNotice(null), 3000);
         } catch (err: unknown) {
             if (err instanceof Error) {
@@ -134,16 +150,16 @@ export default function EditProductPage() {
 
     if (loading) {
         return (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "6rem 0", gap: "1rem" }}>
-                <Spinner size="lg" />
-                <p style={{ color: "#64748b", fontSize: "0.875rem" }}>Loading product configuration...</p>
+            <div className="flex flex-col items-center justify-center py-24 gap-4">
+                <Spinner size="lg" className="text-blue-600 dark:text-blue-400" />
+                <p className="text-sm text-slate-500 dark:text-slate-400">Loading product configuration...</p>
             </div>
         );
     }
 
     if (error || !product) {
         return (
-            <div style={{ padding: "2rem 0" }}>
+            <div className="py-8">
                 <ErrorState
                     title="Product not found"
                     message={error || "Could not retrieve the requested product."}
@@ -154,21 +170,21 @@ export default function EditProductPage() {
     }
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        <div className="flex flex-col gap-4">
             {/* Navigation & Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
                 <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => router.push("/products")}
-                    style={{ borderRadius: "8px", gap: "0.375rem" }}
+                    className="gap-1.5"
                 >
-                    <ArrowLeft size={14} />
+                    <ArrowLeft size={13} />
                     <span>Back to Products</span>
                 </Button>
 
-                <div style={{ display: "flex", gap: "0.5rem" }}>
+                <div className="flex items-center gap-2">
                     {status !== "PUBLISHED" && (
                         <Button
                             type="button"
@@ -177,9 +193,9 @@ export default function EditProductPage() {
                             onClick={handlePublish}
                             isLoading={isPublishing}
                             disabled={isPublishing}
-                            style={{ backgroundColor: "#10b981", borderRadius: "8px" }}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
                         >
-                            <Globe size={14} />
+                            <Globe size={13} />
                             <span>Publish to Store</span>
                         </Button>
                     )}
@@ -188,27 +204,27 @@ export default function EditProductPage() {
                         variant="danger"
                         size="sm"
                         onClick={() => setIsDeleteOpen(true)}
-                        style={{ borderRadius: "8px" }}
+                        className="gap-1.5"
                     >
-                        <Trash2 size={14} />
+                        <Trash2 size={13} />
                         <span>Delete</span>
                     </Button>
                 </div>
             </div>
 
             {saveNotice && (
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.75rem 1rem", backgroundColor: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: "8px", color: "#065f46", fontSize: "0.875rem" }}>
-                    <CheckCircle2 size={16} />
+                <div className="flex items-center gap-2 p-2.5 px-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl text-emerald-800 dark:text-emerald-300 text-xs font-medium">
+                    <CheckCircle2 size={15} />
                     <span>{saveNotice}</span>
                 </div>
             )}
 
             {/* Edit Form */}
-            <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-                <Card style={{ backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", padding: "1.5rem" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
-                        <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#0f172a", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                            <Package size={18} color="#2563eb" />
+            <form onSubmit={handleSave} className="flex flex-col gap-4">
+                <Card className="p-3.5 sm:p-4">
+                    <div className="flex items-center justify-between mb-3.5">
+                        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                            <Package size={15} className="text-blue-600 dark:text-blue-400" />
                             <span>Product Details</span>
                         </h2>
                         <Badge variant={status === "PUBLISHED" ? "success" : "warning"} size="sm">
@@ -216,7 +232,7 @@ export default function EditProductPage() {
                         </Badge>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.25rem" }}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormField label="Title" required>
                             <Input
                                 value={title}
@@ -234,93 +250,85 @@ export default function EditProductPage() {
                         </FormField>
 
                         <FormField label="Category">
-                            <select
+                            <Select
                                 value={categoryId}
                                 onChange={(e) => setCategoryId(e.target.value)}
                                 disabled={isSaving}
-                                style={{
-                                    width: "100%",
-                                    padding: "0.5rem 0.75rem",
-                                    borderRadius: "8px",
-                                    border: "1px solid #e2e8f0",
-                                    backgroundColor: "#f8fafc",
-                                    fontSize: "0.8125rem",
-                                    color: "#0f172a",
-                                    outline: "none",
-                                }}
                             >
                                 {categories.map((c) => (
                                     <option key={c.id} value={c.id}>
                                         {c.name}
                                     </option>
                                 ))}
-                            </select>
+                            </Select>
                         </FormField>
 
                         <FormField label="Status">
-                            <select
+                            <Select
                                 value={status}
                                 onChange={(e) => setStatus(e.target.value as any)}
                                 disabled={isSaving}
-                                style={{
-                                    width: "100%",
-                                    padding: "0.5rem 0.75rem",
-                                    borderRadius: "8px",
-                                    border: "1px solid #e2e8f0",
-                                    backgroundColor: "#f8fafc",
-                                    fontSize: "0.8125rem",
-                                    color: "#0f172a",
-                                    outline: "none",
-                                }}
                             >
                                 <option value="PUBLISHED">PUBLISHED</option>
                                 <option value="DRAFT">DRAFT</option>
                                 <option value="ARCHIVED">ARCHIVED</option>
-                            </select>
+                            </Select>
                         </FormField>
                     </div>
 
-                    <div style={{ marginTop: "1.25rem" }}>
-                        <FormField label="Description">
-                            <textarea
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <FormField label="Storage Instructions & Shelf-Life">
+                            <Input
+                                value={storageInstructions}
+                                onChange={(e) => setStorageInstructions(e.target.value)}
+                                placeholder="e.g. Keep refrigerated below 4°C."
+                                disabled={isSaving}
+                            />
+                        </FormField>
+
+                        <FormField label="Allergens (Comma separated)">
+                            <Input
+                                value={allergens}
+                                onChange={(e) => setAllergens(e.target.value)}
+                                placeholder="e.g. Milk, Tree Nuts, Gluten"
+                                disabled={isSaving}
+                            />
+                        </FormField>
+                    </div>
+
+                    <div className="mt-4">
+                        <FormField label="Culinary Description">
+                            <Textarea
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
-                                rows={4}
+                                rows={3}
                                 disabled={isSaving}
-                                style={{
-                                    width: "100%",
-                                    padding: "0.5rem 0.75rem",
-                                    borderRadius: "8px",
-                                    border: "1px solid #e2e8f0",
-                                    backgroundColor: "#f8fafc",
-                                    fontSize: "0.8125rem",
-                                    color: "#0f172a",
-                                    outline: "none",
-                                    fontFamily: "inherit",
-                                }}
                             />
                         </FormField>
                     </div>
                 </Card>
 
                 {/* Variants Card */}
-                <Card style={{ backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", padding: "1.5rem" }}>
-                    <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#0f172a", marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <Layers size={18} color="#2563eb" />
+                <Card className="p-3.5 sm:p-4">
+                    <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3 flex items-center gap-1.5">
+                        <Layers size={15} className="text-blue-600 dark:text-blue-400" />
                         <span>Variants ({product.variants?.length || 0})</span>
                     </h2>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    <div className="flex flex-col gap-2">
                         {(product.variants || []).map((v, i) => (
-                            <div key={v.id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.75rem 1rem", backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px" }}>
+                            <div
+                                key={v.id || i}
+                                className="flex flex-wrap items-center justify-between gap-2.5 p-2.5 px-3.5 bg-slate-50/80 dark:bg-neutral-800/40 border border-slate-200/80 dark:border-neutral-800 rounded-lg"
+                            >
                                 <div>
-                                    <div style={{ fontWeight: 700, fontSize: "0.875rem", color: "#0f172a" }}>{v.title || "Default"}</div>
-                                    <div style={{ fontSize: "0.75rem", fontFamily: "monospace", color: "#64748b" }}>SKU: {v.sku}</div>
+                                    <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">{v.title || "Default"}</div>
+                                    <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400">SKU: {v.sku}</div>
                                 </div>
-                                <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+                                <div className="flex flex-wrap gap-1.5 items-center">
                                     {(v.prices || []).map((pr) => (
                                         <Badge key={pr.currency} variant="neutral" size="sm">
-                                            {pr.currency} ${pr.amount.toFixed(2)}
+                                            {pr.currency === "INR" ? `₹${pr.amount.toFixed(2)}` : pr.currency === "USD" ? `$${pr.amount.toFixed(2)}` : `${pr.currency} ${pr.amount.toFixed(2)}`}
                                         </Badge>
                                     ))}
                                 </div>
@@ -330,15 +338,16 @@ export default function EditProductPage() {
                 </Card>
 
                 {/* Save Bar */}
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <div className="flex justify-end">
                     <Button
                         type="submit"
                         variant="primary"
+                        size="sm"
                         isLoading={isSaving}
                         disabled={isSaving}
-                        style={{ backgroundColor: "#2563eb", borderRadius: "8px", minWidth: "140px", gap: "0.375rem" }}
+                        className="min-w-[130px] gap-1.5"
                     >
-                        <Save size={15} />
+                        <Save size={14} />
                         <span>Save Changes</span>
                     </Button>
                 </div>

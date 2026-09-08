@@ -4,40 +4,23 @@ export interface SpinnerProps extends React.SVGAttributes<SVGSVGElement> {
     size?: "sm" | "md" | "lg";
 }
 
-const sizePixelMap = {
-    sm: 16,
-    md: 20,
-    lg: 28,
+const sizeClasses = {
+    sm: "w-4 h-4",
+    md: "w-5 h-5",
+    lg: "w-7 h-7",
 };
 
 export function Spinner({
     size = "md",
     className = "",
-    style,
     ...props
 }: SpinnerProps) {
-    const px = sizePixelMap[size];
-
     return (
         <svg
-            width={px}
-            height={px}
             viewBox="0 0 24 24"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
-            className={`ec-animate-spin ${className}`}
-            style={{
-                width: `${px}px`,
-                height: `${px}px`,
-                minWidth: `${px}px`,
-                minHeight: `${px}px`,
-                display: "inline-block",
-                verticalAlign: "middle",
-                animation: "ec-spin 0.75s linear infinite",
-                color: "inherit",
-                flexShrink: 0,
-                ...style,
-            }}
+            className={`animate-spin inline-block align-middle shrink-0 text-current ${sizeClasses[size]} ${className}`}
             aria-hidden="true"
             {...props}
         >

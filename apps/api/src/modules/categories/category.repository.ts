@@ -123,6 +123,32 @@ export class CategoryRepository {
     async findDescendants(id: string | Types.ObjectId, session?: ClientSession): Promise<CategoryDocument[]> {
         return await CategoryModel.find({ ancestors: new Types.ObjectId(id) }).session(session ?? null).exec();
     }
+
+    async reorder(
+        items: Array<{ id: string; sortOrder: number; updatedBy?: AuditActor }>,
+        session?: ClientSession
+    ): Promise<number> {
+        if (items.length === 0) return 0;
+        const bulkOps = items.map((item) => ({
+            updateOne: {
+                filter: { _id: new Types.ObjectId(item.id) },
+                update: {
+                    $set: {
+                        sortOrder: item.sortOrder,
+                        ...(item.updatedBy ? { updatedBy: item.updatedBy } : {}),
+                    },
+                },
+            },
+        }));
+
+        const result = await CategoryModel.bulkWrite(
+            bulkOps,
+            session ? { session } : undefined
+        );
+        return result.modifiedCount;
+    }
 }
 
+
 export const categoryRepository = new CategoryRepository();
+

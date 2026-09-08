@@ -16,15 +16,15 @@ import {
     TableCell,
     Pagination,
     Button,
+    Input,
+    Select,
 } from "@ecommers/ui";
 import {
     Users,
     Search,
     RefreshCw,
-    DollarSign,
-    ShoppingBag,
-    Calendar,
 } from "lucide-react";
+import { RequireRole } from "../../../components/auth/require-role";
 
 export default function CustomersPage() {
     const [customers, setCustomers] = useState<CustomerListItem[]>([]);
@@ -71,113 +71,77 @@ export default function CustomersPage() {
     }, [fetchCustomers]);
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        <RequireRole allowedRoles={["SUPER_ADMIN", "ADMIN", "SUPPORT_AGENT"]}>
+            <div className="flex flex-col gap-4">
             {/* Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div className="flex justify-between items-start">
                 <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <div
-                            style={{
-                                width: "32px",
-                                height: "32px",
-                                borderRadius: "8px",
-                                backgroundColor: "#eff6ff",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                color: "#2563eb",
-                            }}
-                        >
-                            <Users size={18} />
+                    <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-md bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                            <Users size={16} />
                         </div>
-                        <h1 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#0f172a", letterSpacing: "-0.02em" }}>
-                            Customer LTV & Accounts
+                        <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+                            Customers
                         </h1>
                     </div>
-                    <p style={{ fontSize: "0.8125rem", color: "#64748b", marginTop: "0.25rem" }}>
-                        View registered customer accounts, analyze order frequency, and discover high-value spenders.
+                    <p className="text-xs text-slate-500 dark:text-neutral-400 mt-0.5">
+                        Directory of registered customer profiles, purchase history, and lifetime values.
                     </p>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <div className="flex items-center gap-2">
                     <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         onClick={() => fetchCustomers(true)}
                         isLoading={refreshing}
-                        style={{ borderRadius: "8px" }}
                     >
-                        <RefreshCw size={14} />
+                        <RefreshCw size={13} className="mr-1.5" />
                         <span>Refresh</span>
                     </Button>
                 </div>
             </div>
 
             {/* Filter Bar Card */}
-            <Card style={{ padding: "1.25rem", backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", alignItems: "center" }}>
-                    <div
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.5rem",
-                            backgroundColor: "#f8fafc",
-                            border: "1px solid #e2e8f0",
-                            borderRadius: "8px",
-                            padding: "0.4rem 0.75rem",
-                            flex: "1 1 240px",
-                        }}
-                    >
-                        <Search size={16} color="#94a3b8" />
-                        <input
-                            type="text"
+            <Card className="p-3">
+                <div className="flex flex-wrap gap-2.5 items-center">
+                    <div className="flex-1 min-w-[200px]">
+                        <Input
+                            size="sm"
+                            leadingIcon={<Search size={14} />}
                             placeholder="Search by customer name or email..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            style={{
-                                border: "none",
-                                background: "transparent",
-                                fontSize: "0.8125rem",
-                                outline: "none",
-                                width: "100%",
-                                color: "#0f172a",
-                            }}
                         />
                     </div>
 
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#64748b" }}>Sort by:</span>
-                        <select
-                            value={sortBy}
-                            onChange={(e) => {
-                                setSortBy(e.target.value as any);
-                                setPage(1);
-                            }}
-                            style={{
-                                padding: "0.45rem 0.75rem",
-                                borderRadius: "8px",
-                                border: "1px solid #e2e8f0",
-                                backgroundColor: "#f8fafc",
-                                fontSize: "0.8125rem",
-                                color: "#0f172a",
-                                outline: "none",
-                            }}
-                        >
-                            <option value="spend">Lifetime Spend (Highest first)</option>
-                            <option value="orders">Total Orders Count</option>
-                            <option value="createdAt">Registration Date</option>
-                        </select>
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-500 dark:text-neutral-400 whitespace-nowrap">Sort by:</span>
+                        <div className="w-48">
+                            <Select
+                                size="sm"
+                                value={sortBy}
+                                onChange={(e) => {
+                                    setSortBy(e.target.value as any);
+                                    setPage(1);
+                                }}
+                            >
+                                <option value="spend">Lifetime Spend (Highest)</option>
+                                <option value="orders">Total Orders Count</option>
+                                <option value="createdAt">Registration Date</option>
+                            </Select>
+                        </div>
                     </div>
                 </div>
             </Card>
 
             {/* Customers Table Card */}
-            <Card style={{ backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", padding: "1.25rem" }}>
+            <Card className="p-3.5">
                 {loading ? (
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "4rem 0", gap: "1rem" }}>
+                    <div className="flex flex-col items-center justify-center py-12 gap-2.5">
                         <Spinner size="md" />
-                        <p style={{ color: "#64748b", fontSize: "0.875rem" }}>Loading customer accounts...</p>
+                        <p className="text-xs text-slate-500 dark:text-neutral-400">Loading customer accounts...</p>
                     </div>
                 ) : error ? (
                     <ErrorState title="Failed to load customers" message={error} onRetry={() => fetchCustomers()} />
@@ -196,8 +160,8 @@ export default function CustomersPage() {
                             </TableHeader>
                             <TableBody>
                                 {customers.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={6} style={{ textAlign: "center", color: "#64748b", padding: "3rem 0" }}>
+                                    <TableRow noHover>
+                                        <TableCell colSpan={6} className="text-center text-slate-400 dark:text-neutral-500 py-10 text-xs">
                                             No customer records found.
                                         </TableCell>
                                     </TableRow>
@@ -220,12 +184,12 @@ export default function CustomersPage() {
                                         return (
                                             <TableRow key={c.id}>
                                                 <TableCell>
-                                                    <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                                                    <div className="font-semibold text-slate-900 dark:text-neutral-100 text-xs">
                                                         {c.firstName} {c.lastName}
                                                     </div>
                                                 </TableCell>
-                                                <TableCell>{c.email}</TableCell>
-                                                <TableCell style={{ fontWeight: 800, color: "#2563eb" }}>
+                                                <TableCell className="text-slate-600 dark:text-neutral-300 text-xs">{c.email}</TableCell>
+                                                <TableCell className="font-semibold text-blue-600 dark:text-blue-400 text-xs">
                                                     ${spendDecimal}
                                                 </TableCell>
                                                 <TableCell>
@@ -233,10 +197,10 @@ export default function CustomersPage() {
                                                         {c.orderCount || 0} orders
                                                     </Badge>
                                                 </TableCell>
-                                                <TableCell style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                                                <TableCell className="text-xs text-slate-500 dark:text-neutral-400">
                                                     {lastOrderStr}
                                                 </TableCell>
-                                                <TableCell style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                                                <TableCell className="text-xs text-slate-500 dark:text-neutral-400">
                                                     {joinedStr}
                                                 </TableCell>
                                             </TableRow>
@@ -247,8 +211,8 @@ export default function CustomersPage() {
                         </Table>
 
                         {totalPages > 1 && (
-                            <div style={{ marginTop: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                            <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
+                                <span>
                                     Showing page {page} of {totalPages} ({totalItems} customers)
                                 </span>
                                 <Pagination page={page} totalPages={totalPages} onPageChange={(p) => setPage(p)} />
@@ -257,6 +221,7 @@ export default function CustomersPage() {
                     </>
                 )}
             </Card>
-        </div>
+            </div>
+        </RequireRole>
     );
 }

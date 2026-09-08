@@ -1,29 +1,48 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useRef, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import {
     LogOut,
-    Search,
     Sun,
     Moon,
     Bell,
-    ChevronDown,
+    ChevronRight,
     Loader2,
+    User as UserIcon,
+    ShieldCheck,
+    Menu,
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "../../store";
 import { clearSession } from "../../store/auth-slice";
 import { api, setAccessToken } from "../../lib/api";
 import { useTheme } from "../theme-provider";
 
-export function Topbar() {
+interface TopbarProps {
+    onToggleMobileNav?: () => void;
+}
+
+export function Topbar({ onToggleMobileNav }: TopbarProps) {
     const router = useRouter();
+    const pathname = usePathname();
     const dispatch = useAppDispatch();
     const { theme, toggleTheme } = useTheme();
     const user = useAppSelector((state) => state.auth.user);
     const role = useAppSelector((state) => state.auth.role);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsDropdownOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     const handleLogout = async () => {
         setIsLoggingOut(true);
@@ -39,286 +58,148 @@ export function Topbar() {
         }
     };
 
-    const initials = user
-        ? `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase() || "AD"
-        : "AD";
-
+    const initial = user?.firstName?.[0]?.toUpperCase() || "A";
     const displayName = user
         ? `${user.firstName} ${user.lastName}`.trim() || user.email.split("@")[0]
         : "Administrator";
 
+    // Format breadcrumb path
+    const pathSegments = pathname.split("/").filter(Boolean);
+    const breadcrumbs = pathSegments.map((segment) =>
+        segment.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    );
+
     return (
-        <header
-            style={{
-                height: "64px",
-                backgroundColor: "var(--ec-surface, #ffffff)",
-                borderBottom: "1px solid var(--ec-border, #f1f5f9)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "0 1.5rem",
-                position: "sticky",
-                top: 0,
-                zIndex: 40,
-                boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.02)",
-                transition: "background-color 0.15s ease, border-color 0.15s ease",
-            }}
-        >
-            {/* Left: Brand Identity */}
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                <div
-                    style={{
-                        width: "32px",
-                        height: "32px",
-                        borderRadius: "8px",
-                        backgroundColor: "#2563eb",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "#ffffff",
-                        fontWeight: 800,
-                        fontSize: "0.9375rem",
-                        boxShadow: "0 2px 6px -1px rgba(37, 99, 235, 0.4)",
-                    }}
+        <header className="h-14 bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-md border-b border-slate-200/80 dark:border-neutral-800 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-20 transition-colors duration-200">
+            {/* Left: Hamburger (Mobile) + Breadcrumb Navigation */}
+            <div className="flex items-center gap-2.5">
+                {/* Mobile Hamburger Drawer Trigger */}
+                <button
+                    type="button"
+                    onClick={onToggleMobileNav}
+                    className="md:hidden p-1.5 -ml-1 text-slate-600 dark:text-neutral-300 hover:bg-slate-100 dark:hover:bg-neutral-800 rounded-md transition-colors cursor-pointer"
+                    aria-label="Open sidebar menu"
                 >
-                    E
-                </div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: "0.25rem" }}>
-                    <span
-                        style={{
-                            fontSize: "1.125rem",
-                            fontWeight: 800,
-                            letterSpacing: "-0.03em",
-                            color: "var(--ec-text-primary, #0f172a)",
-                        }}
-                    >
-                        ecommers
-                    </span>
-                    <span
-                        style={{
-                            fontSize: "0.75rem",
-                            fontWeight: 600,
-                            color: "#2563eb",
-                            letterSpacing: "0.02em",
-                        }}
-                    >
-                        PORTAL
-                    </span>
+                    <Menu size={16} />
+                </button>
+
+                {/* Minimal Breadcrumb */}
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-neutral-400">
+                    <span className="font-medium text-slate-400 dark:text-neutral-500">Portal</span>
+                    {breadcrumbs.length > 0 ? (
+                        breadcrumbs.map((crumb, idx) => (
+                            <React.Fragment key={crumb}>
+                                <ChevronRight size={12} className="text-slate-300 dark:text-neutral-600" />
+                                <span
+                                    className={
+                                        idx === breadcrumbs.length - 1
+                                            ? "font-semibold text-slate-900 dark:text-neutral-100"
+                                            : "font-normal hover:text-slate-700 dark:hover:text-neutral-300"
+                                    }
+                                >
+                                    {crumb}
+                                </span>
+                            </React.Fragment>
+                        ))
+                    ) : (
+                        <>
+                            <ChevronRight size={12} className="text-slate-300 dark:text-neutral-600" />
+                            <span className="font-semibold text-slate-900 dark:text-neutral-100">Overview</span>
+                        </>
+                    )}
                 </div>
             </div>
 
-            {/* Right: Search, Notifications, User Chip */}
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-
-                {/* Search Bar with ⌘K */}
-                <div
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.5rem",
-                        backgroundColor: "var(--ec-bg-subtle, #f8fafc)",
-                        border: "1px solid var(--ec-border, #e2e8f0)",
-                        borderRadius: "9999px",
-                        padding: "0.3125rem 0.75rem",
-                        width: "180px",
-                    }}
-                >
-                    <Search size={14} color="var(--ec-text-subtle, #94a3b8)" />
-                    <input
-                        type="text"
-                        placeholder="Search..."
-                        style={{
-                            border: "none",
-                            background: "transparent",
-                            fontSize: "0.75rem",
-                            outline: "none",
-                            width: "100%",
-                            color: "var(--ec-text-primary, #0f172a)",
-                        }}
-                    />
-                    <span
-                        style={{
-                            fontSize: "0.625rem",
-                            color: "var(--ec-text-muted, #64748b)",
-                            backgroundColor: "var(--ec-surface, #ffffff)",
-                            border: "1px solid var(--ec-border, #e2e8f0)",
-                            borderRadius: "4px",
-                            padding: "0 4px",
-                            lineHeight: "16px",
-                            fontFamily: "monospace",
-                        }}
-                    >
-                        ⌘K
-                    </span>
-                </div>
-
-                {/* Theme Toggle */}
+            {/* Right: Theme Toggle Switch, Notifications, User Chip */}
+            <div className="flex items-center gap-2.5">
+                {/* Custom Tailwind Switch Theme Toggle */}
                 <button
                     type="button"
                     onClick={toggleTheme}
+                    role="switch"
+                    aria-checked={theme === "dark"}
                     title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-                    style={{
-                        width: "32px",
-                        height: "32px",
-                        borderRadius: "50%",
-                        border: "1px solid var(--ec-border, #e2e8f0)",
-                        backgroundColor: "var(--ec-surface, #ffffff)",
-                        color: "var(--ec-text-secondary, #64748b)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                        transition: "all 0.15s ease",
-                    }}
+                    className="relative inline-flex h-6 w-10 shrink-0 cursor-pointer rounded-full border border-slate-200 dark:border-neutral-700 bg-slate-100 dark:bg-neutral-800 p-0.5 transition-colors duration-200 focus:outline-none"
                 >
-                    {theme === "dark" ? <Sun size={15} color="#f59e0b" /> : <Moon size={15} />}
+                    <span
+                        className={`pointer-events-none flex h-4.5 w-4.5 items-center justify-center rounded-full bg-white dark:bg-neutral-900 shadow-xs ring-0 transition-transform duration-200 ease-in-out ${
+                            theme === "dark" ? "translate-x-4 text-amber-400" : "translate-x-0 text-slate-500"
+                        }`}
+                    >
+                        {theme === "dark" ? <Sun size={11} strokeWidth={2.2} /> : <Moon size={11} strokeWidth={2.2} />}
+                    </span>
                 </button>
 
                 {/* Notifications Bell */}
                 <button
                     type="button"
                     title="Notifications"
-                    style={{
-                        position: "relative",
-                        width: "32px",
-                        height: "32px",
-                        borderRadius: "50%",
-                        border: "1px solid var(--ec-border, #e2e8f0)",
-                        backgroundColor: "var(--ec-surface, #ffffff)",
-                        color: "var(--ec-text-secondary, #64748b)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                        transition: "all 0.15s ease",
-                    }}
+                    className="relative w-7 h-7 rounded-md text-slate-500 dark:text-neutral-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-neutral-800 flex items-center justify-center cursor-pointer transition-colors"
                 >
-                    <Bell size={15} />
-                    <span
-                        style={{
-                            position: "absolute",
-                            top: "7px",
-                            right: "7px",
-                            width: "6px",
-                            height: "6px",
-                            borderRadius: "50%",
-                            backgroundColor: "#ef4444",
-                        }}
-                    />
+                    <Bell size={14} />
+                    <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-blue-600" />
                 </button>
 
-                {/* User Profile Chip */}
-                <div style={{ position: "relative" }}>
+                {/* User Profile Trigger - Compact rounded square (w-6 h-6 rounded-md) */}
+                <div ref={dropdownRef} className="relative">
                     <button
                         type="button"
                         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.625rem",
-                            padding: "0.25rem 0.75rem 0.25rem 0.25rem",
-                            borderRadius: "9999px",
-                            backgroundColor: "#0f172a",
-                            color: "#ffffff",
-                            border: "none",
-                            cursor: "pointer",
-                            transition: "all 0.15s ease",
-                        }}
+                        aria-label="User menu"
+                        className="w-6 h-6 rounded-md bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center text-xs font-semibold cursor-pointer shadow-xs transition-colors"
                     >
-                        <div
-                            style={{
-                                width: "28px",
-                                height: "28px",
-                                borderRadius: "50%",
-                                backgroundColor: "#1e293b",
-                                border: "1px solid #334155",
-                                display: "flex",
-                                alignItems: "center",
-                                justifySelf: "center",
-                                justifyContent: "center",
-                                fontSize: "0.6875rem",
-                                fontWeight: 700,
-                                color: "#f8fafc",
-                            }}
-                        >
-                            {initials}
-                        </div>
-                        <div style={{ textAlign: "left", lineHeight: 1.1 }}>
-                            <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#f8fafc" }}>
-                                {displayName}
-                            </div>
-                            <div style={{ fontSize: "0.625rem", color: "#94a3b8" }}>
-                                {role ? role.replace("_", " ") : "Super Admin"}
-                            </div>
-                        </div>
-                        <ChevronDown size={12} color="#94a3b8" style={{ marginLeft: "2px" }} />
+                        {initial}
                     </button>
 
-                    {/* Dropdown Menu */}
+                    {/* Compact Dropdown Menu - w-48, p-1.5, text-[13px] */}
                     {isDropdownOpen && (
-                        <div
-                            style={{
-                                position: "absolute",
-                                right: 0,
-                                top: "calc(100% + 8px)",
-                                width: "200px",
-                                backgroundColor: "#ffffff",
-                                borderRadius: "12px",
-                                border: "1px solid #e2e8f0",
-                                boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05)",
-                                padding: "0.5rem",
-                                zIndex: 50,
-                            }}
-                        >
-                            <div style={{ padding: "0.5rem 0.75rem", borderBottom: "1px solid #f1f5f9" }}>
-                                <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#0f172a" }}>
+                        <div className="absolute right-0 top-[calc(100%+8px)] w-48 bg-white dark:bg-[#111111] rounded-xl border border-slate-200/80 dark:border-neutral-800 shadow-xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                            {/* User Header */}
+                            <div className="px-2 py-1.5 border-b border-slate-100 dark:border-neutral-800 mb-1">
+                                <div className="text-[13px] font-semibold text-slate-900 dark:text-neutral-100 truncate">
                                     {displayName}
                                 </div>
-                                <div style={{ fontSize: "0.6875rem", color: "#64748b" }}>
+                                <div className="text-[11px] text-slate-500 dark:text-neutral-400 truncate">
                                     {user?.email || "admin@ecommers.local"}
                                 </div>
                             </div>
+
+                            {/* Menu Items */}
                             <button
                                 type="button"
                                 onClick={() => {
                                     setIsDropdownOpen(false);
                                     router.push("/account");
                                 }}
-                                style={{
-                                    width: "100%",
-                                    textAlign: "left",
-                                    padding: "0.5rem 0.75rem",
-                                    fontSize: "0.8125rem",
-                                    color: "#334155",
-                                    backgroundColor: "transparent",
-                                    border: "none",
-                                    borderRadius: "6px",
-                                    cursor: "pointer",
-                                    marginTop: "0.25rem",
-                                }}
+                                className="w-full flex items-center gap-2 px-2 py-1.5 text-[13px] font-medium text-slate-700 dark:text-neutral-200 rounded-md hover:bg-slate-100 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
                             >
-                                Account Settings
+                                <UserIcon size={14} className="text-slate-400 dark:text-neutral-500 shrink-0" />
+                                <span>Account Settings</span>
                             </button>
+
+                            {(role === "SUPER_ADMIN" || role === "ADMIN") && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsDropdownOpen(false);
+                                        router.push("/staff");
+                                    }}
+                                    className="w-full flex items-center gap-2 px-2 py-1.5 text-[13px] font-medium text-slate-700 dark:text-neutral-200 rounded-md hover:bg-slate-100 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
+                                >
+                                    <ShieldCheck size={14} className="text-slate-400 dark:text-neutral-500 shrink-0" />
+                                    <span>Staff & Access</span>
+                                </button>
+                            )}
+
+                            <div className="h-px bg-slate-100 dark:bg-neutral-800 my-1" />
+
                             <button
                                 type="button"
                                 onClick={handleLogout}
                                 disabled={isLoggingOut}
-                                style={{
-                                    width: "100%",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.5rem",
-                                    padding: "0.5rem 0.75rem",
-                                    fontSize: "0.8125rem",
-                                    color: "#dc2626",
-                                    backgroundColor: "transparent",
-                                    border: "none",
-                                    borderRadius: "6px",
-                                    cursor: isLoggingOut ? "not-allowed" : "pointer",
-                                    marginTop: "0.25rem",
-                                }}
+                                className="w-full flex items-center gap-2 px-2 py-1.5 text-[13px] font-medium text-red-600 dark:text-red-400 rounded-md hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer transition-colors"
                             >
-                                {isLoggingOut ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />}
+                                {isLoggingOut ? <Loader2 size={14} className="animate-spin shrink-0" /> : <LogOut size={14} className="shrink-0" />}
                                 <span>{isLoggingOut ? "Signing out..." : "Sign Out"}</span>
                             </button>
                         </div>

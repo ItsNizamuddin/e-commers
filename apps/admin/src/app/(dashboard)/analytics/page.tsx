@@ -5,7 +5,6 @@ import { api } from "../../../lib/api";
 import type { SalesAnalyticsResponse } from "@ecommers/types";
 import {
     Card,
-    Badge,
     Spinner,
     ErrorState,
     Table,
@@ -18,13 +17,9 @@ import {
 } from "@ecommers/ui";
 import {
     BarChart3,
-    DollarSign,
-    ShoppingBag,
-    Package,
-    TrendingUp,
     RefreshCw,
-    Calendar,
 } from "lucide-react";
+import { RequireRole } from "../../../components/auth/require-role";
 
 export default function AnalyticsPage() {
     const [analytics, setAnalytics] = useState<SalesAnalyticsResponse | null>(null);
@@ -58,53 +53,36 @@ export default function AnalyticsPage() {
     }, [fetchAnalytics]);
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        <RequireRole allowedRoles={["SUPER_ADMIN", "ADMIN", "SALES"]}>
+            <div className="flex flex-col gap-4">
             {/* Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div className="flex justify-between items-start">
                 <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <div
-                            style={{
-                                width: "32px",
-                                height: "32px",
-                                borderRadius: "8px",
-                                backgroundColor: "#eff6ff",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                color: "#2563eb",
-                            }}
-                        >
-                            <BarChart3 size={18} />
+                    <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/60 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                            <BarChart3 size={15} />
                         </div>
-                        <h1 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#0f172a", letterSpacing: "-0.02em" }}>
+                        <h1 className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
                             Sales & Revenue Analytics
                         </h1>
                     </div>
-                    <p style={{ fontSize: "0.8125rem", color: "#64748b", marginTop: "0.25rem" }}>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                         Aggregated order metrics, units sold, and average order value (AOV) over time.
                     </p>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <div style={{ display: "flex", backgroundColor: "#f1f5f9", padding: "2px", borderRadius: "8px" }}>
+                <div className="flex items-center gap-2">
+                    <div className="flex bg-slate-100 dark:bg-neutral-800 p-0.5 rounded-lg">
                         {(["day", "week", "month"] as const).map((int) => (
                             <button
                                 key={int}
                                 type="button"
                                 onClick={() => setInterval(int)}
-                                style={{
-                                    padding: "0.3125rem 0.75rem",
-                                    fontSize: "0.75rem",
-                                    fontWeight: 600,
-                                    borderRadius: "6px",
-                                    border: "none",
-                                    backgroundColor: interval === int ? "#ffffff" : "transparent",
-                                    color: interval === int ? "#0f172a" : "#64748b",
-                                    boxShadow: interval === int ? "0 1px 2px rgba(0,0,0,0.05)" : "none",
-                                    cursor: "pointer",
-                                    textTransform: "capitalize",
-                                }}
+                                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer capitalize ${
+                                    interval === int
+                                        ? "bg-white dark:bg-neutral-900 text-slate-900 dark:text-white shadow-xs"
+                                        : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                                }`}
                             >
                                 {int}
                             </button>
@@ -117,76 +95,77 @@ export default function AnalyticsPage() {
                         size="sm"
                         onClick={() => fetchAnalytics(true)}
                         isLoading={refreshing}
-                        style={{ borderRadius: "8px" }}
+                        className="gap-1.5"
                     >
-                        <RefreshCw size={14} />
+                        <RefreshCw size={13} />
+                        <span>Refresh</span>
                     </Button>
                 </div>
             </div>
 
             {loading ? (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "4rem 0", gap: "1rem" }}>
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
                     <Spinner size="md" />
-                    <p style={{ color: "#64748b", fontSize: "0.875rem" }}>Computing sales aggregations...</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Computing sales aggregations...</p>
                 </div>
             ) : error ? (
                 <ErrorState title="Unable to load analytics" message={error} onRetry={() => fetchAnalytics()} />
             ) : analytics ? (
                 <>
                     {/* Summary Cards */}
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
-                        <Card style={{ padding: "1.25rem", backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
-                            <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <Card className="p-3.5">
+                            <div className="text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
                                 Net Revenue
                             </div>
-                            <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "#0f172a", marginTop: "0.375rem" }}>
+                            <div className="text-xl font-bold tracking-tight text-slate-900 dark:text-white mt-1">
                                 ${(analytics.summary.netRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
-                            <div style={{ fontSize: "0.75rem", color: "#16a34a", marginTop: "0.25rem" }}>
+                            <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5">
                                 Currency: USD
                             </div>
                         </Card>
 
-                        <Card style={{ padding: "1.25rem", backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
-                            <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
+                        <Card className="p-3.5">
+                            <div className="text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
                                 Total Orders
                             </div>
-                            <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "#0f172a", marginTop: "0.375rem" }}>
+                            <div className="text-xl font-bold tracking-tight text-slate-900 dark:text-white mt-1">
                                 {(analytics.summary.totalOrders || 0).toLocaleString()}
                             </div>
-                            <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.25rem" }}>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                                 Completed / Confirmed
                             </div>
                         </Card>
 
-                        <Card style={{ padding: "1.25rem", backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
-                            <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
+                        <Card className="p-3.5">
+                            <div className="text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
                                 Units Sold
                             </div>
-                            <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "#0f172a", marginTop: "0.375rem" }}>
+                            <div className="text-xl font-bold tracking-tight text-slate-900 dark:text-white mt-1">
                                 {(analytics.summary.totalUnitsSold || 0).toLocaleString()}
                             </div>
-                            <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.25rem" }}>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                                 Physical items
                             </div>
                         </Card>
 
-                        <Card style={{ padding: "1.25rem", backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
-                            <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
+                        <Card className="p-3.5">
+                            <div className="text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
                                 Average Order Value
                             </div>
-                            <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "#0f172a", marginTop: "0.375rem" }}>
+                            <div className="text-xl font-bold tracking-tight text-slate-900 dark:text-white mt-1">
                                 ${(analytics.summary.averageOrderValue || 0).toFixed(2)}
                             </div>
-                            <div style={{ fontSize: "0.75rem", color: "#2563eb", marginTop: "0.25rem" }}>
-                                Per non-cancelled order
+                            <div className="text-[11px] text-blue-600 dark:text-blue-400 mt-0.5">
+                                Per order
                             </div>
                         </Card>
                     </div>
 
                     {/* Time-Series Table */}
-                    <Card style={{ backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", padding: "1.25rem" }}>
-                        <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "#0f172a", marginBottom: "1rem" }}>
+                    <Card className="p-3.5 sm:p-4">
+                        <div className="text-xs font-semibold text-slate-900 dark:text-white mb-3">
                             Time-Series Breakdown ({interval})
                         </div>
 
@@ -201,20 +180,20 @@ export default function AnalyticsPage() {
                             </TableHeader>
                             <TableBody>
                                 {analytics.series.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={4} style={{ textAlign: "center", color: "#64748b", padding: "3rem 0" }}>
+                                    <TableRow noHover>
+                                        <TableCell colSpan={4} className="text-center text-slate-400 dark:text-slate-500 py-10">
                                             No sales data available for this time range.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
                                     analytics.series.map((pt, idx) => (
                                         <TableRow key={idx}>
-                                            <TableCell style={{ fontWeight: 600, color: "#0f172a" }}>
+                                            <TableCell className="font-semibold text-slate-900 dark:text-slate-100">
                                                 {pt.date}
                                             </TableCell>
                                             <TableCell>{pt.orderCount}</TableCell>
                                             <TableCell>{pt.unitsSold}</TableCell>
-                                            <TableCell style={{ fontWeight: 700, color: "#2563eb" }}>
+                                            <TableCell className="font-bold text-blue-600 dark:text-blue-400">
                                                 ${pt.netRevenue.toFixed(2)}
                                             </TableCell>
                                         </TableRow>
@@ -225,6 +204,7 @@ export default function AnalyticsPage() {
                     </Card>
                 </>
             ) : null}
-        </div>
+            </div>
+        </RequireRole>
     );
 }

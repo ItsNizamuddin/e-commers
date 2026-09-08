@@ -317,8 +317,11 @@ Search View     Wishlist Toggle
 - **Client Components ('use client')**: Used for interactive UI elements: Cart Drawer, Checkout Form Wizard, Wishlist toggles, Review submission modals, and Admin charts.
 
 ### 7.2 State Management Architecture (Redux Toolkit)
+ 
+Redux Toolkit is utilized selectively for client-side state requiring global access across components.
 
-Redux Toolkit is utilized selectively for client-side state requiring global access across components:
+> [!IMPORTANT]
+> Access tokens are **never** stored in Redux or persisted in browser Web Storage (`localStorage` / `sessionStorage`). Access tokens remain strictly in-memory (closure variables) for maximum XSS resilience. Redux only manages non-sensitive UI convenience state.
 
 ```
                           REDUX STORE (Client State)
@@ -326,7 +329,8 @@ Redux Toolkit is utilized selectively for client-side state requiring global acc
          ┌────────────────────────────┼────────────────────────────┐
          │                            │                            │
      authSlice                    cartSlice                     uiSlice
- (User session, JWT status)  (Active cart items, quantity)   (Modals, toasts, drawer)
+ (User profile, role,        (Active cart items, quantity)   (Modals, toasts, drawer)
+  permissions, hydration)
 ```
 
 ---

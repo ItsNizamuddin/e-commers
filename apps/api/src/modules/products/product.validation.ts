@@ -9,9 +9,9 @@ export const variantPriceSchema = z
             .string()
             .length(3, "Currency must be a 3-letter ISO code")
             .transform((s) => s.toUpperCase()),
-        amount: z.number().int().min(0, "Amount must be a non-negative integer"),
-        compareAtAmount: z.number().int().min(0, "compareAtAmount must be non-negative").optional(),
-        costAmount: z.number().int().min(0, "costAmount must be non-negative").optional(),
+        amount: z.number().min(0, "Amount must be a non-negative number"),
+        compareAtAmount: z.number().min(0, "compareAtAmount must be non-negative").optional(),
+        costAmount: z.number().min(0, "costAmount must be non-negative").optional(),
     })
     .refine(
         (data) => data.compareAtAmount === undefined || data.compareAtAmount >= data.amount,

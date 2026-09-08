@@ -6,13 +6,7 @@ import {
     User,
     Globe,
     CheckCircle2,
-    AlertCircle,
-    Edit3,
     Check,
-    Loader2,
-    Shield,
-    Key,
-    Radio,
 } from "lucide-react";
 import { Card, Button, Modal, Input, FormField } from "@ecommers/ui";
 
@@ -22,15 +16,22 @@ export default function AccountPage() {
 
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [firstName, setFirstName] = useState(user?.firstName || "Nizam");
-    const [lastName, setLastName] = useState(user?.lastName || "Uddin");
+    const [firstName, setFirstName] = useState(user?.firstName || "");
+    const [lastName, setLastName] = useState(user?.lastName || "");
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+    React.useEffect(() => {
+        if (user) {
+            setFirstName(user.firstName || "");
+            setLastName(user.lastName || "");
+        }
+    }, [user]);
+
     const userName = user?.firstName
-        ? `${user.firstName} ${user.lastName}`.trim()
-        : "Nizam";
-    const emailAddress = user?.email || "nizam@kandradigital.com";
-    const internalUserId = user?.id ? user.id.slice(-6).toUpperCase() : "11";
+        ? `${user.firstName} ${user.lastName || ""}`.trim()
+        : "Administrator";
+    const emailAddress = user?.email || "admin@ecommers.local";
+    const internalUserId = user?.id ? user.id.slice(-6).toUpperCase() : "ADM-01";
 
     const formattedLastAuth = new Date().toLocaleString("en-US", {
         month: "short",
@@ -65,76 +66,28 @@ export default function AccountPage() {
     };
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        <div className="flex flex-col gap-4">
             {successMessage && (
-                <div
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.5rem",
-                        padding: "0.75rem 1rem",
-                        backgroundColor: "#ecfdf5",
-                        border: "1px solid #a7f3d0",
-                        borderRadius: "8px",
-                        color: "#065f46",
-                        fontSize: "0.875rem",
-                        fontWeight: 500,
-                    }}
-                >
-                    <Check size={16} />
+                <div className="flex items-center gap-2 p-2.5 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 rounded-lg text-emerald-700 dark:text-emerald-300 text-xs font-medium">
+                    <Check size={14} />
                     <span>{successMessage}</span>
                 </div>
             )}
 
-            {/* Reference-Matched Main Card */}
-            <Card
-                style={{
-                    backgroundColor: "var(--ec-surface, #ffffff)",
-                    borderRadius: "16px",
-                    border: "1px solid var(--ec-border, #e2e8f0)",
-                    padding: "2rem",
-                    boxShadow: "var(--ec-shadow-card, 0 1px 3px rgba(0, 0, 0, 0.04))",
-                }}
-            >
+            {/* Main Account Card */}
+            <Card className="p-4 sm:p-5">
                 {/* Card Header */}
-                <div
-                    style={{
-                        display: "flex",
-                        alignItems: "flex-start",
-                        justifyContent: "space-between",
-                        paddingBottom: "1.75rem",
-                        borderBottom: "1px solid var(--ec-border, #f1f5f9)",
-                    }}
-                >
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
-                        <div
-                            style={{
-                                width: "32px",
-                                height: "32px",
-                                borderRadius: "8px",
-                                backgroundColor: "rgba(37, 99, 235, 0.1)",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                color: "#2563eb",
-                                marginTop: "2px",
-                            }}
-                        >
-                            <User size={18} />
+                <div className="flex items-start justify-between pb-4 border-b border-slate-100 dark:border-neutral-800">
+                    <div className="flex items-start gap-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/60 flex items-center justify-center text-blue-600 dark:text-blue-400 mt-0.5">
+                            <User size={15} />
                         </div>
                         <div>
-                            <h1
-                                style={{
-                                    fontSize: "1.125rem",
-                                    fontWeight: 700,
-                                    color: "var(--ec-text-primary, #0f172a)",
-                                    letterSpacing: "-0.02em",
-                                }}
-                            >
-                                Account information
+                            <h1 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
+                                Account Information
                             </h1>
-                            <p style={{ fontSize: "0.8125rem", color: "var(--ec-text-muted, #64748b)", marginTop: "0.25rem" }}>
-                                Manage your personal information and contact details.
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                Manage your administrator identity and operational profile details.
                             </p>
                         </div>
                     </div>
@@ -144,197 +97,93 @@ export default function AccountPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => setIsEditModalOpen(true)}
-                        style={{
-                            borderRadius: "8px",
-                            borderColor: "var(--ec-border, #bfdbfe)",
-                            backgroundColor: "var(--ec-bg-subtle, #eff6ff)",
-                            color: "var(--ec-primary, #2563eb)",
-                            fontWeight: 600,
-                            padding: "0.375rem 0.875rem",
-                        }}
+                        className="font-medium"
                     >
-                        Edit information
+                        Edit Information
                     </Button>
                 </div>
 
                 {/* Account Details Row */}
-                <div
-                    style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                        gap: "2rem",
-                        padding: "1.75rem 0",
-                    }}
-                >
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 py-4">
                     <div>
-                        <div
-                            style={{
-                                fontSize: "0.6875rem",
-                                fontWeight: 700,
-                                letterSpacing: "0.06em",
-                                color: "var(--ec-text-muted, #64748b)",
-                                textTransform: "uppercase",
-                            }}
-                        >
+                        <div className="text-[10px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase">
                             USERNAME
                         </div>
-                        <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--ec-text-primary, #0f172a)", marginTop: "0.375rem" }}>
+                        <div className="text-sm font-semibold text-slate-900 dark:text-white mt-1">
                             {userName}
                         </div>
                     </div>
 
                     <div>
-                        <div
-                            style={{
-                                fontSize: "0.6875rem",
-                                fontWeight: 700,
-                                letterSpacing: "0.06em",
-                                color: "var(--ec-text-muted, #64748b)",
-                                textTransform: "uppercase",
-                            }}
-                        >
+                        <div className="text-[10px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase">
                             EMAIL ADDRESS
                         </div>
-                        <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--ec-text-primary, #0f172a)", marginTop: "0.375rem" }}>
+                        <div className="text-sm font-semibold text-slate-900 dark:text-white mt-1">
                             {emailAddress}
                         </div>
                     </div>
 
                     <div>
-                        <div
-                            style={{
-                                fontSize: "0.6875rem",
-                                fontWeight: 700,
-                                letterSpacing: "0.06em",
-                                color: "var(--ec-text-muted, #64748b)",
-                                textTransform: "uppercase",
-                            }}
-                        >
+                        <div className="text-[10px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase">
                             INTERNAL USER ID
                         </div>
-                        <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--ec-text-primary, #0f172a)", marginTop: "0.375rem" }}>
+                        <div className="text-sm font-semibold text-slate-900 dark:text-white mt-1 font-mono">
                             {internalUserId}
                         </div>
                     </div>
                 </div>
 
                 {/* Lifecycle & Presence Section */}
-                <div style={{ paddingTop: "1.75rem", borderTop: "1px solid var(--ec-border, #f1f5f9)" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
-                        <Globe size={16} color="#2563eb" />
-                        <h2 style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--ec-text-primary, #0f172a)" }}>
+                <div className="pt-4 border-t border-slate-100 dark:border-neutral-800">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                        <Globe size={14} className="text-blue-600 dark:text-blue-400" />
+                        <h2 className="text-xs font-bold text-slate-900 dark:text-white">
                             Lifecycle & Presence
                         </h2>
                     </div>
-                    <p style={{ fontSize: "0.8125rem", color: "var(--ec-text-muted, #64748b)", marginBottom: "1.5rem" }}>
-                        Track your account status and presence within the platform.
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+                        Platform status and session telemetry.
                     </p>
 
-                    <div
-                        style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                            gap: "2rem",
-                        }}
-                    >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         {/* Account Status */}
                         <div>
-                            <div
-                                style={{
-                                    fontSize: "0.6875rem",
-                                    fontWeight: 700,
-                                    letterSpacing: "0.06em",
-                                    color: "#64748b",
-                                    textTransform: "uppercase",
-                                    marginBottom: "0.5rem",
-                                }}
-                            >
+                            <div className="text-[10px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase mb-1.5">
                                 ACCOUNT STATUS
                             </div>
-                            <span
-                                style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: "0.375rem",
-                                    padding: "0.25rem 0.625rem",
-                                    borderRadius: "9999px",
-                                    fontSize: "0.75rem",
-                                    fontWeight: 700,
-                                    backgroundColor: "#ecfdf5",
-                                    color: "#059669",
-                                    border: "1px solid #a7f3d0",
-                                }}
-                            >
-                                <CheckCircle2 size={13} />
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                <CheckCircle2 size={12} />
                                 <span>ACTIVE</span>
                             </span>
                         </div>
 
                         {/* System Role */}
                         <div>
-                            <div
-                                style={{
-                                    fontSize: "0.6875rem",
-                                    fontWeight: 700,
-                                    letterSpacing: "0.06em",
-                                    color: "#64748b",
-                                    textTransform: "uppercase",
-                                    marginBottom: "0.5rem",
-                                }}
-                            >
+                            <div className="text-[10px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase mb-1.5">
                                 SYSTEM ROLE
                             </div>
-                            <span
-                                style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: "0.375rem",
-                                    padding: "0.25rem 0.625rem",
-                                    borderRadius: "9999px",
-                                    fontSize: "0.75rem",
-                                    fontWeight: 700,
-                                    backgroundColor: "#eff6ff",
-                                    color: "#2563eb",
-                                    border: "1px solid #dbeafe",
-                                }}
-                            >
-                                <CheckCircle2 size={13} />
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                <CheckCircle2 size={12} />
                                 <span>{role ? role.replace("_", " ") : "SUPER ADMIN"}</span>
                             </span>
                         </div>
 
                         {/* Last Authentication */}
                         <div>
-                            <div
-                                style={{
-                                    fontSize: "0.6875rem",
-                                    fontWeight: 700,
-                                    letterSpacing: "0.06em",
-                                    color: "var(--ec-text-muted, #64748b)",
-                                    textTransform: "uppercase",
-                                }}
-                            >
+                            <div className="text-[10px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase">
                                 LAST AUTHENTICATION
                             </div>
-                            <div style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--ec-text-primary, #0f172a)", marginTop: "0.375rem" }}>
+                            <div className="text-xs font-semibold text-slate-900 dark:text-white mt-1">
                                 {formattedLastAuth}
                             </div>
                         </div>
 
                         {/* Registration Date */}
                         <div>
-                            <div
-                                style={{
-                                    fontSize: "0.6875rem",
-                                    fontWeight: 700,
-                                    letterSpacing: "0.06em",
-                                    color: "var(--ec-text-muted, #64748b)",
-                                    textTransform: "uppercase",
-                                }}
-                            >
+                            <div className="text-[10px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase">
                                 REGISTRATION DATE
                             </div>
-                            <div style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--ec-text-primary, #0f172a)", marginTop: "0.375rem" }}>
+                            <div className="text-xs font-semibold text-slate-900 dark:text-white mt-1">
                                 {formattedRegDate}
                             </div>
                         </div>
@@ -349,7 +198,7 @@ export default function AccountPage() {
                 title="Edit Account Information"
                 description="Update your administrator profile contact details."
             >
-                <form onSubmit={handleSaveInformation} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <form onSubmit={handleSaveInformation} className="flex flex-col gap-4">
                     <FormField label="First Name" required>
                         <Input
                             value={firstName}
@@ -368,7 +217,7 @@ export default function AccountPage() {
                         <Input value={emailAddress} disabled />
                     </FormField>
 
-                    <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "1rem" }}>
+                    <div className="flex justify-end gap-2.5 mt-3">
                         <Button
                             type="button"
                             variant="secondary"
@@ -382,7 +231,6 @@ export default function AccountPage() {
                             variant="primary"
                             isLoading={isSaving}
                             disabled={isSaving}
-                            style={{ backgroundColor: "#2563eb" }}
                         >
                             Save Changes
                         </Button>

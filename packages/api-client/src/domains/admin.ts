@@ -5,6 +5,8 @@ import type {
     CustomerListItem,
     UserResponse,
     UserRole,
+    AuditLogQuery,
+    AuditLogListResponse,
 } from "@ecommers/types";
 
 export interface SalesAnalyticsQuery {
@@ -73,8 +75,8 @@ export class AdminClient {
         return this.client.get<CustomerListResponse>("/admin/customers", { params });
     }
 
-    async listStaff(params?: ListStaffUsersQuery): Promise<StaffUsersListResponse> {
-        return this.client.get<StaffUsersListResponse>("/admin/users", { params });
+    async listStaff(params?: ListStaffUsersQuery): Promise<StaffUsersListResponse | UserResponse[]> {
+        return this.client.get<StaffUsersListResponse | UserResponse[]>("/admin/users", { params });
     }
 
     async createStaff(body: CreateStaffUserInput): Promise<UserResponse> {
@@ -87,5 +89,9 @@ export class AdminClient {
 
     async updateStaffStatus(userId: string, isActive: boolean): Promise<UserResponse> {
         return this.client.patch<UserResponse>(`/admin/users/${userId}/status`, { isActive });
+    }
+
+    async getAuditLogs(params?: AuditLogQuery): Promise<AuditLogListResponse> {
+        return this.client.get<AuditLogListResponse>("/admin/audit-logs", { params });
     }
 }

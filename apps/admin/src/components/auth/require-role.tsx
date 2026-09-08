@@ -39,68 +39,19 @@ export function RequireRole({
 
     if (!isAuthorized) {
         return (
-            <div
-                style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    minHeight: "400px",
-                    textAlign: "center",
-                    padding: "3rem 1.5rem",
-                }}
-            >
-                <div
-                    style={{
-                        width: "56px",
-                        height: "56px",
-                        borderRadius: "16px",
-                        backgroundColor: "var(--ec-danger-bg, #fef2f2)",
-                        border: "1px solid var(--ec-danger-border, #fecaca)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "var(--ec-danger, #dc2626)",
-                        marginBottom: "1.25rem",
-                    }}
-                >
+            <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-12">
+                <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 flex items-center justify-center text-rose-600 dark:text-rose-400 mb-5">
                     <ShieldX size={28} />
                 </div>
-                <h2
-                    style={{
-                        fontSize: "1.25rem",
-                        fontWeight: 700,
-                        color: "var(--ec-text-primary, #0f172a)",
-                        marginBottom: "0.5rem",
-                    }}
-                >
+                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">
                     Access Restricted
                 </h2>
-                <p
-                    style={{
-                        fontSize: "0.875rem",
-                        color: "var(--ec-text-muted, #64748b)",
-                        maxWidth: "420px",
-                        lineHeight: 1.5,
-                        marginBottom: "1.5rem",
-                    }}
-                >
+                <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md leading-relaxed mb-6">
                     Your current account role (<strong>{role.replace("_", " ")}</strong>) does not have the required permissions to access this backoffice area.
                 </p>
                 <Link
                     href="/dashboard"
-                    style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        padding: "0.5rem 1.25rem",
-                        borderRadius: "8px",
-                        backgroundColor: "var(--ec-primary-600, #2563eb)",
-                        color: "#ffffff",
-                        fontSize: "0.875rem",
-                        fontWeight: 600,
-                        textDecoration: "none",
-                        transition: "all 0.15s ease",
-                    }}
+                    className="inline-flex items-center px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors"
                 >
                     Return to Dashboard
                 </Link>

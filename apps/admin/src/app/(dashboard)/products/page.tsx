@@ -18,6 +18,10 @@ import {
     Pagination,
     Button,
     ConfirmDialog,
+    Input,
+    Select,
+    TableAction,
+    TableActionGroup,
 } from "@ecommers/ui";
 import {
     Package,
@@ -26,7 +30,6 @@ import {
     Edit,
     Trash2,
     Star,
-    CheckCircle2,
     RefreshCw,
 } from "lucide-react";
 
@@ -116,44 +119,32 @@ export default function ProductsPage() {
         : products;
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        <div className="flex flex-col gap-4">
             {/* Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div className="flex justify-between items-start">
                 <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <div
-                            style={{
-                                width: "32px",
-                                height: "32px",
-                                borderRadius: "8px",
-                                backgroundColor: "#eff6ff",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                color: "#2563eb",
-                            }}
-                        >
-                            <Package size={18} />
+                    <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-md bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                            <Package size={16} />
                         </div>
-                        <h1 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#0f172a", letterSpacing: "-0.02em" }}>
-                            Product Catalog
+                        <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+                            Products
                         </h1>
                     </div>
-                    <p style={{ fontSize: "0.8125rem", color: "#64748b", marginTop: "0.25rem" }}>
-                        Manage e-commerce products, variants, multi-currency pricing, and publication states.
+                    <p className="text-xs text-slate-500 dark:text-neutral-400 mt-0.5">
+                        Manage your store catalog, pricing, variants, and stock status.
                     </p>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <div className="flex items-center gap-2">
                     <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         onClick={() => fetchProducts(true)}
                         isLoading={refreshing}
-                        style={{ borderRadius: "8px" }}
                     >
-                        <RefreshCw size={14} />
+                        <RefreshCw size={13} className="mr-1.5" />
                         <span>Refresh</span>
                     </Button>
                     <Button
@@ -161,97 +152,66 @@ export default function ProductsPage() {
                         variant="primary"
                         size="sm"
                         onClick={() => router.push("/products/new")}
-                        style={{ backgroundColor: "#2563eb", borderRadius: "8px", gap: "0.375rem" }}
                     >
-                        <Plus size={15} />
+                        <Plus size={14} className="mr-1" />
                         <span>Add Product</span>
                     </Button>
                 </div>
             </div>
 
             {/* Filter Bar Card */}
-            <Card style={{ padding: "1.25rem", backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", alignItems: "center" }}>
-                    <div
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.5rem",
-                            backgroundColor: "#f8fafc",
-                            border: "1px solid #e2e8f0",
-                            borderRadius: "8px",
-                            padding: "0.4rem 0.75rem",
-                            flex: "1 1 240px",
-                        }}
-                    >
-                        <Search size={16} color="#94a3b8" />
-                        <input
-                            type="text"
-                            placeholder="Search by title or brand..."
+            <Card className="p-3">
+                <div className="flex flex-wrap gap-2.5 items-center">
+                    <div className="flex-1 min-w-[200px]">
+                        <Input
+                            size="sm"
+                            leadingIcon={<Search size={14} />}
+                            placeholder="Search products by title or brand..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            style={{
-                                border: "none",
-                                background: "transparent",
-                                fontSize: "0.8125rem",
-                                outline: "none",
-                                width: "100%",
-                                color: "#0f172a",
-                            }}
                         />
                     </div>
 
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => {
-                            setStatusFilter(e.target.value);
-                            setPage(1);
-                        }}
-                        style={{
-                            padding: "0.45rem 0.75rem",
-                            borderRadius: "8px",
-                            border: "1px solid #e2e8f0",
-                            backgroundColor: "#f8fafc",
-                            fontSize: "0.8125rem",
-                            color: "#0f172a",
-                            outline: "none",
-                        }}
-                    >
-                        <option value="">All Statuses</option>
-                        <option value="PUBLISHED">Published</option>
-                        <option value="DRAFT">Draft</option>
-                        <option value="ARCHIVED">Archived</option>
-                    </select>
+                    <div className="w-40">
+                        <Select
+                            size="sm"
+                            value={statusFilter}
+                            onChange={(e) => {
+                                setStatusFilter(e.target.value);
+                                setPage(1);
+                            }}
+                        >
+                            <option value="">All Statuses</option>
+                            <option value="PUBLISHED">Published</option>
+                            <option value="DRAFT">Draft</option>
+                            <option value="ARCHIVED">Archived</option>
+                        </Select>
+                    </div>
 
                     {(search || statusFilter) && (
-                        <button
+                        <Button
                             type="button"
+                            variant="ghost"
+                            size="sm"
                             onClick={() => {
                                 setSearch("");
                                 setStatusFilter("");
                                 setPage(1);
                             }}
-                            style={{
-                                background: "none",
-                                border: "none",
-                                color: "#2563eb",
-                                fontSize: "0.8125rem",
-                                fontWeight: 600,
-                                cursor: "pointer",
-                            }}
+                            className="text-xs text-blue-600 dark:text-blue-400"
                         >
                             Reset
-                        </button>
+                        </Button>
                     )}
                 </div>
             </Card>
 
             {/* Products Table Card */}
-            <Card style={{ backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", padding: "1.25rem" }}>
+            <Card className="p-3.5">
                 {loading ? (
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "4rem 0", gap: "1rem" }}>
+                    <div className="flex flex-col items-center justify-center py-12 gap-2.5">
                         <Spinner size="md" />
-                        <p style={{ color: "#64748b", fontSize: "0.875rem" }}>Loading catalog...</p>
+                        <p className="text-xs text-slate-500 dark:text-neutral-400">Loading catalog...</p>
                     </div>
                 ) : error ? (
                     <ErrorState
@@ -267,23 +227,31 @@ export default function ProductsPage() {
                                     <TableHead>Product</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead>Variants</TableHead>
-                                    <TableHead>Base Price (USD)</TableHead>
+                                    <TableHead>Price</TableHead>
                                     <TableHead>Rating</TableHead>
                                     <TableHead>Created</TableHead>
-                                    <TableHead style={{ textAlign: "right" }}>Actions</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {displayed.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={7} style={{ textAlign: "center", color: "#64748b", padding: "3rem 0" }}>
-                                            No products found.
+                                    <TableRow noHover>
+                                        <TableCell colSpan={7} className="text-center text-slate-400 dark:text-neutral-500 py-10 text-xs">
+                                            No products found. Click &apos;Add Product&apos; to create one.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
                                     displayed.map((p) => {
                                         const defaultVariant = p.variants?.[0];
-                                        const usdPrice = defaultVariant?.prices?.find((pr) => pr.currency === "USD")?.amount || 0;
+                                        const inrPrice = defaultVariant?.prices?.find((pr) => pr.currency === "INR")?.amount;
+                                        const usdPrice = defaultVariant?.prices?.find((pr) => pr.currency === "USD")?.amount;
+                                        const displayPrice = inrPrice !== undefined
+                                            ? `₹${inrPrice.toFixed(2)}`
+                                            : usdPrice !== undefined
+                                                ? `$${usdPrice.toFixed(2)}`
+                                                : defaultVariant?.prices?.[0]
+                                                    ? `${defaultVariant.prices[0].currency} ${defaultVariant.prices[0].amount.toFixed(2)}`
+                                                    : "—";
                                         const dateStr = new Date(p.createdAt).toLocaleDateString("en-US", {
                                             month: "short",
                                             day: "numeric",
@@ -296,49 +264,43 @@ export default function ProductsPage() {
                                                     <div>
                                                         <div
                                                             onClick={() => router.push(`/products/${p.id}`)}
-                                                            style={{ fontWeight: 700, color: "#0f172a", fontSize: "0.875rem", cursor: "pointer" }}
+                                                            className="font-semibold text-slate-900 dark:text-neutral-100 text-xs hover:text-blue-600 dark:hover:text-blue-400 hover:underline cursor-pointer"
                                                         >
                                                             {p.title}
                                                         </div>
-                                                        <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
-                                                            {p.brand || "ecommers"} • Slug: {p.slug}
+                                                        <div className="text-[11px] text-slate-400 dark:text-neutral-500">
+                                                            {p.brand || "Brand"} • Slug: {p.slug}
                                                         </div>
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>{getStatusBadge(p.status)}</TableCell>
                                                 <TableCell>{p.variants?.length || 1} variants</TableCell>
-                                                <TableCell style={{ fontWeight: 700, color: "#0f172a" }}>
-                                                    ${usdPrice.toFixed(2)}
+                                                <TableCell className="font-semibold text-slate-900 dark:text-neutral-100">
+                                                    {displayPrice}
                                                 </TableCell>
                                                 <TableCell>
-                                                    <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.8125rem", fontWeight: 600 }}>
-                                                        <Star size={14} fill="#f59e0b" color="#f59e0b" />
+                                                    <div className="flex items-center gap-1 text-xs font-semibold">
+                                                        <Star size={12} className="fill-amber-400 text-amber-400" />
                                                         <span>{p.averageRating?.toFixed(1) || "5.0"}</span>
-                                                        <span style={{ color: "#94a3b8", fontWeight: 400 }}>({p.reviewCount || 0})</span>
+                                                        <span className="text-slate-400 dark:text-neutral-500 font-normal">({p.reviewCount || 0})</span>
                                                     </div>
                                                 </TableCell>
-                                                <TableCell style={{ fontSize: "0.75rem", color: "#64748b" }}>{dateStr}</TableCell>
-                                                <TableCell style={{ textAlign: "right" }}>
-                                                    <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.25rem" }}>
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="sm"
+                                                <TableCell className="text-xs text-slate-500 dark:text-neutral-400">{dateStr}</TableCell>
+                                                <TableCell className="text-right">
+                                                    <TableActionGroup>
+                                                        <TableAction
+                                                            icon={<Edit size={14} />}
+                                                            label="Edit"
+                                                            variant="primary"
                                                             onClick={() => router.push(`/products/${p.id}`)}
-                                                            style={{ color: "#2563eb", padding: "0.25rem 0.5rem" }}
-                                                        >
-                                                            <Edit size={14} />
-                                                        </Button>
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="sm"
+                                                        />
+                                                        <TableAction
+                                                            icon={<Trash2 size={14} />}
+                                                            label="Delete"
+                                                            variant="destructive"
                                                             onClick={() => setProductToDelete(p.id)}
-                                                            style={{ color: "#dc2626", padding: "0.25rem 0.5rem" }}
-                                                        >
-                                                            <Trash2 size={14} />
-                                                        </Button>
-                                                    </div>
+                                                        />
+                                                    </TableActionGroup>
                                                 </TableCell>
                                             </TableRow>
                                         );
@@ -348,8 +310,8 @@ export default function ProductsPage() {
                         </Table>
 
                         {totalPages > 1 && (
-                            <div style={{ marginTop: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                            <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
+                                <span>
                                     Showing page {page} of {totalPages} ({totalItems} items)
                                 </span>
                                 <Pagination

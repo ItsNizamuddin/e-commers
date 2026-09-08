@@ -38,3 +38,15 @@ export const categoryQuerySchema = z.object({
     parentId: z.string().nullable().optional(),
     tree: z.coerce.boolean().optional(),
 });
+
+export const reorderCategoriesSchema = z.object({
+    items: z
+        .array(
+            z.object({
+                id: z.string().regex(objectIdRegex, "Invalid category ID format"),
+                sortOrder: z.number().int().min(0, "sortOrder must be a non-negative integer"),
+            })
+        )
+        .min(1, "At least one category order item is required"),
+});
+

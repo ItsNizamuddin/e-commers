@@ -3,9 +3,10 @@ import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
+    // NOTE: admin_session_active is strictly an optimistic navigation hint for edge routing (preventing page flicker).
+    // It is NOT authoritative security proof; real authentication is enforced downstream by Express validating the HttpOnly staffRefreshToken.
     const sessionCookie = request.cookies.get("admin_session_active");
-    const staffCookie = request.cookies.get("staffRefreshToken");
-    const hasSession = Boolean(sessionCookie?.value || staffCookie?.value);
+    const hasSession = Boolean(sessionCookie?.value);
 
     const isAuthRoute = pathname.startsWith("/login");
     const isPublicStatic =
@@ -25,8 +26,8 @@ export function middleware(request: NextRequest) {
 
     // Authenticated user visiting login page
     if (hasSession && isAuthRoute) {
-        const dashboardUrl = new URL("/dashboard", request.url);
-        return NextResponse.redirect(dashboardUrl);
+        const accountUrl = new URL("/account", request.url);
+        return NextResponse.redirect(accountUrl);
     }
 
     return NextResponse.next();

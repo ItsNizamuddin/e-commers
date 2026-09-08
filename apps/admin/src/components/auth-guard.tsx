@@ -22,19 +22,9 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
     if (!isHydrated || isLoading) {
         return (
-            <div
-                style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    minHeight: "100vh",
-                    backgroundColor: "#f8fafc",
-                    gap: "1rem",
-                }}
-            >
-                <Spinner size="lg" />
-                <p style={{ color: "#64748b", fontSize: "0.875rem", fontFamily: "inherit" }}>
+            <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 dark:bg-slate-950 gap-4">
+                <Spinner size="lg" className="text-blue-600 dark:text-blue-400" />
+                <p className="text-slate-500 dark:text-slate-400 text-sm">
                     Verifying administrative session...
                 </p>
             </div>

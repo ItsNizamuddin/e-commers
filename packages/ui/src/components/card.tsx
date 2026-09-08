@@ -8,17 +8,8 @@ export function Card({
 }: React.HTMLAttributes<HTMLDivElement>) {
     return (
         <div
-            className={`ec-card ${className}`}
-            style={{
-                backgroundColor: "var(--ec-surface, #ffffff)",
-                border: "1px solid var(--ec-border, #e2e8f0)",
-                borderRadius: "var(--ec-radius-xl, 16px)",
-                boxShadow: "var(--ec-shadow-card, 0 4px 6px -1px rgba(0, 0, 0, 0.05))",
-                color: "var(--ec-text-primary, #0f172a)",
-                overflow: "hidden",
-                boxSizing: "border-box",
-                ...style,
-            }}
+            className={`rounded-xl border border-slate-200/80 dark:border-neutral-800 bg-white dark:bg-[#111111] text-slate-900 dark:text-neutral-100 shadow-xs overflow-hidden box-border ${className}`}
+            style={style}
             {...props}
         >
             {children}
@@ -34,14 +25,8 @@ export function CardHeader({
 }: React.HTMLAttributes<HTMLDivElement>) {
     return (
         <div
-            className={`ec-card-header ${className}`}
-            style={{
-                padding: "1.5rem 1.5rem 1rem 1.5rem",
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.375rem",
-                ...style,
-            }}
+            className={`p-4 pb-2 flex flex-col gap-1 ${className}`}
+            style={style}
             {...props}
         >
             {children}
@@ -57,15 +42,8 @@ export function CardTitle({
 }: React.HTMLAttributes<HTMLHeadingElement>) {
     return (
         <h3
-            className={`ec-card-title ${className}`}
-            style={{
-                fontSize: "1.125rem",
-                fontWeight: 600,
-                color: "var(--ec-text-primary, #0f172a)",
-                letterSpacing: "-0.01em",
-                margin: 0,
-                ...style,
-            }}
+            className={`text-sm font-semibold text-slate-900 dark:text-neutral-100 tracking-tight m-0 ${className}`}
+            style={style}
             {...props}
         >
             {children}
@@ -81,14 +59,8 @@ export function CardDescription({
 }: React.HTMLAttributes<HTMLParagraphElement>) {
     return (
         <p
-            className={`ec-card-description ${className}`}
-            style={{
-                fontSize: "0.8125rem",
-                color: "var(--ec-text-muted, #64748b)",
-                margin: 0,
-                lineHeight: 1.4,
-                ...style,
-            }}
+            className={`text-xs text-slate-500 dark:text-neutral-400 m-0 leading-relaxed ${className}`}
+            style={style}
             {...props}
         >
             {children}
@@ -104,12 +76,8 @@ export function CardContent({
 }: React.HTMLAttributes<HTMLDivElement>) {
     return (
         <div
-            className={`ec-card-content ${className}`}
-            style={{
-                padding: "1.5rem",
-                boxSizing: "border-box",
-                ...style,
-            }}
+            className={`p-4 pt-1 ${className}`}
+            style={style}
             {...props}
         >
             {children}
@@ -125,14 +93,8 @@ export function CardFooter({
 }: React.HTMLAttributes<HTMLDivElement>) {
     return (
         <div
-            className={`ec-card-footer ${className}`}
-            style={{
-                padding: "1rem 1.5rem 1.5rem 1.5rem",
-                borderTop: "1px solid var(--ec-border, #e2e8f0)",
-                display: "flex",
-                alignItems: "center",
-                ...style,
-            }}
+            className={`p-4 pt-2 border-t border-slate-100 dark:border-neutral-800/80 flex items-center ${className}`}
+            style={style}
             {...props}
         >
             {children}

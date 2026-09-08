@@ -25,6 +25,8 @@ import {
     customerListQuerySchema,
 } from "./admin.validation.js";
 import { adminInventoryRouter } from "../inventory/inventory.routes.js";
+import { listAuditLogs } from "../audit/audit-log.controller.js";
+import { auditLogQuerySchema } from "../audit/audit-log.validation.js";
 
 const router = Router();
 
@@ -94,6 +96,15 @@ router.patch(
     validate(userIdParamsSchema, "params"),
     validate(updateUserStatusSchema, "body"),
     asyncHandler(updateUserStatus),
+);
+
+// Centralized Administrative Audit Trail (Requires 'audit.read' permission - SUPER_ADMIN & ADMIN)
+router.get(
+    "/audit-logs",
+    requireAuth,
+    requirePermission(Permissions.AUDIT_READ),
+    validate(auditLogQuerySchema, "query"),
+    asyncHandler(listAuditLogs),
 );
 
 export default router;

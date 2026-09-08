@@ -57,3 +57,13 @@ export interface CategoryQueryOptions {
     parentId?: string | null;
     tree?: boolean;
 }
+
+export interface ReorderCategoryItem {
+    id: string;
+    sortOrder: number;
+}
+
+export interface ReorderCategoriesInput {
+    items: ReorderCategoryItem[];
+}
+

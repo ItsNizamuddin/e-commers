@@ -22,15 +22,17 @@ import {
     Modal,
     Input,
     FormField,
+    TableAction,
+    TableActionGroup,
 } from "@ecommers/ui";
 import {
     Warehouse,
-    Search,
     RefreshCw,
     Sliders,
     Layers,
     CheckCircle2,
 } from "lucide-react";
+import { RequireRole } from "../../../components/auth/require-role";
 
 export default function InventoryPage() {
     const [activeTab, setActiveTab] = useState<"matrix" | "movements">("matrix");
@@ -169,100 +171,72 @@ export default function InventoryPage() {
     };
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        <RequireRole allowedRoles={["SUPER_ADMIN", "ADMIN", "SALES", "SUPPORT_AGENT"]}>
+            <div className="flex flex-col gap-4">
             {/* Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div className="flex justify-between items-start">
                 <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <div
-                            style={{
-                                width: "32px",
-                                height: "32px",
-                                borderRadius: "8px",
-                                backgroundColor: "#eff6ff",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                color: "#2563eb",
-                            }}
-                        >
-                            <Warehouse size={18} />
+                    <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/60 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                            <Warehouse size={15} />
                         </div>
-                        <h1 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#0f172a", letterSpacing: "-0.02em" }}>
+                        <h1 className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
                             Inventory Matrix & Movements
                         </h1>
                     </div>
-                    <p style={{ fontSize: "0.8125rem", color: "#64748b", marginTop: "0.25rem" }}>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                         Monitor real-time warehouse stock, track immutable movements, and configure buffer thresholds.
                     </p>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <div className="flex items-center gap-2">
                     <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         onClick={() => (activeTab === "matrix" ? fetchInventory(true) : fetchMovements())}
                         isLoading={refreshing || movementsLoading}
-                        style={{ borderRadius: "8px" }}
+                        className="gap-1.5"
                     >
-                        <RefreshCw size={14} />
+                        <RefreshCw size={13} />
                         <span>Refresh</span>
                     </Button>
                 </div>
             </div>
 
             {notice && (
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.75rem 1rem", backgroundColor: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: "8px", color: "#065f46", fontSize: "0.875rem" }}>
-                    <CheckCircle2 size={16} />
+                <div className="flex items-center gap-2 p-2.5 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 rounded-lg text-emerald-700 dark:text-emerald-300 text-xs">
+                    <CheckCircle2 size={15} />
                     <span>{notice}</span>
                 </div>
             )}
 
             {/* Tabs Navigation Card */}
-            <Card style={{ padding: "0.5rem", backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
-                <div style={{ display: "flex", gap: "0.5rem" }}>
+            <Card className="p-1">
+                <div className="flex gap-1.5">
                     <button
                         type="button"
                         onClick={() => setActiveTab("matrix")}
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.5rem",
-                            padding: "0.5rem 1rem",
-                            borderRadius: "8px",
-                            border: "none",
-                            backgroundColor: activeTab === "matrix" ? "#eff6ff" : "transparent",
-                            color: activeTab === "matrix" ? "#2563eb" : "#64748b",
-                            fontWeight: activeTab === "matrix" ? 700 : 500,
-                            fontSize: "0.8125rem",
-                            cursor: "pointer",
-                            transition: "all 0.15s ease",
-                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                            activeTab === "matrix"
+                                ? "bg-slate-100 dark:bg-neutral-800 text-slate-900 dark:text-white font-semibold"
+                                : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-neutral-800/50 font-medium"
+                        }`}
                     >
-                        <Warehouse size={16} />
+                        <Warehouse size={13} />
                         <span>Stock Matrix</span>
                     </button>
 
                     <button
                         type="button"
                         onClick={() => setActiveTab("movements")}
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.5rem",
-                            padding: "0.5rem 1rem",
-                            borderRadius: "8px",
-                            border: "none",
-                            backgroundColor: activeTab === "movements" ? "#eff6ff" : "transparent",
-                            color: activeTab === "movements" ? "#2563eb" : "#64748b",
-                            fontWeight: activeTab === "movements" ? 700 : 500,
-                            fontSize: "0.8125rem",
-                            cursor: "pointer",
-                            transition: "all 0.15s ease",
-                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                            activeTab === "movements"
+                                ? "bg-slate-100 dark:bg-neutral-800 text-slate-900 dark:text-white font-semibold"
+                                : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-neutral-800/50 font-medium"
+                        }`}
                     >
-                        <Layers size={16} />
+                        <Layers size={13} />
                         <span>Movement Audit Ledger</span>
                     </button>
                 </div>
@@ -270,11 +244,11 @@ export default function InventoryPage() {
 
             {/* Tab 1: Stock Matrix */}
             {activeTab === "matrix" && (
-                <Card style={{ backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", padding: "1.25rem" }}>
+                <Card className="p-3.5 sm:p-4">
                     {loading ? (
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "4rem 0", gap: "1rem" }}>
+                        <div className="flex flex-col items-center justify-center py-16 gap-3">
                             <Spinner size="md" />
-                            <p style={{ color: "#64748b", fontSize: "0.875rem" }}>Loading warehouse inventory...</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Loading warehouse inventory...</p>
                         </div>
                     ) : error ? (
                         <ErrorState title="Failed to load inventory" message={error} onRetry={() => fetchInventory()} />
@@ -290,13 +264,13 @@ export default function InventoryPage() {
                                         <TableHead>Threshold</TableHead>
                                         <TableHead>Safety</TableHead>
                                         <TableHead>Status</TableHead>
-                                        <TableHead style={{ textAlign: "right" }}>Actions</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {items.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={8} style={{ textAlign: "center", color: "#64748b", padding: "3rem 0" }}>
+                                        <TableRow noHover>
+                                            <TableCell colSpan={8} className="text-center text-slate-400 dark:text-slate-500 py-12">
                                                 No inventory records found.
                                             </TableCell>
                                         </TableRow>
@@ -310,23 +284,23 @@ export default function InventoryPage() {
                                                 <TableRow key={it.id}>
                                                     <TableCell>
                                                         <div>
-                                                            <span style={{ fontFamily: "monospace", fontWeight: 700, color: "#2563eb" }}>
+                                                            <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
                                                                 {it.id.slice(-8).toUpperCase()}
                                                             </span>
-                                                            <div style={{ fontSize: "0.6875rem", color: "#64748b" }}>
+                                                            <div className="text-[11px] text-slate-400 dark:text-slate-500">
                                                                 Variant: {it.variantId.slice(-8)}
                                                             </div>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell style={{ fontWeight: 700, color: isOut ? "#dc2626" : isLow ? "#d97706" : "#0f172a" }}>
+                                                    <TableCell className={`font-bold ${isOut ? "text-red-600 dark:text-red-400" : isLow ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-slate-100"}`}>
                                                         {it.onHand}
                                                     </TableCell>
-                                                    <TableCell style={{ color: "#64748b" }}>{it.reserved}</TableCell>
-                                                    <TableCell style={{ fontWeight: 700, color: "#16a34a" }}>
+                                                    <TableCell className="text-slate-500 dark:text-slate-400">{it.reserved}</TableCell>
+                                                    <TableCell className="font-bold text-emerald-600 dark:text-emerald-400">
                                                         {available}
                                                     </TableCell>
-                                                    <TableCell style={{ color: "#64748b" }}>{it.reorderThreshold}</TableCell>
-                                                    <TableCell style={{ color: "#64748b" }}>{it.safetyStock}</TableCell>
+                                                    <TableCell className="text-slate-500 dark:text-slate-400">{it.reorderThreshold}</TableCell>
+                                                    <TableCell className="text-slate-500 dark:text-slate-400">{it.safetyStock}</TableCell>
                                                     <TableCell>
                                                         {isOut ? (
                                                             <Badge variant="danger" size="sm">OUT OF STOCK</Badge>
@@ -336,27 +310,21 @@ export default function InventoryPage() {
                                                             <Badge variant="success" size="sm">HEALTHY</Badge>
                                                         )}
                                                     </TableCell>
-                                                    <TableCell style={{ textAlign: "right" }}>
-                                                        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.375rem" }}>
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                size="sm"
+                                                    <TableCell className="text-right">
+                                                        <TableActionGroup>
+                                                            <TableAction
+                                                                icon={<RefreshCw size={14} />}
+                                                                label="Adjust"
                                                                 onClick={() => openAdjust(it)}
-                                                                style={{ borderRadius: "6px", fontSize: "0.75rem", padding: "0.25rem 0.5rem" }}
-                                                            >
-                                                                Adjust
-                                                            </Button>
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="sm"
+                                                                title="Adjust Stock"
+                                                            />
+                                                            <TableAction
+                                                                icon={<Sliders size={14} />}
+                                                                label="Buffers"
                                                                 onClick={() => openThresholds(it)}
-                                                                style={{ borderRadius: "6px", fontSize: "0.75rem", padding: "0.25rem 0.5rem" }}
-                                                            >
-                                                                <Sliders size={13} />
-                                                            </Button>
-                                                        </div>
+                                                                title="Configure Thresholds"
+                                                            />
+                                                        </TableActionGroup>
                                                     </TableCell>
                                                 </TableRow>
                                             );
@@ -366,7 +334,7 @@ export default function InventoryPage() {
                             </Table>
 
                             {totalPages > 1 && (
-                                <div style={{ marginTop: "1.5rem", display: "flex", justifyContent: "flex-end" }}>
+                                <div className="mt-4 flex justify-end">
                                     <Pagination page={page} totalPages={totalPages} onPageChange={(p) => setPage(p)} />
                                 </div>
                             )}
@@ -377,11 +345,11 @@ export default function InventoryPage() {
 
             {/* Tab 2: Movement Audit Ledger */}
             {activeTab === "movements" && (
-                <Card style={{ backgroundColor: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", padding: "1.25rem" }}>
+                <Card className="p-3.5 sm:p-4">
                     {movementsLoading ? (
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "4rem 0", gap: "1rem" }}>
+                        <div className="flex flex-col items-center justify-center py-12 gap-2">
                             <Spinner size="md" />
-                            <p style={{ color: "#64748b", fontSize: "0.875rem" }}>Loading audit ledger...</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Loading audit ledger...</p>
                         </div>
                     ) : (
                         <Table>
@@ -391,38 +359,38 @@ export default function InventoryPage() {
                                     <TableHead>Variant ID</TableHead>
                                     <TableHead>Type</TableHead>
                                     <TableHead>Delta</TableHead>
-                                    <TableHead>On-Hand (Prev $\to$ New)</TableHead>
+                                    <TableHead>On-Hand (Prev → New)</TableHead>
                                     <TableHead>Reason</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {movements.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={6} style={{ textAlign: "center", color: "#64748b", padding: "3rem 0" }}>
+                                    <TableRow noHover>
+                                        <TableCell colSpan={6} className="text-center text-slate-400 dark:text-slate-500 py-10">
                                             No stock movement logs recorded yet.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
                                     movements.map((m) => (
                                         <TableRow key={m.id}>
-                                            <TableCell style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                                            <TableCell className="text-xs text-slate-500 dark:text-slate-400">
                                                 {new Date(m.createdAt).toLocaleString("en-US", { dateStyle: "short", timeStyle: "medium" })}
                                             </TableCell>
                                             <TableCell>
-                                                <span style={{ fontFamily: "monospace", fontWeight: 700, color: "#0f172a" }}>
+                                                <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
                                                     {m.variantId.slice(-8)}
                                                 </span>
                                             </TableCell>
                                             <TableCell>
                                                 <Badge variant="neutral" size="sm">{m.type}</Badge>
                                             </TableCell>
-                                            <TableCell style={{ fontWeight: 700, color: m.quantityDelta >= 0 ? "#16a34a" : "#dc2626" }}>
+                                            <TableCell className={`font-bold ${m.quantityDelta >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                                                 {m.quantityDelta >= 0 ? `+${m.quantityDelta}` : m.quantityDelta}
                                             </TableCell>
-                                            <TableCell style={{ fontFamily: "monospace", fontSize: "0.75rem" }}>
-                                                {m.previousOnHand} $\to$ {m.newOnHand}
+                                            <TableCell className="font-mono text-xs text-slate-600 dark:text-slate-400">
+                                                {m.previousOnHand} → {m.newOnHand}
                                             </TableCell>
-                                            <TableCell style={{ color: "#475569", fontSize: "0.8125rem" }}>
+                                            <TableCell className="text-slate-600 dark:text-slate-300 text-xs">
                                                 {m.reason || "Manual adjustment"}
                                             </TableCell>
                                         </TableRow>
@@ -441,7 +409,7 @@ export default function InventoryPage() {
                 title={`Adjust Stock • Variant ${selectedInventory?.variantId.slice(-8)}`}
                 description="Record stock adjustments with audit trail reason."
             >
-                <form onSubmit={handleAdjustSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <form onSubmit={handleAdjustSubmit} className="flex flex-col gap-3.5">
                     <FormField label="Quantity Change (+ or - integer)" required>
                         <Input
                             type="number"
@@ -460,11 +428,11 @@ export default function InventoryPage() {
                         />
                     </FormField>
 
-                    <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.75rem" }}>
-                        <Button type="button" variant="secondary" onClick={() => setIsAdjustOpen(false)} disabled={isAdjusting}>
+                    <div className="flex justify-end gap-2 mt-2">
+                        <Button type="button" variant="secondary" size="sm" onClick={() => setIsAdjustOpen(false)} disabled={isAdjusting}>
                             Cancel
                         </Button>
-                        <Button type="submit" variant="primary" isLoading={isAdjusting} disabled={isAdjusting} style={{ backgroundColor: "#2563eb" }}>
+                        <Button type="submit" variant="primary" size="sm" isLoading={isAdjusting} disabled={isAdjusting}>
                             Confirm Adjustment
                         </Button>
                     </div>
@@ -478,7 +446,7 @@ export default function InventoryPage() {
                 title={`Buffer Thresholds • Variant ${selectedInventory?.variantId.slice(-8)}`}
                 description="Update reorder alert triggers and safety buffer inventory."
             >
-                <form onSubmit={handleThresholdsSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <form onSubmit={handleThresholdsSubmit} className="flex flex-col gap-3.5">
                     <FormField label="Reorder Threshold" required>
                         <Input
                             type="number"
@@ -497,16 +465,17 @@ export default function InventoryPage() {
                         />
                     </FormField>
 
-                    <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.75rem" }}>
-                        <Button type="button" variant="secondary" onClick={() => setIsThresholdOpen(false)} disabled={isSavingThresholds}>
+                    <div className="flex justify-end gap-2 mt-2">
+                        <Button type="button" variant="secondary" size="sm" onClick={() => setIsThresholdOpen(false)} disabled={isSavingThresholds}>
                             Cancel
                         </Button>
-                        <Button type="submit" variant="primary" isLoading={isSavingThresholds} disabled={isSavingThresholds} style={{ backgroundColor: "#2563eb" }}>
+                        <Button type="submit" variant="primary" size="sm" isLoading={isSavingThresholds} disabled={isSavingThresholds}>
                             Save Thresholds
                         </Button>
                     </div>
                 </form>
             </Modal>
-        </div>
+            </div>
+        </RequireRole>
     );
 }

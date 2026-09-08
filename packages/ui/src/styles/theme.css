@@ -10,23 +10,24 @@
   --ec-primary-700: #1d4ed8;
   --ec-primary-800: #1e40af;
   --ec-primary-900: #1e3a8a;
+  --ec-primary-text: #2563eb;
 
   /* Surfaces & Backgrounds */
   --ec-surface: #ffffff;
-  --ec-bg-app: #f8fafc;
-  --ec-bg-subtle: #f1f5f9;
-  --ec-bg-muted: #e2e8f0;
+  --ec-bg-app: #fafafa;
+  --ec-bg-subtle: #f4f4f5;
+  --ec-bg-muted: #e4e4e7;
 
   /* Typography Colors */
-  --ec-text-primary: #0f172a;
-  --ec-text-secondary: #334155;
-  --ec-text-muted: #64748b;
-  --ec-text-subtle: #94a3b8;
+  --ec-text-primary: #09090b;
+  --ec-text-secondary: #27272a;
+  --ec-text-muted: #71717a;
+  --ec-text-subtle: #a1a1aa;
   --ec-text-inverse: #ffffff;
 
   /* Borders */
-  --ec-border: #e2e8f0;
-  --ec-border-strong: #cbd5e1;
+  --ec-border: #e4e4e7;
+  --ec-border-strong: #d4d4d8;
   --ec-border-focus: #2563eb;
 
   /* Status Colors */
@@ -85,22 +86,27 @@
 
 [data-theme="dark"], .dark {
   /* Surfaces & Backgrounds */
-  --ec-surface: #0f172a;
-  --ec-bg-app: #020617;
-  --ec-bg-subtle: #1e293b;
-  --ec-bg-muted: #334155;
+  --ec-surface: #111111;
+  --ec-bg-app: #0a0a0a;
+  --ec-bg-subtle: #18181b;
+  --ec-bg-muted: #27272a;
 
   /* Typography Colors */
-  --ec-text-primary: #f8fafc;
-  --ec-text-secondary: #cbd5e1;
-  --ec-text-muted: #94a3b8;
-  --ec-text-subtle: #64748b;
-  --ec-text-inverse: #0f172a;
+  --ec-text-primary: #fafafa;
+  --ec-text-secondary: #d4d4d8;
+  --ec-text-muted: #a1a1aa;
+  --ec-text-subtle: #71717a;
+  --ec-text-inverse: #09090b;
 
   /* Borders */
-  --ec-border: #1e293b;
-  --ec-border-strong: #334155;
+  --ec-border: #262626;
+  --ec-border-strong: #333333;
   --ec-border-focus: #3b82f6;
+
+  /* Primary Tints for Dark Mode */
+  --ec-primary-50: rgba(37, 99, 235, 0.15);
+  --ec-primary-100: rgba(37, 99, 235, 0.3);
+  --ec-primary-text: #60a5fa;
 
   /* Status Colors */
   --ec-success: #34d399;
@@ -120,7 +126,43 @@
   --ec-info-border: rgba(2, 132, 199, 0.3);
 
   /* Shadows */
-  --ec-shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(51, 65, 85, 0.5);
+  --ec-shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(38, 38, 38, 0.8);
   --ec-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
   --ec-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+
+  /* Hover & Input Tokens */
+  --ec-table-row-hover: rgba(255, 255, 255, 0.035);
+  --ec-input-bg: #111111;
 }
+
+:root {
+  --ec-table-row-hover: rgba(15, 23, 42, 0.025);
+  --ec-input-bg: #ffffff;
+}
+
+
+
+/* Table Rows & Headers Hover Behaviors */
+.ec-table-row {
+  transition: background-color 0.15s ease;
+}
+
+tbody tr.ec-table-row:not(.no-hover):hover {
+  background-color: var(--ec-table-row-hover, rgba(15, 23, 42, 0.025)) !important;
+}
+
+/* Strictly suppress hover on table headers and empty-state placeholder rows */
+thead tr,
+thead th,
+thead .ec-table-row,
+thead .ec-table-row:hover,
+thead tr:hover,
+tr.no-hover,
+tr.no-hover:hover,
+.ec-table-row.no-hover,
+.ec-table-row.no-hover:hover,
+tr:has(td[colspan]):hover,
+tr:has(td[colspan]) {
+  background-color: transparent !important;
+}
+

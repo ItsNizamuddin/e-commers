@@ -296,6 +296,22 @@ export class CategoryService {
 
         await this.repo.delete(id);
     }
+
+    async reorderCategories(
+        items: Array<{ id: string; sortOrder: number }>,
+        actorUserId?: string
+    ): Promise<{ updatedCount: number }> {
+        const actor = await resolveActor(actorUserId);
+        const mappedItems = items.map((item) => ({
+            id: item.id,
+            sortOrder: item.sortOrder,
+            ...(actor ? { updatedBy: actor } : {}),
+        }));
+
+        const updatedCount = await this.repo.reorder(mappedItems);
+        return { updatedCount };
+    }
 }
 
 export const categoryService = new CategoryService();
+

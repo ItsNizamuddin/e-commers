@@ -11,6 +11,13 @@ export interface ModalProps {
     maxWidth?: "sm" | "md" | "lg" | "xl";
 }
 
+const maxWidthClasses = {
+    sm: "max-w-sm",
+    md: "max-w-lg",
+    lg: "max-w-2xl",
+    xl: "max-w-4xl",
+};
+
 export function Modal({
     isOpen,
     onClose,
@@ -37,36 +44,29 @@ export function Modal({
 
     if (!isOpen) return null;
 
-    const maxWidthMap = {
-        sm: "max-w-sm",
-        md: "max-w-md",
-        lg: "max-w-lg",
-        xl: "max-w-xl",
-    };
-
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             {/* Backdrop */}
             <div
-                className="fixed inset-0 bg-black/50 backdrop-blur-[2px] transition-opacity"
+                className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
                 onClick={onClose}
             />
 
-            {/* Modal Box */}
+            {/* Modal Dialog Card */}
             <div
                 role="dialog"
                 aria-modal="true"
-                className={`relative w-full ${maxWidthMap[maxWidth]} rounded-lg border border-zinc-200 bg-white p-6 shadow-xl transition-all dark:border-zinc-800 dark:bg-zinc-900`}
+                className={`relative w-full ${maxWidthClasses[maxWidth]} rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xl p-6 z-10 max-h-[90vh] overflow-y-auto`}
             >
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start justify-between gap-4 mb-5 pb-3.5 border-b border-slate-100 dark:border-slate-800">
                     <div>
                         {title && (
-                            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                            <h2 className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100">
                                 {title}
                             </h2>
                         )}
                         {description && (
-                            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                                 {description}
                             </p>
                         )}
@@ -74,16 +74,26 @@ export function Modal({
                     <button
                         type="button"
                         onClick={onClose}
-                        className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 focus:outline-none"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                        title="Close modal"
                     >
-                        <span className="sr-only">Close</span>
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
                         </svg>
                     </button>
                 </div>
 
-                <div className="mt-4">{children}</div>
+                <div>{children}</div>
             </div>
         </div>
     );

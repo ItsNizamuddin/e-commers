@@ -28,6 +28,8 @@ export const Permissions = {
     CUSTOMER_READ: "customer.read",
 
     ANALYTICS_READ: "analytics.read",
+
+    AUDIT_READ: "audit.read",
 } as const;
 
 export type Permission = (typeof Permissions)[keyof typeof Permissions];
@@ -55,6 +57,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
         Permissions.ORDER_FULFILL,
         Permissions.CUSTOMER_READ,
         Permissions.ANALYTICS_READ,
+        Permissions.AUDIT_READ,
     ],
     SALES: [
         Permissions.CATEGORY_READ,

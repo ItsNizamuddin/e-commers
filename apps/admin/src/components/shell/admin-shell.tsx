@@ -1,38 +1,31 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Topbar } from "./topbar";
 import { Sidebar } from "./sidebar";
-import { ContextSidebar } from "./context-sidebar";
 
 interface AdminShellProps {
     children: React.ReactNode;
 }
 
 export function AdminShell({ children }: AdminShellProps) {
+    const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+
     return (
-        <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", backgroundColor: "var(--ec-bg-app, #f8fafc)", color: "var(--ec-text-primary, #0f172a)" }}>
-            {/* Full-width sticky topbar */}
-            <Topbar />
+        <div className="min-h-screen bg-[#fafafa] dark:bg-[#0a0a0a] text-slate-900 dark:text-neutral-100 transition-colors duration-200 flex flex-col">
+            {/* Unified Fixed Sidebar (Desktop w-56, Mobile Drawer) */}
+            <Sidebar
+                isOpen={isMobileNavOpen}
+                onClose={() => setIsMobileNavOpen(false)}
+            />
 
-            {/* Dual-Sidebar Layout + Main Content */}
-            <div style={{ display: "flex", flex: 1, minHeight: "calc(100vh - 64px)" }}>
-                {/* Primary Sidebar */}
-                <Sidebar />
+            {/* Main Application Area with fixed sidebar margin (md:ml-56) */}
+            <div className="md:ml-56 flex-1 flex flex-col min-h-screen">
+                {/* Minimal Header (h-14) */}
+                <Topbar onToggleMobileNav={() => setIsMobileNavOpen((prev) => !prev)} />
 
-                {/* Contextual Sub-Sidebar */}
-                <ContextSidebar />
-
-                {/* Main Content Canvas */}
-                <main
-                    style={{
-                        flex: 1,
-                        padding: "2rem 2.5rem",
-                        maxWidth: "1440px",
-                        minWidth: 0,
-                        overflowY: "auto",
-                    }}
-                >
+                {/* Main Content Area - Strictly constrained to max-w-5xl per design guidelines */}
+                <main className="flex-1 w-full max-w-6xl mx-auto p-4 lg:py-4 min-w-0">
                     {children}
                 </main>
             </div>

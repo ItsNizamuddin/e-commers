@@ -1,6 +1,7 @@
 import React from "react";
 
-export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+export interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "size"> {
+    size?: "sm" | "md";
     label?: string;
     error?: string;
     helperText?: string;
@@ -8,9 +9,15 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
     trailingIcon?: React.ReactNode;
 }
 
+const sizeClasses = {
+    sm: "h-7 text-xs px-2.5",
+    md: "h-8 text-[13px] px-3",
+};
+
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     (
         {
+            size = "md",
             label,
             error,
             helperText,
@@ -30,54 +37,24 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, "-") : undefined);
 
         return (
-            <div
-                className={`ec-input-group ${className}`}
-                style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    width: "100%",
-                    textAlign: "left",
-                    boxSizing: "border-box",
-                }}
-            >
+            <div className="flex flex-col w-full text-left">
                 {label && (
                     <label
                         htmlFor={inputId}
-                        style={{
-                            display: "block",
-                            fontSize: "0.8125rem",
-                            fontWeight: 600,
-                            color: "var(--ec-text-secondary, #334155)",
-                            marginBottom: "0.375rem",
-                        }}
+                        className="block text-xs font-semibold text-slate-700 dark:text-neutral-300 mb-1"
                     >
                         {label}
                     </label>
                 )}
 
-                <div
-                    style={{
-                        position: "relative",
-                        display: "flex",
-                        alignItems: "center",
-                        width: "100%",
-                    }}
-                >
+                <div className="relative flex items-center w-full">
                     {leadingIcon && (
                         <div
-                            style={{
-                                position: "absolute",
-                                left: "12px",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                pointerEvents: "none",
-                                color: isFocused
-                                    ? "var(--ec-primary-600, #2563eb)"
-                                    : "var(--ec-text-subtle, #94a3b8)",
-                                transition: "color 0.15s ease",
-                                zIndex: 1,
-                            }}
+                            className={`absolute left-2.5 flex items-center justify-center pointer-events-none z-10 transition-colors [&_svg]:size-[14px] ${
+                                isFocused
+                                    ? "text-blue-600 dark:text-blue-400"
+                                    : "text-slate-400 dark:text-neutral-500"
+                            }`}
                         >
                             {leadingIcon}
                         </div>
@@ -95,76 +72,30 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
                             setIsFocused(false);
                             onBlur?.(e);
                         }}
-                        style={{
-                            width: "100%",
-                            height: "42px",
-                            boxSizing: "border-box",
-                            padding: "0 0.875rem",
-                            paddingLeft: leadingIcon ? "2.375rem" : "0.875rem",
-                            paddingRight: trailingIcon ? "2.375rem" : "0.875rem",
-                            backgroundColor: disabled
-                                ? "var(--ec-bg-subtle, #f1f5f9)"
-                                : "var(--ec-surface, #ffffff)",
-                            color: "var(--ec-text-primary, #0f172a)",
-                            borderRadius: "var(--ec-radius-md, 8px)",
-                            border: error
-                                ? "1px solid var(--ec-danger, #dc2626)"
-                                : isFocused
-                                ? "1px solid var(--ec-border-focus, #2563eb)"
-                                : "1px solid var(--ec-border-strong, #cbd5e1)",
-                            boxShadow: error
-                                ? isFocused
-                                    ? "var(--ec-ring-danger, 0 0 0 3px rgba(220, 38, 38, 0.18))"
-                                    : "none"
-                                : isFocused
-                                ? "var(--ec-ring, 0 0 0 3px rgba(37, 99, 235, 0.18))"
-                                : "none",
-                            fontSize: "0.875rem",
-                            outline: "none",
-                            cursor: disabled ? "not-allowed" : "text",
-                            transition: "border-color 0.15s ease, box-shadow 0.15s ease",
-                            ...style,
-                        }}
+                        className={`w-full rounded-md bg-white dark:bg-[#111111] text-slate-900 dark:text-neutral-100 placeholder:text-slate-400 dark:placeholder:text-neutral-500 outline-none transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
+                            sizeClasses[size]
+                        } ${leadingIcon ? (size === "sm" ? "pl-7" : "pl-8") : ""} ${
+                            trailingIcon ? (size === "sm" ? "pr-7" : "pr-8") : ""
+                        } ${
+                            error
+                                ? "border border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                                : "border border-slate-200 dark:border-neutral-800 focus:border-blue-600 dark:focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                        } ${className}`}
+                        style={style}
                         {...props}
                     />
 
                     {trailingIcon && (
-                        <div
-                            style={{
-                                position: "absolute",
-                                right: "12px",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                zIndex: 1,
-                            }}
-                        >
+                        <div className="absolute right-2.5 flex items-center justify-center z-10 text-slate-400 dark:text-neutral-500 [&_svg]:size-[14px]">
                             {trailingIcon}
                         </div>
                     )}
                 </div>
 
                 {error ? (
-                    <p
-                        style={{
-                            fontSize: "0.75rem",
-                            color: "var(--ec-danger, #dc2626)",
-                            marginTop: "0.375rem",
-                            fontWeight: 500,
-                        }}
-                    >
-                        {error}
-                    </p>
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">{error}</p>
                 ) : helperText ? (
-                    <p
-                        style={{
-                            fontSize: "0.75rem",
-                            color: "var(--ec-text-muted, #64748b)",
-                            marginTop: "0.375rem",
-                        }}
-                    >
-                        {helperText}
-                    </p>
+                    <p className="text-xs text-slate-500 dark:text-neutral-400 mt-1">{helperText}</p>
                 ) : null}
             </div>
         );

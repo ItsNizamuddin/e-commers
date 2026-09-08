@@ -1,5 +1,6 @@
 import React from "react";
 import type { Metadata } from "next";
+import { Toaster } from "@ecommers/ui";
 import { StoreProvider } from "../store/provider";
 import { ThemeProvider } from "../components/theme-provider";
 import "./globals.css";
@@ -20,6 +21,7 @@ export default function RootLayout({
                 <ThemeProvider>
                     <StoreProvider>
                         {children}
+                        <Toaster />
                     </StoreProvider>
                 </ThemeProvider>
             </body>

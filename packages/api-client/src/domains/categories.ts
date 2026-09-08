@@ -1,5 +1,5 @@
 import type { ApiClient } from "../client";
-import type { CategoryResponse, CreateCategoryInput, UpdateCategoryInput, CategoryQueryOptions } from "@ecommers/types";
+import type { CategoryResponse, CreateCategoryInput, UpdateCategoryInput, CategoryQueryOptions, ReorderCategoryItem } from "@ecommers/types";
 
 export class CategoriesClient {
     constructor(private readonly client: ApiClient) {}
@@ -22,6 +22,10 @@ export class CategoriesClient {
 
     async update(id: string, body: UpdateCategoryInput): Promise<CategoryResponse> {
         return this.client.patch<CategoryResponse>(`/categories/${id}`, body);
+    }
+
+    async reorder(items: ReorderCategoryItem[]): Promise<{ updatedCount: number }> {
+        return this.client.patch<{ updatedCount: number }>("/categories/reorder", { items });
     }
 
     async delete(id: string): Promise<{ message: string }> {

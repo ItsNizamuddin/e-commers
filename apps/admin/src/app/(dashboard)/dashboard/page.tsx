@@ -25,6 +25,7 @@ import {
     Truck,
     Clock,
 } from "lucide-react";
+import { RequireRole } from "../../../components/auth/require-role";
 
 export default function DashboardOverviewPage() {
     const [data, setData] = useState<AdminDashboardMetrics | null>(null);
@@ -54,25 +55,16 @@ export default function DashboardOverviewPage() {
 
     if (loading) {
         return (
-            <div
-                style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "6rem 0",
-                    gap: "1rem",
-                }}
-            >
+            <div className="flex flex-col items-center justify-center py-24 gap-4">
                 <Spinner size="lg" />
-                <p style={{ color: "#64748b", fontSize: "0.875rem" }}>Loading backoffice intelligence...</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Loading backoffice intelligence...</p>
             </div>
         );
     }
 
     if (error || !data) {
         return (
-            <div style={{ padding: "3rem 0" }}>
+            <div className="py-12">
                 <ErrorState
                     title="Unable to load dashboard"
                     message={error || "Could not retrieve executive metrics from the API server."}
@@ -103,84 +95,57 @@ export default function DashboardOverviewPage() {
     };
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        <RequireRole allowedRoles={["SUPER_ADMIN", "ADMIN", "SALES"]}>
+            <div className="flex flex-col gap-4">
             {/* Header */}
             <div>
-                <h1 style={{ fontSize: "1.5rem", fontWeight: 700, color: "#0f172a", letterSpacing: "-0.025em" }}>
+                <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
                     Executive Overview
                 </h1>
-                <p style={{ fontSize: "0.875rem", color: "#64748b", marginTop: "0.25rem" }}>
+                <p className="text-xs text-slate-500 dark:text-neutral-400 mt-0.5">
                     Real-time operational health, revenue metrics, and inventory alerts
                 </p>
             </div>
 
             {/* KPI Metric Cards */}
-            <div
-                style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-                    gap: "1rem",
-                }}
-            >
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {/* Total Revenue */}
-                <Card style={{ padding: "1.25rem", backgroundColor: "#ffffff" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <Card className="p-3.5">
+                    <div className="flex justify-between items-start">
                         <div>
-                            <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                            <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-neutral-400">
                                 Net Revenue
                             </div>
-                            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#0f172a", marginTop: "0.375rem" }}>
+                            <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">
                                 ${financials.netRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
                         </div>
-                        <div
-                            style={{
-                                width: "40px",
-                                height: "40px",
-                                borderRadius: "8px",
-                                backgroundColor: "#eff6ff",
-                                color: "#2563eb",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                            }}
-                        >
-                            <DollarSign size={20} />
+                        <div className="w-7 h-7 rounded-md bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                            <DollarSign size={16} />
                         </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", marginTop: "0.75rem", fontSize: "0.75rem", color: "#16a34a" }}>
-                        <ArrowUpRight size={14} />
-                        <span>Gross: ${financials.grossRevenue.toFixed(2)} ({financials.currency})</span>
+                    <div className="flex items-center gap-1 mt-2 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                        <ArrowUpRight size={13} />
+                        <span className="text-[11px]">Gross: ${financials.grossRevenue.toFixed(2)} ({financials.currency})</span>
                     </div>
                 </Card>
 
                 {/* Total Orders */}
-                <Card style={{ padding: "1.25rem", backgroundColor: "#ffffff" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <Card className="p-3.5">
+                    <div className="flex justify-between items-start">
                         <div>
-                            <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                            <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-neutral-400">
                                 Total Orders
                             </div>
-                            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#0f172a", marginTop: "0.375rem" }}>
+                            <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">
                                 {orders.totalOrders.toLocaleString()}
                             </div>
                         </div>
-                        <div
-                            style={{
-                                width: "40px",
-                                height: "40px",
-                                borderRadius: "8px",
-                                backgroundColor: "#f0fdf4",
-                                color: "#16a34a",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                            }}
-                        >
-                            <ShoppingBag size={20} />
+                        <div className="w-7 h-7 rounded-md bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                            <ShoppingBag size={16} />
                         </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.75rem", fontSize: "0.75rem", color: "#64748b" }}>
+                    <div className="flex items-center gap-1.5 mt-2 text-[11px] text-slate-500 dark:text-neutral-400">
                         <span>{orders.breakdown.byFulfillmentStatus?.DELIVERED || 0} Delivered</span>
                         <span>•</span>
                         <span>{orders.breakdown.byOrderStatus?.PENDING || 0} Pending</span>
@@ -188,111 +153,89 @@ export default function DashboardOverviewPage() {
                 </Card>
 
                 {/* Total Customers */}
-                <Card style={{ padding: "1.25rem", backgroundColor: "#ffffff" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <Card className="p-3.5">
+                    <div className="flex justify-between items-start">
                         <div>
-                            <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                            <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-neutral-400">
                                 Active Customers
                             </div>
-                            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#0f172a", marginTop: "0.375rem" }}>
+                            <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">
                                 {customers.totalCustomers.toLocaleString()}
                             </div>
                         </div>
-                        <div
-                            style={{
-                                width: "40px",
-                                height: "40px",
-                                borderRadius: "8px",
-                                backgroundColor: "#faf5ff",
-                                color: "#9333ea",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                            }}
-                        >
-                            <Users size={20} />
+                        <div className="w-7 h-7 rounded-md bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                            <Users size={16} />
                         </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", marginTop: "0.75rem", fontSize: "0.75rem", color: "#64748b" }}>
+                    <div className="flex items-center gap-1 mt-2 text-[11px] text-slate-500 dark:text-neutral-400">
                         <span>{customers.activeCustomersCount || 0} active users</span>
                     </div>
                 </Card>
 
                 {/* Low Stock Alerts */}
-                <Card style={{ padding: "1.25rem", backgroundColor: "#ffffff" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <Card className="p-3.5">
+                    <div className="flex justify-between items-start">
                         <div>
-                            <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                            <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-neutral-400">
                                 Stock Attention
                             </div>
-                            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: inventory.lowStockCount > 0 ? "#b45309" : "#0f172a", marginTop: "0.375rem" }}>
+                            <div className={`text-xl font-bold mt-1 ${inventory.lowStockCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-white"}`}>
                                 {inventory.lowStockCount.toLocaleString()}
                             </div>
                         </div>
-                        <div
-                            style={{
-                                width: "40px",
-                                height: "40px",
-                                borderRadius: "8px",
-                                backgroundColor: "#fffbeb",
-                                color: "#d97706",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                            }}
-                        >
-                            <AlertTriangle size={20} />
+                        <div className="w-7 h-7 rounded-md bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                            <AlertTriangle size={16} />
                         </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", marginTop: "0.75rem", fontSize: "0.75rem", color: inventory.outOfStockCount > 0 ? "#dc2626" : "#64748b" }}>
-                        <span>{inventory.outOfStockCount} items currently out of stock</span>
+                    <div className={`flex items-center gap-1 mt-2 text-[11px] ${inventory.outOfStockCount > 0 ? "text-red-600 dark:text-red-400 font-medium" : "text-slate-500 dark:text-neutral-400"}`}>
+                        <span>{inventory.outOfStockCount} items out of stock</span>
                     </div>
                 </Card>
             </div>
 
             {/* Operational Status Breakdown */}
-            <Card style={{ padding: "1.25rem", backgroundColor: "#ffffff" }}>
-                <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "#0f172a", marginBottom: "1rem" }}>
+            <Card className="p-3.5">
+                <div className="text-xs font-semibold text-slate-900 dark:text-white mb-2.5">
                     Fulfillment Pipeline
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem", backgroundColor: "#f8fafc", borderRadius: "8px" }}>
-                        <Clock size={20} color="#f59e0b" />
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <div className="flex items-center gap-2.5 p-2 bg-slate-50 dark:bg-neutral-900/60 border border-slate-200/80 dark:border-neutral-800 rounded-lg">
+                        <Clock size={16} className="text-amber-500" />
                         <div>
-                            <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Pending</div>
-                            <div style={{ fontSize: "1.125rem", fontWeight: 700 }}>{orders.breakdown.byOrderStatus.PENDING || 0}</div>
+                            <div className="text-[10px] uppercase font-semibold text-slate-400 dark:text-neutral-500">Pending</div>
+                            <div className="text-sm font-bold text-slate-900 dark:text-white">{orders.breakdown.byOrderStatus.PENDING || 0}</div>
                         </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem", backgroundColor: "#f8fafc", borderRadius: "8px" }}>
-                        <PackageCheck size={20} color="#3b82f6" />
+                    <div className="flex items-center gap-2.5 p-2 bg-slate-50 dark:bg-neutral-900/60 border border-slate-200/80 dark:border-neutral-800 rounded-lg">
+                        <PackageCheck size={16} className="text-blue-500" />
                         <div>
-                            <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Confirmed</div>
-                            <div style={{ fontSize: "1.125rem", fontWeight: 700 }}>{orders.breakdown.byOrderStatus.CONFIRMED || 0}</div>
+                            <div className="text-[10px] uppercase font-semibold text-slate-400 dark:text-neutral-500">Confirmed</div>
+                            <div className="text-sm font-bold text-slate-900 dark:text-white">{orders.breakdown.byOrderStatus.CONFIRMED || 0}</div>
                         </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem", backgroundColor: "#f8fafc", borderRadius: "8px" }}>
-                        <Truck size={20} color="#8b5cf6" />
+                    <div className="flex items-center gap-2.5 p-2 bg-slate-50 dark:bg-neutral-900/60 border border-slate-200/80 dark:border-neutral-800 rounded-lg">
+                        <Truck size={16} className="text-purple-500" />
                         <div>
-                            <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Shipped</div>
-                            <div style={{ fontSize: "1.125rem", fontWeight: 700 }}>{orders.breakdown.byFulfillmentStatus?.SHIPPED || 0}</div>
+                            <div className="text-[10px] uppercase font-semibold text-slate-400 dark:text-neutral-500">Shipped</div>
+                            <div className="text-sm font-bold text-slate-900 dark:text-white">{orders.breakdown.byFulfillmentStatus?.SHIPPED || 0}</div>
                         </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem", backgroundColor: "#f8fafc", borderRadius: "8px" }}>
-                        <PackageCheck size={20} color="#10b981" />
+                    <div className="flex items-center gap-2.5 p-2 bg-slate-50 dark:bg-neutral-900/60 border border-slate-200/80 dark:border-neutral-800 rounded-lg">
+                        <PackageCheck size={16} className="text-emerald-500" />
                         <div>
-                            <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Delivered</div>
-                            <div style={{ fontSize: "1.125rem", fontWeight: 700 }}>{orders.breakdown.byFulfillmentStatus?.DELIVERED || 0}</div>
+                            <div className="text-[10px] uppercase font-semibold text-slate-400 dark:text-neutral-500">Delivered</div>
+                            <div className="text-sm font-bold text-slate-900 dark:text-white">{orders.breakdown.byFulfillmentStatus?.DELIVERED || 0}</div>
                         </div>
                     </div>
                 </div>
             </Card>
 
             {/* Tables Grid: Recent Orders & Low Stock */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(480px, 1fr))", gap: "1.5rem" }}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* Recent Orders */}
-                <Card style={{ padding: "1.25rem", backgroundColor: "#ffffff" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                        <div style={{ fontSize: "1rem", fontWeight: 600, color: "#0f172a" }}>Recent Orders</div>
+                <Card className="p-3.5">
+                    <div className="flex justify-between items-center mb-3">
+                        <div className="text-xs font-semibold text-slate-900 dark:text-white">Recent Orders</div>
                         <Badge variant="neutral" size="sm">{recentOrders.length} latest</Badge>
                     </div>
                     <Table>
@@ -306,8 +249,8 @@ export default function DashboardOverviewPage() {
                         </TableHeader>
                         <TableBody>
                             {recentOrders.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={4} style={{ textAlign: "center", color: "#64748b" }}>
+                                <TableRow noHover>
+                                    <TableCell colSpan={4} className="text-center text-slate-400 dark:text-neutral-500 py-6 text-xs">
                                         No recent orders found
                                     </TableCell>
                                 </TableRow>
@@ -317,12 +260,12 @@ export default function DashboardOverviewPage() {
                                     return (
                                         <TableRow key={row.orderNumber}>
                                             <TableCell>
-                                                <span style={{ fontFamily: "monospace", fontWeight: 600, color: "#2563eb", fontSize: "0.75rem" }}>
+                                                <span className="font-mono font-semibold text-blue-600 dark:text-blue-400 text-xs">
                                                     {row.orderNumber}
                                                 </span>
                                             </TableCell>
-                                            <TableCell>{row.customerEmail}</TableCell>
-                                            <TableCell style={{ fontWeight: 600 }}>${row.grandTotal.toFixed(2)}</TableCell>
+                                            <TableCell className="text-slate-700 dark:text-neutral-300 text-xs truncate max-w-[120px]">{row.customerEmail}</TableCell>
+                                            <TableCell className="font-semibold text-slate-900 dark:text-neutral-100 text-xs">${row.grandTotal.toFixed(2)}</TableCell>
                                             <TableCell>
                                                 <Badge variant={variant} size="sm">{row.orderStatus}</Badge>
                                             </TableCell>
@@ -335,9 +278,9 @@ export default function DashboardOverviewPage() {
                 </Card>
 
                 {/* Low Stock Items */}
-                <Card style={{ padding: "1.25rem", backgroundColor: "#ffffff" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                        <div style={{ fontSize: "1rem", fontWeight: 600, color: "#0f172a" }}>Stock Attention Needed</div>
+                <Card className="p-3.5">
+                    <div className="flex justify-between items-center mb-3">
+                        <div className="text-xs font-semibold text-slate-900 dark:text-white">Stock Attention Needed</div>
                         <Badge variant={lowStockAlerts.length > 0 ? "warning" : "success"} size="sm">
                             {lowStockAlerts.length} items
                         </Badge>
@@ -353,8 +296,8 @@ export default function DashboardOverviewPage() {
                         </TableHeader>
                         <TableBody>
                             {lowStockAlerts.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={4} style={{ textAlign: "center", color: "#64748b" }}>
+                                <TableRow noHover>
+                                    <TableCell colSpan={4} className="text-center text-slate-400 dark:text-neutral-500 py-6 text-xs">
                                         All inventory levels are healthy
                                     </TableCell>
                                 </TableRow>
@@ -363,24 +306,19 @@ export default function DashboardOverviewPage() {
                                     <TableRow key={`${row.productId}-${row.variantId}`}>
                                         <TableCell>
                                             <div>
-                                                <div style={{ fontWeight: 600, color: "#0f172a" }}>{row.productTitle || "Product Variant"}</div>
-                                                <div style={{ fontSize: "0.75rem", fontFamily: "monospace", color: "#64748b" }}>{row.sku || row.variantId}</div>
+                                                <div className="font-semibold text-slate-900 dark:text-neutral-100 text-xs">{row.productTitle || "Product Variant"}</div>
+                                                <div className="text-[11px] font-mono text-slate-400 dark:text-neutral-500">{row.sku || row.variantId}</div>
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            <span
-                                                style={{
-                                                    fontWeight: 700,
-                                                    color: row.onHand === 0 ? "#dc2626" : "#d97706",
-                                                }}
-                                            >
+                                            <span className={`font-bold text-xs ${row.onHand === 0 ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"}`}>
                                                 {row.onHand}
                                             </span>
                                         </TableCell>
-                                        <TableCell style={{ color: "#64748b" }}>{row.reorderThreshold}</TableCell>
+                                        <TableCell className="text-slate-500 dark:text-neutral-400 text-xs">{row.reorderThreshold}</TableCell>
                                         <TableCell>
                                             <Badge variant={row.onHand === 0 ? "danger" : "warning"} size="sm">
-                                                {row.onHand === 0 ? "OUT OF STOCK" : "LOW STOCK"}
+                                                {row.onHand === 0 ? "OUT" : "LOW"}
                                             </Badge>
                                         </TableCell>
                                     </TableRow>
@@ -391,5 +329,6 @@ export default function DashboardOverviewPage() {
                 </Card>
             </div>
         </div>
-    );
+    </RequireRole>
+);
 }
