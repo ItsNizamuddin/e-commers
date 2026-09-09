@@ -12,6 +12,10 @@ export const variantPriceSchema = z
         amount: z.number().min(0, "Amount must be a non-negative number"),
         compareAtAmount: z.number().min(0, "compareAtAmount must be non-negative").optional(),
         costAmount: z.number().min(0, "costAmount must be non-negative").optional(),
+        countryCode: z.string().trim().optional(),
+        countryName: z.string().trim().optional(),
+        locationCode: z.string().trim().optional(),
+        locationName: z.string().trim().optional(),
     })
     .refine(
         (data) => data.compareAtAmount === undefined || data.compareAtAmount >= data.amount,
@@ -35,9 +39,11 @@ export const productVariantSchema = z
         barcode: z.string().trim().optional(),
         weight: z.number().min(0, "Weight must be non-negative").optional(),
         weightUnit: z.string().trim().optional(),
+        initialStock: z.number().min(0, "Initial stock must be non-negative").optional(),
         attributes: z.record(z.string(), z.unknown()).optional(),
         isActive: z.boolean().optional(),
     })
+
     .refine(
         (variant) => {
             const currencies = variant.prices.map((p) => p.currency);
@@ -49,6 +55,13 @@ export const productVariantSchema = z
         }
     );
 
+export const customNutrientSchema = z.object({
+    id: z.string().optional(),
+    name: z.string().min(1, "Nutrient name is required").trim(),
+    amount: z.union([z.number(), z.string()]),
+    unit: z.string().trim().optional(),
+});
+
 export const nutritionInfoSchema = z.object({
     calories: z.number().min(0).optional(),
     protein: z.number().min(0).optional(),
@@ -56,7 +69,10 @@ export const nutritionInfoSchema = z.object({
     fat: z.number().min(0).optional(),
     fiber: z.number().min(0).optional(),
     sodium: z.number().min(0).optional(),
+    sugar: z.number().min(0).optional(),
     servingSize: z.string().trim().optional(),
+    customNutrients: z.array(customNutrientSchema).optional(),
+    additional: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
 });
 
 export const createProductSchema = z
@@ -82,6 +98,7 @@ export const createProductSchema = z
         thumbnail: z.string().optional(),
         tags: z.array(z.string().trim()).optional(),
         status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).optional(),
+        serviceableLocations: z.array(z.string().trim().toLowerCase()).optional(),
         nutritionInfo: nutritionInfoSchema.optional(),
         allergens: z.array(z.string().trim()).optional(),
         storageInstructions: z.string().trim().optional(),
@@ -135,6 +152,7 @@ export const updateProductSchema = z
         thumbnail: z.string().optional(),
         tags: z.array(z.string().trim()).optional(),
         status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).optional(),
+        serviceableLocations: z.array(z.string().trim().toLowerCase()).optional(),
         nutritionInfo: nutritionInfoSchema.optional(),
         allergens: z.array(z.string().trim()).optional(),
         storageInstructions: z.string().trim().optional(),
@@ -168,13 +186,10 @@ export const productQuerySchema = z.object({
     categoryId: z.string().regex(objectIdRegex).optional(),
     status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).optional(),
     brand: z.string().trim().optional(),
-    currency: z
-        .string()
-        .length(3)
-        .transform((s) => s.toUpperCase())
-        .optional(),
-    minPrice: z.coerce.number().int().min(0).optional(),
-    maxPrice: z.coerce.number().int().min(0).optional(),
+    currency: z.string().trim().optional(),
+    location: z.string().trim().toLowerCase().optional(),
+    minPrice: z.coerce.number().min(0).optional(),
+    maxPrice: z.coerce.number().min(0).optional(),
     sortBy: z.enum(["createdAt", "title", "price"]).optional(),
     sortOrder: z.enum(["asc", "desc"]).optional(),
 });

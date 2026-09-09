@@ -17,9 +17,15 @@ export const Permissions = {
     PRODUCT_DELETE: "product.delete",
     PRODUCT_PUBLISH: "product.publish",
 
+    LOCATION_READ: "location.read",
+    LOCATION_CREATE: "location.create",
+    LOCATION_UPDATE: "location.update",
+    LOCATION_DELETE: "location.delete",
+
     ORDER_READ: "order.read",
     ORDER_UPDATE: "order.update",
     ORDER_FULFILL: "order.fulfill",
+
 
     INVENTORY_READ: "inventory.read",
     INVENTORY_ADJUST: "inventory.adjust",
@@ -49,6 +55,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
         Permissions.PRODUCT_UPDATE,
         Permissions.PRODUCT_DELETE,
         Permissions.PRODUCT_PUBLISH,
+        Permissions.LOCATION_READ,
+        Permissions.LOCATION_CREATE,
+        Permissions.LOCATION_UPDATE,
+        Permissions.LOCATION_DELETE,
         Permissions.INVENTORY_READ,
         Permissions.INVENTORY_ADJUST,
         Permissions.INVENTORY_UPDATE,
@@ -62,6 +72,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     SALES: [
         Permissions.CATEGORY_READ,
         Permissions.PRODUCT_READ,
+        Permissions.LOCATION_READ,
         Permissions.INVENTORY_READ,
         Permissions.ORDER_READ,
         Permissions.ORDER_UPDATE,
@@ -77,10 +88,14 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
         Permissions.PRODUCT_READ,
         Permissions.PRODUCT_UPDATE,
         Permissions.PRODUCT_PUBLISH,
+        Permissions.LOCATION_READ,
+        Permissions.LOCATION_CREATE,
+        Permissions.LOCATION_UPDATE,
     ],
     SUPPORT_AGENT: [
         Permissions.CATEGORY_READ,
         Permissions.PRODUCT_READ,
+        Permissions.LOCATION_READ,
         Permissions.INVENTORY_READ,
         Permissions.CUSTOMER_READ,
         Permissions.ORDER_READ,
@@ -88,5 +103,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     CUSTOMER: [
         Permissions.CATEGORY_READ,
         Permissions.PRODUCT_READ,
+        Permissions.LOCATION_READ,
     ],
 };
+

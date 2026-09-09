@@ -26,6 +26,7 @@ import {
     ScrollText,
     LogOut,
     X,
+    MapPin,
 } from "lucide-react";
 import { useAppSelector, useAppDispatch } from "../../store";
 import { clearSession } from "../../store/auth-slice";
@@ -115,6 +116,12 @@ const NAV_SECTIONS: NavSection[] = [
                 label: "Categories",
                 href: "/categories",
                 icon: FolderTree,
+                allowedRoles: ["SUPER_ADMIN", "ADMIN", "PUBLISHER"],
+            },
+            {
+                label: "Locations",
+                href: "/locations",
+                icon: MapPin,
                 allowedRoles: ["SUPER_ADMIN", "ADMIN", "PUBLISHER"],
             },
         ],

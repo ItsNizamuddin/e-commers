@@ -3,6 +3,19 @@ export interface ISeoContentSection {
     value?: string; // Rich HTML/Markdown content for SEO text blocks
 }
 
+export interface LocationSeoOverride {
+    locationKey: string;          // e.g. "bangalore", "hyderabad", "us", "ae"
+    locationType: "CITY" | "COUNTRY" | "ZONE";
+    locationName: string;         // e.g. "Bangalore", "United States"
+    currency?: string;            // e.g. "INR", "USD", "AED"
+    metaTitle?: string;           // Localized Meta Title
+    metaDescription?: string;     // Localized Meta Description
+    keywords?: string[];          // Localized keywords
+    deliveryHighlight?: string;   // Local delivery badge text
+    canonicalUrl?: string;        // Local canonical URL
+    isIndexed?: boolean;          // Indexing flag
+}
+
 export interface SeoMetadata {
     // Meta Head Attributes
     metaTitle?: string;
@@ -29,4 +42,8 @@ export interface SeoMetadata {
 
     // Custom JSON-LD / Schema.org Rich Snippets
     structuredData?: Record<string, unknown>;
+
+    // Location-Specific SEO Overrides (City & Country pages)
+    locations?: LocationSeoOverride[];
 }
+

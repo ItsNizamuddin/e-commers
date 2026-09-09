@@ -23,7 +23,9 @@ export interface IProduct {
     thumbnail?: string;
     tags: string[];
     status: ProductStatus;
+    serviceableLocations?: string[];
     nutritionInfo?: ProductNutritionInfo;
+
     allergens?: string[];
     storageInstructions?: string;
     seo?: SeoMetadata;

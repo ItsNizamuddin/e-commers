@@ -101,9 +101,17 @@ export class ProductRepository {
             filter["variants.prices"] = { $elemMatch: priceElemMatch };
         }
 
+        if (options.location) {
+            filter.$or = [
+                { serviceableLocations: "ALL" },
+                { serviceableLocations: options.location.toLowerCase().trim() },
+            ];
+        }
+
         if (search) {
             filter.$text = { $search: search };
         }
+
 
         const sort: Record<string, 1 | -1> = {};
         if (sortBy === "title") {
@@ -146,6 +154,7 @@ export class ProductRepository {
         if (data.thumbnail !== undefined) updateFields.thumbnail = data.thumbnail;
         if (data.tags !== undefined) updateFields.tags = data.tags;
         if (data.status !== undefined) updateFields.status = data.status;
+        if (data.serviceableLocations !== undefined) updateFields.serviceableLocations = data.serviceableLocations;
         if (data.nutritionInfo !== undefined) updateFields.nutritionInfo = data.nutritionInfo;
         if (data.allergens !== undefined) updateFields.allergens = data.allergens;
         if (data.storageInstructions !== undefined) updateFields.storageInstructions = data.storageInstructions;
@@ -181,12 +190,14 @@ export class ProductRepository {
         if (data.thumbnail !== undefined) updateFields.thumbnail = data.thumbnail;
         if (data.tags !== undefined) updateFields.tags = data.tags;
         if (data.status !== undefined) updateFields.status = data.status;
+        if (data.serviceableLocations !== undefined) updateFields.serviceableLocations = data.serviceableLocations;
         if (data.nutritionInfo !== undefined) updateFields.nutritionInfo = data.nutritionInfo;
         if (data.allergens !== undefined) updateFields.allergens = data.allergens;
         if (data.storageInstructions !== undefined) updateFields.storageInstructions = data.storageInstructions;
         if (data.seo !== undefined) updateFields.seo = data.seo;
         if (data.metadata !== undefined) updateFields.metadata = data.metadata;
         if (data.updatedBy !== undefined) updateFields.updatedBy = data.updatedBy;
+
 
         return await ProductModel.findByIdAndUpdate(
             id,

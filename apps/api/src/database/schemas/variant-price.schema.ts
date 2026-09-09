@@ -24,6 +24,24 @@ export const VariantPriceSchema = new Schema<VariantPriceInput>(
             min: 0,
             default: undefined,
         },
+        countryCode: {
+            type: String,
+            uppercase: true,
+            trim: true,
+        },
+        countryName: {
+            type: String,
+            trim: true,
+        },
+        locationCode: {
+            type: String,
+            lowercase: true,
+            trim: true,
+        },
+        locationName: {
+            type: String,
+            trim: true,
+        },
     },
     { _id: false }
 );

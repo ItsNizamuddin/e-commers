@@ -1,4 +1,4 @@
-import { Schema, model, Document } from "mongoose";
+import mongoose, { Schema, model, Document, Model } from "mongoose";
 import type { AuditAction, AuditActor, AuditLogTarget } from "@ecommers/types";
 import { AuditActorSchema } from "../../database/schemas/audit-actor.schema.js";
 
@@ -58,4 +58,4 @@ AuditLogSchema.index({ "actor.id": 1, createdAt: -1 });
 AuditLogSchema.index({ action: 1, createdAt: -1 });
 AuditLogSchema.index({ "target.resource": 1, createdAt: -1 });
 
-export const AuditLogModel = model<IAuditLog>("AuditLog", AuditLogSchema);
+export const AuditLogModel = (mongoose.models.AuditLog as Model<IAuditLog>) || model<IAuditLog>("AuditLog", AuditLogSchema);

@@ -4,6 +4,8 @@ import { resolveActor } from "../../utils/audit.js";
 import { categoryRepository } from "../categories/category.repository.js";
 import { productRepository, ProductRepository } from "./product.repository.js";
 import { ProductDocument } from "./product.model.js";
+import { InventoryModel } from "../inventory/models/inventory.model.js";
+import { logger } from "../../config/logger.js";
 import {
     ProductResponse,
     AdminProductResponse,
@@ -13,6 +15,7 @@ import {
     UpdateProductInput,
     ProductQueryOptions,
 } from "./product.types.js";
+
 
 export function slugify(text: string): string {
     return text
@@ -66,6 +69,7 @@ export class ProductService {
             ...(doc.allergens ? { allergens: doc.allergens } : {}),
             ...(doc.storageInstructions ? { storageInstructions: doc.storageInstructions } : {}),
             ...(doc.seo ? { seo: doc.seo } : {}),
+            serviceableLocations: doc.serviceableLocations || ["ALL"],
             ...(doc.metadata ? { metadata: doc.metadata as Record<string, unknown> } : {}),
             ...(doc.createdBy ? { createdBy: doc.createdBy } : {}),
             ...(doc.updatedBy ? { updatedBy: doc.updatedBy } : {}),
@@ -88,9 +92,11 @@ export class ProductService {
             ...(v.barcode ? { barcode: v.barcode } : {}),
             ...(v.weight !== undefined ? { weight: v.weight } : {}),
             ...(v.weightUnit ? { weightUnit: v.weightUnit } : {}),
+            ...(v.initialStock !== undefined ? { initialStock: v.initialStock } : {}),
             ...(v.attributes ? { attributes: v.attributes as Record<string, unknown> } : {}),
             isActive: v.isActive ?? true,
         }));
+
 
         return {
             ...baseResponse,
@@ -178,8 +184,35 @@ export class ProductService {
             throw new AppError("Failed to generate a unique product slug", 500, "SLUG_GENERATION_FAILED");
         }
 
+        // Auto-initialize inventory for variants with initialStock > 0
+        const defaultWarehouseId = new Types.ObjectId("65f000000000000000000001");
+        for (let i = 0; i < input.variants.length; i++) {
+            const vInput = input.variants[i];
+            const createdVariant = product.variants[i];
+            if (vInput && vInput.initialStock !== undefined && vInput.initialStock > 0 && createdVariant?.id) {
+                try {
+                    await InventoryModel.create({
+                        productId: product._id,
+                        variantId: new Types.ObjectId(createdVariant.id),
+                        warehouseId: defaultWarehouseId,
+                        onHand: vInput.initialStock,
+                        reserved: 0,
+                        backordered: 0,
+                        safetyStock: 0,
+                        reorderThreshold: 10,
+                        allowBackorder: false,
+                        version: 1,
+                    });
+                } catch (invErr) {
+                    logger.warn(`Could not initialize inventory for variant ${createdVariant.sku}: ${invErr}`);
+                }
+            }
+        }
+
+
         return this.toProductResponse(product, true) as AdminProductResponse;
     }
+
 
     async getProducts(
         options: ProductQueryOptions,

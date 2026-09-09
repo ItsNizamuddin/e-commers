@@ -8,17 +8,65 @@ export interface VariantPriceInput {
     amount: number;
     compareAtAmount?: number;
     costAmount?: number;
+    countryCode?: string;       // e.g. "IN", "US", "AE"
+    countryName?: string;       // e.g. "India", "United States", "United Arab Emirates"
+    locationCode?: string;      // e.g. "in", "us", "ae", "bangalore"
+    locationName?: string;      // e.g. "India", "United States", "Bangalore"
 }
 
 export interface VariantPriceResponse {
     currency: string;
     amount: number;
     compareAtAmount?: number;
+    countryCode?: string;
+    countryName?: string;
+    locationCode?: string;
+    locationName?: string;
 }
 
 export interface AdminVariantPriceResponse extends VariantPriceResponse {
     costAmount?: number;
 }
+
+/**
+ * Helper to select the best matching variant price for a user's location on frontend
+ */
+export function getPriceForLocation<T extends VariantPriceResponse | VariantPriceInput>(
+    prices: T[],
+    userContext?: { countryCode?: string; locationCode?: string; currency?: string }
+): T | undefined {
+    if (!prices || prices.length === 0) return undefined;
+    if (!userContext) return prices[0];
+
+    // 1. Exact country code match (e.g. "US", "AE", "IN")
+    if (userContext.countryCode) {
+        const countryMatch = prices.find(
+            (p) => p.countryCode?.toUpperCase() === userContext.countryCode?.toUpperCase()
+        );
+        if (countryMatch) return countryMatch;
+    }
+
+    // 2. Location / City code match (e.g. "bangalore", "mumbai")
+    if (userContext.locationCode) {
+        const locMatch = prices.find(
+            (p) => p.locationCode?.toLowerCase() === userContext.locationCode?.toLowerCase()
+        );
+        if (locMatch) return locMatch;
+    }
+
+    // 3. Currency code match (e.g. "USD", "AED", "INR")
+    if (userContext.currency) {
+        const currMatch = prices.find(
+            (p) => p.currency?.toUpperCase() === userContext.currency?.toUpperCase()
+        );
+        if (currMatch) return currMatch;
+    }
+
+    // Fallback to primary base price
+    return prices[0];
+}
+
+export type WeightUnit = "g" | "kg" | "ml" | "l" | "pcs" | "oz" | "lb" | string;
 
 export interface ProductVariantInput {
     id?: string;
@@ -27,7 +75,8 @@ export interface ProductVariantInput {
     prices: VariantPriceInput[];
     barcode?: string;
     weight?: number;
-    weightUnit?: string;
+    weightUnit?: WeightUnit;
+    initialStock?: number; // Starting onHand inventory count
     attributes?: Record<string, unknown>;
     isActive?: boolean;
 }
@@ -39,7 +88,7 @@ export interface ProductVariantResponse {
     prices: VariantPriceResponse[];
     barcode?: string;
     weight?: number;
-    weightUnit?: string;
+    weightUnit?: WeightUnit;
     attributes?: Record<string, unknown>;
     isActive: boolean;
 }
@@ -51,9 +100,17 @@ export interface AdminProductVariantResponse {
     prices: AdminVariantPriceResponse[];
     barcode?: string;
     weight?: number;
-    weightUnit?: string;
+    weightUnit?: WeightUnit;
+    initialStock?: number;
     attributes?: Record<string, unknown>;
     isActive: boolean;
+}
+
+export interface CustomNutrient {
+    id?: string;
+    name: string;
+    amount: string | number;
+    unit?: string;
 }
 
 export interface ProductNutritionInfo {
@@ -63,7 +120,10 @@ export interface ProductNutritionInfo {
     fat?: number;
     fiber?: number;
     sodium?: number;
+    sugar?: number;
     servingSize?: string;
+    customNutrients?: CustomNutrient[];
+    additional?: Record<string, string | number>;
 }
 
 export interface ProductResponse {
@@ -80,6 +140,7 @@ export interface ProductResponse {
     thumbnail?: string;
     tags: string[];
     status: ProductStatus;
+    serviceableLocations?: string[];
     nutritionInfo?: ProductNutritionInfo;
     allergens?: string[];
     storageInstructions?: string;
@@ -111,6 +172,7 @@ export interface CreateProductInput {
     thumbnail?: string;
     tags?: string[];
     status?: ProductStatus;
+    serviceableLocations?: string[];
     nutritionInfo?: ProductNutritionInfo;
     allergens?: string[];
     storageInstructions?: string;
@@ -131,6 +193,7 @@ export interface UpdateProductInput {
     thumbnail?: string;
     tags?: string[];
     status?: ProductStatus;
+    serviceableLocations?: string[];
     nutritionInfo?: ProductNutritionInfo;
     allergens?: string[];
     storageInstructions?: string;
@@ -147,8 +210,10 @@ export interface ProductQueryOptions {
     status?: ProductStatus;
     brand?: string;
     currency?: string;
+    location?: string;
     minPrice?: number;
     maxPrice?: number;
     sortBy?: "createdAt" | "title" | "price";
     sortOrder?: "asc" | "desc";
 }
+

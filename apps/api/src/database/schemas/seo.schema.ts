@@ -9,6 +9,22 @@ const ContentSectionSchema = new Schema(
     { _id: false }
 );
 
+const LocationSeoSchema = new Schema(
+    {
+        locationKey: { type: String, required: true, trim: true, lowercase: true },
+        locationType: { type: String, enum: ["CITY", "COUNTRY", "ZONE"], required: true },
+        locationName: { type: String, required: true, trim: true },
+        currency: { type: String, uppercase: true, trim: true, default: "INR" },
+        metaTitle: { type: String, trim: true },
+        metaDescription: { type: String, trim: true },
+        keywords: [{ type: String, trim: true }],
+        deliveryHighlight: { type: String, trim: true },
+        canonicalUrl: { type: String, trim: true },
+        isIndexed: { type: Boolean, default: true },
+    },
+    { _id: false }
+);
+
 export const SeoSchema = new Schema<SeoMetadata>(
     {
         metaTitle: { type: String, trim: true },
@@ -27,6 +43,8 @@ export const SeoSchema = new Schema<SeoMetadata>(
         internalSection: { type: ContentSectionSchema, default: undefined },
         bottomSection: { type: ContentSectionSchema, default: undefined },
         structuredData: { type: Schema.Types.Mixed, default: undefined },
+        locations: { type: [LocationSeoSchema], default: [] },
     },
     { _id: false }
 );
+

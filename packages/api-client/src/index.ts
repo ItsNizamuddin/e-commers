@@ -11,6 +11,7 @@ import { ReviewsClient } from "./domains/reviews";
 import { WishlistClient } from "./domains/wishlist";
 import { SearchClient } from "./domains/search";
 import { AdminClient } from "./domains/admin";
+import { LocationsClient } from "./domains/locations";
 
 export * from "./errors";
 export * from "./token-store";
@@ -18,6 +19,7 @@ export * from "./client";
 export * from "./domains/auth";
 export * from "./domains/products";
 export * from "./domains/categories";
+export * from "./domains/locations";
 export * from "./domains/inventory";
 export * from "./domains/cart";
 export * from "./domains/checkout";
@@ -33,6 +35,7 @@ export interface EcommersApi {
     auth: AuthClient;
     products: ProductsClient;
     categories: CategoriesClient;
+    locations: LocationsClient;
     inventory: InventoryClient;
     cart: CartClient;
     checkout: CheckoutClient;
@@ -51,6 +54,7 @@ export function createEcommersClient(config: ApiClientConfig): EcommersApi {
         auth: new AuthClient(client),
         products: new ProductsClient(client),
         categories: new CategoriesClient(client),
+        locations: new LocationsClient(client),
         inventory: new InventoryClient(client),
         cart: new CartClient(client),
         checkout: new CheckoutClient(client),
@@ -62,4 +66,5 @@ export function createEcommersClient(config: ApiClientConfig): EcommersApi {
         admin: new AdminClient(client),
     };
 }
+
 
