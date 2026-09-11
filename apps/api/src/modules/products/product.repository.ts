@@ -33,7 +33,6 @@ export class ProductRepository {
             ...(data.nutritionInfo ? { nutritionInfo: data.nutritionInfo } : {}),
             ...(data.allergens ? { allergens: data.allergens } : {}),
             ...(data.storageInstructions ? { storageInstructions: data.storageInstructions } : {}),
-            ...(data.seo ? { seo: data.seo } : {}),
             ...(data.metadata ? { metadata: data.metadata } : {}),
             ...(data.createdBy ? { createdBy: data.createdBy } : {}),
             ...(data.updatedBy ? { updatedBy: data.updatedBy } : {}),
@@ -158,7 +157,6 @@ export class ProductRepository {
         if (data.nutritionInfo !== undefined) updateFields.nutritionInfo = data.nutritionInfo;
         if (data.allergens !== undefined) updateFields.allergens = data.allergens;
         if (data.storageInstructions !== undefined) updateFields.storageInstructions = data.storageInstructions;
-        if (data.seo !== undefined) updateFields.seo = data.seo;
         if (data.metadata !== undefined) updateFields.metadata = data.metadata;
         if (data.updatedBy !== undefined) updateFields.updatedBy = data.updatedBy;
 
@@ -194,7 +192,6 @@ export class ProductRepository {
         if (data.nutritionInfo !== undefined) updateFields.nutritionInfo = data.nutritionInfo;
         if (data.allergens !== undefined) updateFields.allergens = data.allergens;
         if (data.storageInstructions !== undefined) updateFields.storageInstructions = data.storageInstructions;
-        if (data.seo !== undefined) updateFields.seo = data.seo;
         if (data.metadata !== undefined) updateFields.metadata = data.metadata;
         if (data.updatedBy !== undefined) updateFields.updatedBy = data.updatedBy;
 

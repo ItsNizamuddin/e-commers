@@ -123,7 +123,35 @@ export class ApiClient {
                 throw new ApiClientError(message, res.status, code, details);
             }
 
-            return (json?.data !== undefined ? json.data : json) as T;
+            if (json?.data !== undefined) {
+                if (Array.isArray(json.data) && (json.meta !== undefined || json.pagination !== undefined)) {
+                    const rawMeta = json.meta || json.pagination;
+                    const total = Number(rawMeta.total ?? json.data.length) || 0;
+                    const limit = Number(rawMeta.limit ?? 10) || 10;
+                    const page = Number(rawMeta.page ?? 1) || 1;
+                    const totalPages = Number(rawMeta.totalPages ?? Math.ceil(total / limit)) || 1;
+
+                    const pagination = {
+                        page,
+                        limit,
+                        total,
+                        totalPages,
+                    };
+
+                    try {
+                        Object.defineProperties(json.data, {
+                            items: { value: json.data, enumerable: true, writable: true, configurable: true },
+                            pagination: { value: pagination, enumerable: true, writable: true, configurable: true },
+                            meta: { value: pagination, enumerable: true, writable: true, configurable: true },
+                        });
+                    } catch {
+                        // ignore if non-extensible
+                    }
+                }
+                return json.data as T;
+            }
+
+            return json as T;
         } catch (err: any) {
             if (err instanceof ApiClientError) {
                 throw err;

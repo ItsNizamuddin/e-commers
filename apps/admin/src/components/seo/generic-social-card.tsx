@@ -122,7 +122,7 @@ export function GenericSocialCard({
                         size="sm"
                         value={ogTitle}
                         onChange={(e) => setOgTitle(e.target.value)}
-                        placeholder={metaTitle || entityTitle || "Social title"}
+                        placeholder="Enter OG title"
                         disabled={disabled}
                     />
                 </div>
@@ -133,7 +133,7 @@ export function GenericSocialCard({
                         rows={2}
                         value={ogDescription}
                         onChange={(e) => setOgDescription(e.target.value)}
-                        placeholder={metaDescription || entityDescription || "Brief description for social media feeds"}
+                        placeholder="Enter OG description"
                         disabled={disabled}
                     />
                 </div>
@@ -144,7 +144,7 @@ export function GenericSocialCard({
                         size="sm"
                         value={ogImage}
                         onChange={(e) => setOgImage(e.target.value)}
-                        placeholder="https://... or item thumbnail URL"
+                        placeholder="Enter OG image URL (https://...)"
                         disabled={disabled}
                     />
                 </div>

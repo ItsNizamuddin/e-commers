@@ -113,7 +113,7 @@ export function VariantMatrixManager({
     };
 
     const handleRemoveVariant = (index: number) => {
-        if (disabled || variants.length <= 1) return;
+        if (disabled) return;
         const updated = variants.filter((_, i) => i !== index);
         onChange(updated);
         setExpandedIndex(Math.max(0, index - 1));
@@ -184,58 +184,79 @@ export function VariantMatrixManager({
 
             {/* Variants Accordion List */}
             <div className="flex flex-col gap-3">
-                {variants.map((v, idx) => {
-                    const isExpanded = expandedIndex === idx;
-                    const primaryPrice = v.prices[0]?.amount || 0;
-                    const currencySymbol = v.prices[0]?.currency || baseCurrency;
-
-                    return (
-                        <div
-                            key={idx}
-                            className={`rounded-xl border transition-all ${
-                                isExpanded
-                                    ? "border-blue-300 dark:border-blue-800 bg-white dark:bg-[#131313] shadow-xs"
-                                    : "border-slate-200 dark:border-neutral-800 bg-slate-50/40 dark:bg-neutral-900/30 hover:border-slate-300"
-                            }`}
+                {variants.length === 0 ? (
+                    <div className="p-8 text-center border-2 border-dashed border-slate-200 dark:border-neutral-800 rounded-xl bg-slate-50/40 dark:bg-neutral-900/20">
+                        <Package size={30} className="mx-auto text-slate-300 dark:text-neutral-600 mb-2.5" />
+                        <h4 className="text-xs font-semibold text-slate-800 dark:text-neutral-200">
+                            No Pack Sizes or Pricing Added Yet
+                        </h4>
+                        <p className="text-[11px] text-slate-400 dark:text-neutral-500 max-w-sm mx-auto mt-1 mb-3.5">
+                            Click a quick preset above (e.g. + 500 g, + 1 kg) or click &apos;Add Pack Size&apos; to enter your prices and pack details.
+                        </p>
+                        <Button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            onClick={handleAddCustom}
+                            disabled={disabled}
+                            className="text-xs gap-1.5"
                         >
-                            {/* Variant Summary Header */}
-                            <div
-                                onClick={() => setExpandedIndex(isExpanded ? -1 : idx)}
-                                className="p-3 sm:px-4 flex items-center justify-between cursor-pointer select-none"
-                            >
-                                <div className="flex items-center gap-2.5">
-                                    <div className="w-6 h-6 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs">
-                                        {idx + 1}
-                                    </div>
+                            <Plus size={13} />
+                            <span>Add Pack Size</span>
+                        </Button>
+                    </div>
+                ) : (
+                    variants.map((v, idx) => {
+                        const isExpanded = expandedIndex === idx;
+                        const primaryPrice = v.prices[0]?.amount || 0;
+                        const currencySymbol = v.prices[0]?.currency || baseCurrency;
 
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-xs font-bold text-slate-900 dark:text-white">
-                                                {v.title || `Variant ${idx + 1}`}
-                                            </span>
-                                            <span className="text-[11px] font-mono text-slate-400 dark:text-neutral-500">
-                                                SKU: {v.sku || "UNASSIGNED"}
-                                            </span>
-                                            {v.weight && (
-                                                <Badge variant="neutral" size="sm">
-                                                    {v.weight} {v.weightUnit}
-                                                </Badge>
-                                            )}
+                        return (
+                            <div
+                                key={idx}
+                                className={`rounded-xl border transition-all ${
+                                    isExpanded
+                                        ? "border-blue-300 dark:border-blue-800 bg-white dark:bg-[#131313] shadow-xs"
+                                        : "border-slate-200 dark:border-neutral-800 bg-slate-50/40 dark:bg-neutral-900/30 hover:border-slate-300"
+                                }`}
+                            >
+                                {/* Variant Summary Header */}
+                                <div
+                                    onClick={() => setExpandedIndex(isExpanded ? -1 : idx)}
+                                    className="p-3 sm:px-4 flex items-center justify-between cursor-pointer select-none"
+                                >
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-6 h-6 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs">
+                                            {idx + 1}
+                                        </div>
+
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                                    {v.title || `Variant ${idx + 1}`}
+                                                </span>
+                                                <span className="text-[11px] font-mono text-slate-400 dark:text-neutral-500">
+                                                    SKU: {v.sku || "UNASSIGNED"}
+                                                </span>
+                                                {v.weight && (
+                                                    <Badge variant="neutral" size="sm">
+                                                        {v.weight} {v.weightUnit}
+                                                    </Badge>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
 
-                                <div className="flex items-center gap-3">
-                                    <div className="text-right">
-                                        <span className="text-xs font-bold text-slate-900 dark:text-white">
-                                            {currencySymbol} {primaryPrice.toFixed(2)}
-                                        </span>
-                                        <span className="text-[10px] text-slate-400 dark:text-neutral-500 block">
-                                            Stock: {v.initialStock ?? 0} units
-                                        </span>
-                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <div className="text-right">
+                                            <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                                {currencySymbol} {primaryPrice.toFixed(2)}
+                                            </span>
+                                            <span className="text-[10px] text-slate-400 dark:text-neutral-500 block">
+                                                Stock: {v.initialStock ?? 0} units
+                                            </span>
+                                        </div>
 
-                                    {variants.length > 1 && (
                                         <button
                                             type="button"
                                             onClick={(e) => {
@@ -248,7 +269,6 @@ export function VariantMatrixManager({
                                         >
                                             <Trash2 size={13} />
                                         </button>
-                                    )}
 
                                     <div className="text-slate-400">
                                         {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -359,7 +379,7 @@ export function VariantMatrixManager({
                             )}
                         </div>
                     );
-                })}
+                }))}
             </div>
         </Card>
     );

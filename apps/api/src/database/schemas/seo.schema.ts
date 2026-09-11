@@ -20,7 +20,10 @@ const LocationSeoSchema = new Schema(
         keywords: [{ type: String, trim: true }],
         deliveryHighlight: { type: String, trim: true },
         canonicalUrl: { type: String, trim: true },
+        metaRobots: { type: String, trim: true },
         isIndexed: { type: Boolean, default: true },
+        internalSection: { type: ContentSectionSchema, default: undefined },
+        bottomSection: { type: ContentSectionSchema, default: undefined },
     },
     { _id: false }
 );

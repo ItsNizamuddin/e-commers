@@ -121,11 +121,14 @@ export const toast: ToastFunction = Object.assign(
     }
 );
 
+const EMPTY_TOASTS: ToastData[] = [];
+const getEmptyToasts = () => EMPTY_TOASTS;
+
 export function useToasts(): ToastData[] {
     return useSyncExternalStore(
         toastStore.subscribe,
         toastStore.getSnapshot,
-        () => []
+        getEmptyToasts
     );
 }
 

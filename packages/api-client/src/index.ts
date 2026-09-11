@@ -12,6 +12,7 @@ import { WishlistClient } from "./domains/wishlist";
 import { SearchClient } from "./domains/search";
 import { AdminClient } from "./domains/admin";
 import { LocationsClient } from "./domains/locations";
+import { SeoClient } from "./domains/seo";
 
 export * from "./errors";
 export * from "./token-store";
@@ -29,6 +30,7 @@ export * from "./domains/reviews";
 export * from "./domains/wishlist";
 export * from "./domains/search";
 export * from "./domains/admin";
+export * from "./domains/seo";
 
 export interface EcommersApi {
     client: ApiClient;
@@ -45,6 +47,7 @@ export interface EcommersApi {
     wishlist: WishlistClient;
     search: SearchClient;
     admin: AdminClient;
+    seo: SeoClient;
 }
 
 export function createEcommersClient(config: ApiClientConfig): EcommersApi {
@@ -64,6 +67,7 @@ export function createEcommersClient(config: ApiClientConfig): EcommersApi {
         wishlist: new WishlistClient(client),
         search: new SearchClient(client),
         admin: new AdminClient(client),
+        seo: new SeoClient(client),
     };
 }
 

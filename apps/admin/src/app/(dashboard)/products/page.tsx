@@ -31,6 +31,7 @@ import {
     Trash2,
     Star,
     RefreshCw,
+    Globe,
 } from "lucide-react";
 
 export default function ProductsPage() {
@@ -62,9 +63,12 @@ export default function ProductsPage() {
                 limit: 10,
                 ...(statusFilter ? { status: statusFilter as any } : {}),
             });
-            setProducts(res.items || []);
-            setTotalPages(res.pagination?.totalPages || 1);
-            setTotalItems(res.pagination?.total || 0);
+            const items: ProductResponse[] = Array.isArray(res) ? res : (res?.items || []);
+            setProducts(items);
+            const total = (res as any)?.pagination?.total ?? (res as any)?.meta?.total ?? items.length;
+            const totalPages = (res as any)?.pagination?.totalPages ?? (res as any)?.meta?.totalPages ?? Math.ceil(total / 10) ?? 1;
+            setTotalPages(totalPages || 1);
+            setTotalItems(total || 0);
         } catch (err: unknown) {
             if (err instanceof Error) {
                 setError(err.message);
@@ -112,10 +116,10 @@ export default function ProductsPage() {
 
     const displayed = search.trim()
         ? products.filter(
-              (p) =>
-                  p.title.toLowerCase().includes(search.toLowerCase()) ||
-                  p.brand?.toLowerCase().includes(search.toLowerCase())
-          )
+            (p) =>
+                p.title.toLowerCase().includes(search.toLowerCase()) ||
+                p.brand?.toLowerCase().includes(search.toLowerCase())
+        )
         : products;
 
     return (
@@ -137,6 +141,16 @@ export default function ProductsPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => router.push("/seo/bulk?type=PRODUCT")}
+                        className="gap-1.5 text-xs text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900 bg-blue-50/40 dark:bg-blue-950/30"
+                    >
+                        <Globe size={13} />
+                        <span>Bulk SEO</span>
+                    </Button>
                     <Button
                         type="button"
                         variant="outline"
@@ -227,7 +241,6 @@ export default function ProductsPage() {
                                     <TableHead>Product</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead>Variants</TableHead>
-                                    <TableHead>Price</TableHead>
                                     <TableHead>Rating</TableHead>
                                     <TableHead>Created</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
@@ -275,9 +288,6 @@ export default function ProductsPage() {
                                                 </TableCell>
                                                 <TableCell>{getStatusBadge(p.status)}</TableCell>
                                                 <TableCell>{p.variants?.length || 1} variants</TableCell>
-                                                <TableCell className="font-semibold text-slate-900 dark:text-neutral-100">
-                                                    {displayPrice}
-                                                </TableCell>
                                                 <TableCell>
                                                     <div className="flex items-center gap-1 text-xs font-semibold">
                                                         <Star size={12} className="fill-amber-400 text-amber-400" />

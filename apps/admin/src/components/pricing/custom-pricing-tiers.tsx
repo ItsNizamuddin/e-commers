@@ -349,7 +349,7 @@ export function CustomPricingTiers({
                                         min="0"
                                         value={tier.amount || ""}
                                         onChange={(e) => handleUpdateAmount(idx, "amount", e.target.value)}
-                                        placeholder={isDefault ? "2000" : "e.g. 15"}
+                                        placeholder="e.g. 299"
                                         disabled={disabled}
                                         className="h-9 text-xs"
                                     />
@@ -369,7 +369,7 @@ export function CustomPricingTiers({
                                         min="0"
                                         value={tier.compareAtAmount ?? ""}
                                         onChange={(e) => handleUpdateAmount(idx, "compareAtAmount", e.target.value)}
-                                        placeholder={isDefault ? "3000" : "e.g. 25"}
+                                        placeholder="e.g. 399"
                                         disabled={disabled}
                                         className="h-9 text-xs"
                                     />

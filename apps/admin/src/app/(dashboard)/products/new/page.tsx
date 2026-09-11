@@ -39,11 +39,30 @@ export default function NewProductPage() {
             await api.products.create(payload);
             router.push("/products");
         } catch (err: unknown) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError("Failed to create product.");
+            let message = "Failed to create product.";
+            if (err && typeof err === "object") {
+                const apiErr = err as { message?: string; details?: unknown };
+                if (apiErr.details && typeof apiErr.details === "object") {
+                    const issues: string[] = [];
+                    for (const [field, msgs] of Object.entries(apiErr.details as Record<string, unknown>)) {
+                        if (Array.isArray(msgs)) {
+                            issues.push(`${field}: ${msgs.join(", ")}`);
+                        } else if (typeof msgs === "string") {
+                            issues.push(`${field}: ${msgs}`);
+                        }
+                    }
+                    if (issues.length > 0) {
+                        message = `Validation Error: ${issues.join(" | ")}`;
+                    } else if (apiErr.message) {
+                        message = apiErr.message;
+                    }
+                } else if (apiErr.message) {
+                    message = apiErr.message;
+                }
+            } else if (err instanceof Error) {
+                message = err.message;
             }
+            setError(message);
             throw err;
         } finally {
             setIsSubmitting(false);

@@ -2,7 +2,14 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import type { CategoryResponse, CreateCategoryInput, UpdateCategoryInput, SeoMetadata } from "@ecommers/types";
+import type {
+    CategoryResponse,
+    CreateCategoryInput,
+    UpdateCategoryInput,
+    SeoMetadata,
+    ISeoContentSection,
+    LocationSeoOverride,
+} from "@ecommers/types";
 import {
     Card,
     Badge,
@@ -18,8 +25,9 @@ import {
     CheckCircle2,
     AlertCircle,
 } from "lucide-react";
-import { CategorySeoCard } from "./category-seo-card";
-import { CategorySocialCard } from "./category-social-card";
+import { GenericSeoCard, AvailableLocationOption } from "../seo/generic-seo-card";
+import { GenericSocialCard } from "../seo/generic-social-card";
+import { api } from "../../lib/api";
 import { CategoryHierarchyCard } from "./category-hierarchy-card";
 import { CategoryThumbnailCard } from "./category-thumbnail-card";
 import { CategorySeoChecklist } from "./category-seo-checklist";
@@ -78,9 +86,42 @@ export function CategoryForm({
     const [keywords, setKeywords] = useState<string[]>(category?.seo?.keywords || []);
     const [metaRobots, setMetaRobots] = useState(category?.seo?.metaRobots || "index, follow");
     const [canonicalUrl, setCanonicalUrl] = useState(category?.seo?.canonicalUrl || "");
+    const [internalSection, setInternalSection] = useState<ISeoContentSection>(
+        category?.seo?.internalSection || { title: "", value: "" }
+    );
+    const [bottomSection, setBottomSection] = useState<ISeoContentSection>(
+        category?.seo?.bottomSection || { title: "", value: "" }
+    );
+    const [locationOverrides, setLocationOverrides] = useState<LocationSeoOverride[]>(
+        category?.seo?.locations || []
+    );
     const [ogTitle, setOgTitle] = useState(category?.seo?.ogTitle || "");
     const [ogDescription, setOgDescription] = useState(category?.seo?.ogDescription || "");
     const [ogImage, setOgImage] = useState(category?.seo?.ogImage || "");
+
+    const [availableLocations, setAvailableLocations] = useState<AvailableLocationOption[]>([]);
+
+    useEffect(() => {
+        let isMounted = true;
+        api.locations
+            .list()
+            .then((locs) => {
+                if (isMounted && locs && Array.isArray(locs)) {
+                    setAvailableLocations(
+                        locs.map((l) => ({
+                            code: l.code,
+                            name: l.name,
+                            type: l.type as "CITY" | "COUNTRY" | "ZONE",
+                            currency: l.currency,
+                        }))
+                    );
+                }
+            })
+            .catch(() => {});
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     // Handle name input and auto-slugify
     const handleNameChange = (val: string) => {
@@ -126,6 +167,9 @@ export function CategoryForm({
             metaRobots: metaRobots || "index, follow",
             keywords: keywords.length > 0 ? keywords : undefined,
             canonicalUrl: canonicalUrl.trim() || undefined,
+            internalSection: internalSection.title?.trim() || internalSection.value?.trim() ? internalSection : undefined,
+            bottomSection: bottomSection.title?.trim() || bottomSection.value?.trim() ? bottomSection : undefined,
+            locations: locationOverrides.length > 0 ? locationOverrides : undefined,
             ogTitle: ogTitle.trim() || undefined,
             ogDescription: ogDescription.trim() || undefined,
             ogImage: ogImage.trim() || undefined,
@@ -255,7 +299,7 @@ export function CategoryForm({
                                     size="sm"
                                     value={name}
                                     onChange={(e) => handleNameChange(e.target.value)}
-                                    placeholder="e.g. Organic Dairy & Eggs"
+                                    placeholder="Enter category name"
                                     disabled={isSubmitting}
                                     required
                                 />
@@ -273,7 +317,7 @@ export function CategoryForm({
                                     size="sm"
                                     value={slug}
                                     onChange={(e) => handleSlugChange(e.target.value)}
-                                    placeholder="organic-dairy-eggs"
+                                    placeholder="Enter URL slug"
                                     disabled={isSubmitting}
                                 />
                                 <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-neutral-400">
@@ -297,18 +341,20 @@ export function CategoryForm({
                                     rows={3}
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
-                                    placeholder="Provide a clear description of the products contained in this category..."
+                                    placeholder="Enter category description"
                                     disabled={isSubmitting}
                                 />
                             </div>
                         </div>
                     </Card>
 
-                    {/* SEO & Search Engine Optimization Card */}
-                    <CategorySeoCard
-                        name={name}
-                        slug={slug}
-                        description={description}
+                    {/* SEO & Search Engine Optimization Card with Multi-Location & SERP Preview */}
+                    <GenericSeoCard
+                        entityTitle={name}
+                        entitySlug={slug}
+                        entityDescription={description}
+                        routePrefix="categories"
+                        categorySlug={parentCategory?.slug || ""}
                         metaTitle={metaTitle}
                         setMetaTitle={setMetaTitle}
                         metaDescription={metaDescription}
@@ -319,15 +365,21 @@ export function CategoryForm({
                         setMetaRobots={setMetaRobots}
                         canonicalUrl={canonicalUrl}
                         setCanonicalUrl={setCanonicalUrl}
-                        isOptimized={isOptimized}
+                        internalSection={internalSection}
+                        setInternalSection={setInternalSection}
+                        bottomSection={bottomSection}
+                        setBottomSection={setBottomSection}
+                        locationOverrides={locationOverrides}
+                        setLocationOverrides={setLocationOverrides}
+                        availableLocations={availableLocations}
                         disabled={isSubmitting}
                     />
 
                     {/* Social Media & Open Graph Sharing Card */}
-                    <CategorySocialCard
-                        name={name}
-                        description={description}
-                        image={image}
+                    <GenericSocialCard
+                        entityTitle={name}
+                        entityDescription={description}
+                        primaryImage={image}
                         metaTitle={metaTitle}
                         metaDescription={metaDescription}
                         ogTitle={ogTitle}

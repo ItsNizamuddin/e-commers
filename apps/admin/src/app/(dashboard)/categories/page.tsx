@@ -250,6 +250,16 @@ export default function CategoriesPage() {
                         type="button"
                         variant="outline"
                         size="sm"
+                        onClick={() => router.push("/seo/bulk?type=CATEGORY")}
+                        className="gap-1.5 h-8 text-xs text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900 bg-blue-50/40 dark:bg-blue-950/30"
+                    >
+                        <Globe size={13} />
+                        <span>Bulk SEO</span>
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
                         onClick={() => loadCategories(true)}
                         isLoading={refreshing}
                         className="gap-1.5 h-8 text-xs"

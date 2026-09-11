@@ -1,6 +1,5 @@
 import mongoose, { Schema, model, Model, Document } from "mongoose";
 import { IProduct } from "./product.types.js";
-import { SeoSchema } from "../../database/schemas/seo.schema.js";
 import { AuditActorSchema } from "../../database/schemas/audit-actor.schema.js";
 import { ProductVariantSchema } from "../../database/schemas/product-variant.schema.js";
 
@@ -117,10 +116,6 @@ const ProductSchema = new Schema<ProductDocument>(
         storageInstructions: {
             type: String,
             trim: true,
-        },
-        seo: {
-            type: SeoSchema,
-            default: undefined,
         },
         metadata: {
             type: Schema.Types.Mixed,

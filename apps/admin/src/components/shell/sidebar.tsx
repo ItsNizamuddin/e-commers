@@ -27,6 +27,8 @@ import {
     LogOut,
     X,
     MapPin,
+    Globe,
+    FileSpreadsheet,
 } from "lucide-react";
 import { useAppSelector, useAppDispatch } from "../../store";
 import { clearSession } from "../../store/auth-slice";
@@ -122,6 +124,18 @@ const NAV_SECTIONS: NavSection[] = [
                 label: "Locations",
                 href: "/locations",
                 icon: MapPin,
+                allowedRoles: ["SUPER_ADMIN", "ADMIN", "PUBLISHER"],
+            },
+            {
+                label: "SEO Metadata",
+                href: "/seo",
+                icon: Globe,
+                allowedRoles: ["SUPER_ADMIN", "ADMIN", "PUBLISHER"],
+            },
+            {
+                label: "SEO Bulk Management",
+                href: "/seo/bulk",
+                icon: FileSpreadsheet,
                 allowedRoles: ["SUPER_ADMIN", "ADMIN", "PUBLISHER"],
             },
         ],
@@ -333,9 +347,11 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                             {section.items.map((item) => {
                                 const Icon = item.icon;
                                 const isParentActive =
-                                    item.href === "/dashboard" || item.href === "/account"
-                                        ? pathname === item.href
-                                        : pathname.startsWith(item.href);
+                                    item.href === "/seo"
+                                        ? pathname === "/seo" || pathname.startsWith("/seo/edit")
+                                        : item.href === "/dashboard" || item.href === "/account"
+                                            ? pathname === item.href
+                                            : pathname.startsWith(item.href);
 
                                 const hasSub = Boolean(item.subItems && item.subItems.length > 0);
                                 const isOpenSection = Boolean(openSections[item.href]);

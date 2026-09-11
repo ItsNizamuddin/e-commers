@@ -22,7 +22,29 @@ export class ProductsClient {
     constructor(private readonly client: ApiClient) {}
 
     async list(params?: ProductQueryOptions): Promise<ProductListResponse> {
-        return this.client.get<ProductListResponse>("/products", { params });
+        const res = await this.client.get<any>("/products", { params });
+        const items: ProductResponse[] = Array.isArray(res) ? res : (res?.items || []);
+        const rawMeta = res?.pagination || res?.meta;
+        const total = Number(rawMeta?.total ?? items.length) || 0;
+        const limit = Number(params?.limit ?? rawMeta?.limit ?? 10) || 10;
+        const page = Number(params?.page ?? rawMeta?.page ?? 1) || 1;
+        const totalPages = Number(rawMeta?.totalPages ?? Math.ceil(total / limit)) || 1;
+
+        const pagination = { page, limit, total, totalPages };
+        const result: ProductListResponse = { items, pagination };
+
+        if (Array.isArray(items)) {
+            try {
+                Object.defineProperties(items, {
+                    items: { value: items, enumerable: true, writable: true, configurable: true },
+                    pagination: { value: pagination, enumerable: true, writable: true, configurable: true },
+                });
+            } catch {
+                // ignore if non-extensible
+            }
+        }
+
+        return result;
     }
 
     async getById(id: string): Promise<ProductResponse> {

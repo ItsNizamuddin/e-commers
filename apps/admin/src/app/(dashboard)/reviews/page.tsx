@@ -48,7 +48,7 @@ export default function ReviewsPage() {
     // Load initial products list
     useEffect(() => {
         api.products.list({ limit: 50 }).then((res) => {
-            const prods = res.items || [];
+            const prods: ProductResponse[] = Array.isArray(res) ? res : (res?.items || []);
             setProducts(prods);
             if (prods.length > 0) {
                 setSelectedProductId(prods[0].id);

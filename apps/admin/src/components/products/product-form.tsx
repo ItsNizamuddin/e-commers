@@ -11,6 +11,7 @@ import type {
     UpdateProductInput,
     ProductVariantInput,
     LocationSeoOverride,
+    ISeoContentSection,
     WeightUnit,
     ProductStatus,
     CustomNutrient,
@@ -27,6 +28,7 @@ import {
 } from "@ecommers/ui";
 import {
     ArrowLeft,
+    ArrowRight,
     Package,
     Save,
     Trash2,
@@ -114,7 +116,7 @@ export function ProductForm({
     const [title, setTitle] = useState(initialProduct?.title || "");
     const [slug, setSlug] = useState(initialProduct?.slug || "");
     const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(Boolean(initialProduct));
-    const [brand, setBrand] = useState(initialProduct?.brand || "Royal Kitchens");
+    const [brand, setBrand] = useState(initialProduct?.brand || "");
     const [categoryId, setCategoryId] = useState(
         initialProduct?.categoryId || (categories.length > 0 ? categories[0].id : "")
     );
@@ -154,32 +156,7 @@ export function ProductForm({
                 attributes: v.attributes,
             }));
         }
-        return [
-            {
-                sku: "PRD-500G",
-                title: "500 g",
-                weight: 500,
-                weightUnit: "g" as WeightUnit,
-                initialStock: 50,
-                isActive: true,
-                prices: [
-                    { currency: "INR", amount: 315 },
-                    { currency: "USD", amount: 4.99 },
-                ],
-            },
-            {
-                sku: "PRD-1KG",
-                title: "1 kg",
-                weight: 1,
-                weightUnit: "kg" as WeightUnit,
-                initialStock: 30,
-                isActive: true,
-                prices: [
-                    { currency: "INR", amount: 628.95 },
-                    { currency: "USD", amount: 9.99 },
-                ],
-            },
-        ];
+        return [];
     });
 
     // Food & Dietary Specs
@@ -209,17 +186,17 @@ export function ProductForm({
             return existing.map((n) => ({ ...n, id: n.id || `nutr-${Math.random().toString(36).substring(2, 8)}` }));
         }
         // Also check if fiber or sodium was provided on the root nutritionInfo
-        const seeds: CustomNutrient[] = [];
+        const initialNutrients: CustomNutrient[] = [];
         if (initialProduct?.nutritionInfo?.fiber) {
-            seeds.push({ id: "seed-fiber", name: "Dietary Fiber", amount: initialProduct.nutritionInfo.fiber, unit: "g" });
+            initialNutrients.push({ id: "init-fiber", name: "Dietary Fiber", amount: initialProduct.nutritionInfo.fiber, unit: "g" });
         }
         if (initialProduct?.nutritionInfo?.sodium) {
-            seeds.push({ id: "seed-sodium", name: "Sodium", amount: initialProduct.nutritionInfo.sodium, unit: "mg" });
+            initialNutrients.push({ id: "init-sodium", name: "Sodium", amount: initialProduct.nutritionInfo.sodium, unit: "mg" });
         }
         if (initialProduct?.nutritionInfo?.sugar) {
-            seeds.push({ id: "seed-sugar", name: "Total Sugars", amount: initialProduct.nutritionInfo.sugar, unit: "g" });
+            initialNutrients.push({ id: "init-sugar", name: "Total Sugars", amount: initialProduct.nutritionInfo.sugar, unit: "g" });
         }
-        return seeds;
+        return initialNutrients;
     });
 
     const handleAddPresetNutrient = (preset: { name: string; unit: string; defaultAmount: number }) => {
@@ -269,6 +246,14 @@ export function ProductForm({
     // Location SEO Overrides
     const [locationOverrides, setLocationOverrides] = useState<LocationSeoOverride[]>(
         initialProduct?.seo?.locations || []
+    );
+
+    // Rich SEO Content Sections
+    const [internalSection, setInternalSection] = useState<ISeoContentSection>(
+        initialProduct?.seo?.internalSection || { title: "", value: "" }
+    );
+    const [bottomSection, setBottomSection] = useState<ISeoContentSection>(
+        initialProduct?.seo?.bottomSection || { title: "", value: "" }
     );
 
     // Social Sharing Card
@@ -410,18 +395,54 @@ export function ProductForm({
             ...(ogTitle.trim() ? { ogTitle: ogTitle.trim() } : {}),
             ...(ogDescription.trim() ? { ogDescription: ogDescription.trim() } : {}),
             ...(ogImage.trim() ? { ogImage: ogImage.trim() } : {}),
+            ...(internalSection?.title?.trim() || internalSection?.value?.trim() ? { internalSection } : {}),
+            ...(bottomSection?.title?.trim() || bottomSection?.value?.trim() ? { bottomSection } : {}),
             ...(locationOverrides.length > 0 ? { locations: locationOverrides } : {}),
         };
+        const hasAnySeo = Object.keys(seoPayload).length > 0;
+
+        // Sanitize variants & prices to match API schemas
+        const sanitizedVariants = variants.map((v) => ({
+            ...v,
+            sku: v.sku.trim().toUpperCase(),
+            title: v.title.trim(),
+            weight: typeof v.weight === "string" ? parseFloat(v.weight) || undefined : v.weight,
+            initialStock: typeof v.initialStock === "string" ? parseInt(v.initialStock, 10) || 0 : (v.initialStock ?? 0),
+            prices: v.prices.map((p) => {
+                const rawAmt = (p as any).amount;
+                const amt = typeof rawAmt === "string" ? parseFloat(rawAmt) || 0 : (rawAmt ?? 0);
+                const rawComp = (p as any).compareAtAmount;
+                const comp = typeof rawComp === "string"
+                    ? (rawComp.trim() ? parseFloat(rawComp) : undefined)
+                    : typeof rawComp === "number"
+                    ? rawComp
+                    : undefined;
+                return {
+                    currency: (p.currency || "USD").trim().toUpperCase(),
+                    amount: isNaN(amt) || amt < 0 ? 0 : amt,
+                    ...(comp !== undefined && !isNaN(comp) && comp >= amt ? { compareAtAmount: comp } : {}),
+                    ...(p.costAmount !== undefined && !isNaN(p.costAmount) ? { costAmount: p.costAmount } : {}),
+                    ...(p.countryCode ? { countryCode: p.countryCode } : {}),
+                    ...(p.countryName ? { countryName: p.countryName } : {}),
+                    ...(p.locationCode ? { locationCode: p.locationCode } : {}),
+                    ...(p.locationName ? { locationName: p.locationName } : {}),
+                };
+            }),
+        }));
+
+        // Determine baseCurrency matching the first variant currency or "USD"
+        const productBaseCurrency = (sanitizedVariants[0]?.prices[0]?.currency || "USD").toUpperCase();
 
         const payload: CreateProductInput | UpdateProductInput = {
             title: title.trim(),
-            ...(slug.trim() ? { slug: slug.trim() } : {}),
+            ...(slug.trim() ? { slug: slugify(slug.trim()) } : {}),
             ...(brand.trim() ? { brand: brand.trim() } : {}),
             categoryId,
+            baseCurrency: productBaseCurrency,
             status,
             ...(shortDescription.trim() ? { shortDescription: shortDescription.trim() } : {}),
-            description: description.trim() || "Authentic culinary product prepared with fresh ingredients.",
-            variants,
+            ...(description.trim() ? { description: description.trim() } : {}),
+            variants: sanitizedVariants,
             images,
             ...(thumbnail ? { thumbnail } : images.length > 0 ? { thumbnail: images[0] } : {}),
             tags: combinedTags,
@@ -429,33 +450,56 @@ export function ProductForm({
             ...(storageInstructions.trim() ? { storageInstructions: storageInstructions.trim() } : {}),
             ...(allergenList.length > 0 ? { allergens: allergenList } : {}),
             ...(nutrition ? { nutritionInfo: nutrition } : {}),
-            seo: seoPayload,
+            ...(mode === "create" && hasAnySeo ? { seo: seoPayload } : {}),
         };
 
         try {
             await onSubmit(payload);
         } catch (err: unknown) {
-            if (err instanceof Error) {
-                setLocalError(err.message);
-            } else {
-                setLocalError("Failed to save product.");
+            let message = "Failed to save product.";
+            if (err && typeof err === "object") {
+                const apiErr = err as { message?: string; details?: unknown; code?: string };
+                if (apiErr.details && typeof apiErr.details === "object") {
+                    const issues: string[] = [];
+                    for (const [field, msgs] of Object.entries(apiErr.details as Record<string, unknown>)) {
+                        if (Array.isArray(msgs)) {
+                            issues.push(`${field}: ${msgs.join(", ")}`);
+                        } else if (typeof msgs === "string") {
+                            issues.push(`${field}: ${msgs}`);
+                        }
+                    }
+                    if (issues.length > 0) {
+                        message = `Validation Error: ${issues.join(" | ")}`;
+                    } else if (apiErr.message) {
+                        message = apiErr.message;
+                    }
+                } else if (apiErr.message) {
+                    message = apiErr.message;
+                }
+            } else if (err instanceof Error) {
+                message = err.message;
             }
+            setLocalError(message);
         }
     };
 
-    // Tab definitions with SEO first as explicitly requested
+    // Tab definitions: on create show SEO, on edit hide SEO as it is managed in dedicated SEO table
     type ProductFormTab = "seo" | "basic" | "media" | "pricing" | "locations";
-    const [activeTab, setActiveTab] = useState<ProductFormTab>("seo");
+    const [activeTab, setActiveTab] = useState<ProductFormTab>(mode === "edit" ? "basic" : "seo");
 
     const tabsConfig = [
-        {
-            id: "seo" as const,
-            label: "Search Engine Optimization (SEO)",
-            shortLabel: "SEO & Discovery",
-            icon: Globe,
-            sectionHeader: "Search Engine Optimization & Social Sharing",
-            badge: metaTitle && metaDescription ? "Configured" : "Recommended",
-        },
+        ...(mode === "create"
+            ? [
+                  {
+                      id: "seo" as const,
+                      label: "Search Engine Optimization (SEO)",
+                      shortLabel: "SEO & Discovery",
+                      icon: Globe,
+                      sectionHeader: "Search Engine Optimization & Social Sharing",
+                      badge: metaTitle && metaDescription ? "Configured" : "Recommended",
+                  },
+              ]
+            : []),
         {
             id: "basic" as const,
             label: "Basic Information",
@@ -478,7 +522,7 @@ export function ProductForm({
             shortLabel: "Variants & Pricing",
             icon: Layers,
             sectionHeader: "Pack Sizes, Weights, SKUs & Tiered Pricing",
-            badge: `${variants.length} packs`,
+            badge: variants.length > 0 ? `${variants.length} packs` : "None added",
         },
         {
             id: "locations" as const,
@@ -652,6 +696,35 @@ export function ProductForm({
                     </div>
                 )}
 
+                {/* Notice in edit mode linking to dedicated SEO Table */}
+                {mode === "edit" && initialProduct?.id && (
+                    <div className="p-3.5 bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/50 rounded-xl flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                                <Globe size={16} />
+                            </div>
+                            <div>
+                                <p className="text-xs font-semibold text-blue-950 dark:text-blue-200">
+                                    SEO Metadata is managed in the SEO Table
+                                </p>
+                                <p className="text-[11px] text-blue-700/80 dark:text-blue-400">
+                                    Edit global search tags, robots, canonical URLs, and city/regional overrides individually or in bulk.
+                                </p>
+                            </div>
+                        </div>
+                        <Button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            onClick={() => router.push(`/seo?type=PRODUCT&id=${initialProduct.id}`)}
+                            className="text-xs shrink-0 font-semibold gap-1.5 h-8"
+                        >
+                            <span>Open SEO Table</span>
+                            <ArrowRight size={13} />
+                        </Button>
+                    </div>
+                )}
+
                 {/* Section Header Breadcrumb Pill matching screenshot */}
                 <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-neutral-400 pb-1">
                     <div className="flex items-center gap-2">
@@ -666,7 +739,7 @@ export function ProductForm({
                 {/* ---------------------------------------------------- */}
                 {/* TAB 1: SEO & SEARCH ENGINES (First priority per user) */}
                 {/* ---------------------------------------------------- */}
-                {activeTab === "seo" && (
+                {activeTab === "seo" && mode === "create" && (
                     <div className="space-y-4 animate-in fade-in-50 duration-150">
                         {/* Multi-Regional & City SEO Card with Google SERP Live Preview */}
                         <GenericSeoCard
@@ -674,6 +747,7 @@ export function ProductForm({
                             entitySlug={slug}
                             entityDescription={shortDescription || description}
                             routePrefix="products"
+                            categorySlug={categories.find((c) => c.id === categoryId)?.slug || ""}
                             metaTitle={metaTitle}
                             setMetaTitle={setMetaTitle}
                             metaDescription={metaDescription}
@@ -684,6 +758,10 @@ export function ProductForm({
                             setMetaRobots={setMetaRobots}
                             canonicalUrl={canonicalUrl}
                             setCanonicalUrl={setCanonicalUrl}
+                            internalSection={internalSection}
+                            setInternalSection={setInternalSection}
+                            bottomSection={bottomSection}
+                            setBottomSection={setBottomSection}
                             locationOverrides={locationOverrides}
                             setLocationOverrides={setLocationOverrides}
                             availableLocations={availableLocationOptions}
@@ -738,7 +816,7 @@ export function ProductForm({
                                             size="sm"
                                             value={title}
                                             onChange={(e) => handleTitleChange(e.target.value)}
-                                            placeholder="e.g. Avissa Ginjala Laddu"
+                                            placeholder="Enter product title"
                                             disabled={isSubmitting}
                                         />
                                     </div>
@@ -748,7 +826,7 @@ export function ProductForm({
                                             size="sm"
                                             value={slug}
                                             onChange={(e) => handleSlugChange(e.target.value)}
-                                            placeholder="e.g. avissa-ginjala-laddu"
+                                            placeholder="Enter product slug"
                                             disabled={isSubmitting}
                                         />
                                     </div>
@@ -761,7 +839,7 @@ export function ProductForm({
                                             size="sm"
                                             value={brand}
                                             onChange={(e) => setBrand(e.target.value)}
-                                            placeholder="e.g. Royal Kitchens"
+                                            placeholder="Enter brand name"
                                             disabled={isSubmitting}
                                         />
                                     </div>
@@ -801,7 +879,7 @@ export function ProductForm({
                                         size="sm"
                                         value={shortDescription}
                                         onChange={(e) => setShortDescription(e.target.value)}
-                                        placeholder="e.g. Traditional flaxseed and jaggery laddus made with pure organic desi ghee."
+                                        placeholder="Enter short summary description"
                                         disabled={isSubmitting}
                                     />
                                 </div>
@@ -813,7 +891,7 @@ export function ProductForm({
                                         rows={3}
                                         value={description}
                                         onChange={(e) => setDescription(e.target.value)}
-                                        placeholder="Detailed product story, ingredients, preparation method, and serving tips..."
+                                        placeholder="Enter detailed description"
                                         disabled={isSubmitting}
                                     />
                                 </div>
@@ -847,7 +925,7 @@ export function ProductForm({
                                             value={tagInput}
                                             onChange={(e) => setTagInput(e.target.value)}
                                             onKeyDown={handleAddTag}
-                                            placeholder={tags.length === 0 ? "Add tags (e.g. healthy, sweets)..." : "Add more..."}
+                                            placeholder={tags.length === 0 ? "Enter tags (press Enter or comma)..." : "Enter more tags..."}
                                             disabled={isSubmitting}
                                             className="flex-1 min-w-[120px] text-xs bg-transparent border-none outline-none text-slate-900 dark:text-neutral-100 placeholder:text-slate-400 py-0.5"
                                         />
@@ -916,7 +994,7 @@ export function ProductForm({
                                                 size="sm"
                                                 value={storageInstructions}
                                                 onChange={(e) => setStorageInstructions(e.target.value)}
-                                                placeholder="e.g. Store in an airtight container at room temperature."
+                                                placeholder="Enter storage instructions"
                                                 disabled={isSubmitting}
                                             />
                                         </div>
@@ -926,7 +1004,7 @@ export function ProductForm({
                                                 size="sm"
                                                 value={allergens}
                                                 onChange={(e) => setAllergens(e.target.value)}
-                                                placeholder="e.g. Contains Nuts, Flaxseed, Pure Dairy Ghee"
+                                                placeholder="Enter allergen declarations"
                                                 disabled={isSubmitting}
                                             />
                                         </div>

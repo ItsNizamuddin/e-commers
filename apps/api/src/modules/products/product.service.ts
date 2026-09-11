@@ -5,6 +5,7 @@ import { categoryRepository } from "../categories/category.repository.js";
 import { productRepository, ProductRepository } from "./product.repository.js";
 import { ProductDocument } from "./product.model.js";
 import { InventoryModel } from "../inventory/models/inventory.model.js";
+import { seoService } from "../seo/seo.service.js";
 import { logger } from "../../config/logger.js";
 import {
     ProductResponse,
@@ -209,6 +210,30 @@ export class ProductService {
             }
         }
 
+        // Save SEO exclusively in entityseos collection
+        if (input.seo) {
+            try {
+                await seoService.upsertSeo("PRODUCT", product._id.toString(), {
+                    entityTitle: product.title,
+                    entitySlug: product.slug,
+                    global: {
+                        metaTitle: input.seo.metaTitle,
+                        metaDescription: input.seo.metaDescription,
+                        metaRobots: input.seo.metaRobots,
+                        keywords: input.seo.keywords,
+                        canonicalUrl: input.seo.canonicalUrl,
+                        ogTitle: input.seo.ogTitle,
+                        ogDescription: input.seo.ogDescription,
+                        ogImage: input.seo.ogImage,
+                        internalSection: input.seo.internalSection,
+                        bottomSection: input.seo.bottomSection,
+                    },
+                    locations: input.seo.locations,
+                });
+            } catch (seoErr) {
+                logger.warn(`Could not save SEO to entityseos for product ${product._id}: ${seoErr}`);
+            }
+        }
 
         return this.toProductResponse(product, true) as AdminProductResponse;
     }

@@ -13,6 +13,7 @@ import { reviewRoutes } from "./modules/reviews/index.js";
 import { wishlistRoutes } from "./modules/wishlist/index.js";
 import { searchRoutes } from "./modules/search/index.js";
 import { locationRouter, adminLocationRouter } from "./modules/locations/location.routes.js";
+import { seoRouter, adminSeoRouter } from "./modules/seo/seo.routes.js";
 
 const router = Router();
 
@@ -20,9 +21,11 @@ router.use("/auth", authRoutes);
 router.use("/users", userRoutes);
 router.use("/admin", adminRoutes);
 router.use("/admin/locations", adminLocationRouter);
+router.use("/admin/seo", adminSeoRouter);
 router.use("/categories", categoryRoutes);
 router.use("/products", productRoutes);
 router.use("/locations", locationRouter);
+router.use("/seo", seoRouter);
 router.use("/reservations", reservationRouter);
 router.use("/cart", cartRoutes);
 router.use("/checkout", checkoutRoutes);
