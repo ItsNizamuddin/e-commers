@@ -1,0 +1,552 @@
+"use client";
+
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import Link from "next/link";
+import { api } from "../../../../lib/api";
+import type { RepackagingRun } from "@ecommers/types";
+import {
+    Card,
+    Badge,
+    Button,
+    Input,
+    Spinner,
+    Modal,
+    FormField,
+    toast,
+} from "@ecommers/ui";
+import {
+    Layers,
+    Plus,
+    RefreshCw,
+    Search,
+    RotateCcw,
+    CheckCircle2,
+    XCircle,
+    Eye,
+    Boxes,
+    Package,
+    ArrowLeft,
+    Sparkles,
+    Calendar,
+    Tag,
+} from "lucide-react";
+
+export default function RepackagingDashboardPage() {
+    const [runs, setRuns] = useState<RepackagingRun[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [statusFilter, setStatusFilter] = useState<string>("ALL");
+
+    // Modal: View Details
+    const [viewingRun, setViewingRun] = useState<RepackagingRun | null>(null);
+
+    // Modal: Reverse Run
+    const [reversingRun, setReversingRun] = useState<RepackagingRun | null>(null);
+    const [reversalReason, setReversalReason] = useState("");
+    const [submittingReversal, setSubmittingReversal] = useState(false);
+
+    const fetchRuns = useCallback(async (isManual = false) => {
+        if (isManual) setRefreshing(true);
+        else setLoading(true);
+
+        try {
+            const data = await api.manufacturing.listRepackagingRuns({
+                status: statusFilter !== "ALL" ? statusFilter : undefined,
+            });
+            setRuns(data || []);
+        } catch (err: unknown) {
+            console.error("Failed to load repackaging runs:", err);
+            toast.error("Failed to load repackaging runs.");
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    }, [statusFilter]);
+
+    useEffect(() => {
+        fetchRuns();
+    }, [fetchRuns]);
+
+    // KPI Metrics
+    const metrics = useMemo(() => {
+        const total = runs.length;
+        let totalUnits = 0;
+        let totalCost = 0;
+        let reversedCount = 0;
+
+        for (const r of runs) {
+            if (r.status === "COMPLETED") {
+                totalUnits += r.packageUnitsProduced || 0;
+                totalCost += r.totalCost || 0;
+            } else if (r.status === "REVERSED") {
+                reversedCount++;
+            }
+        }
+
+        return {
+            total,
+            totalUnits,
+            totalCost: Math.round(totalCost),
+            reversedCount,
+        };
+    }, [runs]);
+
+    const filteredRuns = useMemo(() => {
+        return runs.filter((r) => {
+            const matchesStatus = statusFilter === "ALL" || r.status === statusFilter;
+            const q = searchQuery.toLowerCase().trim();
+            const matchesQuery =
+                !q ||
+                r.runNumber.toLowerCase().includes(q) ||
+                r.sourceRawMaterialName.toLowerCase().includes(q) ||
+                r.sourceLotNumber.toLowerCase().includes(q) ||
+                r.targetProductTitle.toLowerCase().includes(q);
+            return matchesStatus && matchesQuery;
+        });
+    }, [runs, statusFilter, searchQuery]);
+
+    const handleReverseRun = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!reversingRun) return;
+
+        if (!reversalReason.trim()) {
+            toast.error("Please provide an audited reason for reversal.");
+            return;
+        }
+
+        setSubmittingReversal(true);
+        try {
+            await api.manufacturing.reverseRepackagingRun(reversingRun.id, {
+                reason: reversalReason.trim(),
+            });
+
+            toast.success(`Repackaging run ${reversingRun.runNumber} reversed. Stock restored!`);
+            setReversingRun(null);
+            setReversalReason("");
+            fetchRuns(true);
+        } catch (err: unknown) {
+            console.error("Failed to reverse repackaging run:", err);
+            const msg = err instanceof Error ? err.message : "Failed to reverse run.";
+            toast.error(msg);
+        } finally {
+            setSubmittingReversal(false);
+        }
+    };
+
+    return (
+        <div className="space-y-6 pb-20 max-w-7xl mx-auto">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-200/80 dark:border-neutral-800/80 pb-4">
+                <div className="flex items-center gap-3">
+                    <Link
+                        href="/manufacturing"
+                        className="p-2 rounded-xl bg-slate-100 dark:bg-neutral-800 hover:bg-slate-200 dark:hover:bg-neutral-700 text-slate-600 dark:text-neutral-300 transition-colors"
+                    >
+                        <ArrowLeft size={18} />
+                    </Link>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+                                Stock Repackaging & Transformation
+                            </h1>
+                            <Badge variant="primary" size="sm" className="bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300">
+                                Bulk → Retail
+                            </Badge>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-neutral-400">
+                            Transform bulk ingredients into consumer packages without double-counting inventory, preserving end-to-end lot traceability.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 flex-wrap">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fetchRuns(true)}
+                        disabled={refreshing}
+                        className="gap-1.5 text-xs"
+                    >
+                        <RefreshCw size={13} className={refreshing ? "animate-spin" : ""} />
+                        <span>Refresh</span>
+                    </Button>
+                    <Link href="/manufacturing/repackaging/new">
+                        <Button
+                            variant="primary"
+                            size="sm"
+                            className="gap-1.5 text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white"
+                        >
+                            <Plus size={14} />
+                            <span>Repackage Bulk Stock</span>
+                        </Button>
+                    </Link>
+                </div>
+            </div>
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <Card className="p-4 bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl shadow-xs">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-500 dark:text-neutral-400">Total Runs</span>
+                        <div className="w-7 h-7 rounded-lg bg-purple-50 dark:bg-purple-950 text-purple-600 flex items-center justify-center">
+                            <Layers size={14} />
+                        </div>
+                    </div>
+                    <p className="text-2xl font-bold text-slate-900 dark:text-white mt-2">{metrics.total}</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Transformations</p>
+                </Card>
+
+                <Card className="p-4 bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl shadow-xs">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-500 dark:text-neutral-400">Packs Produced</span>
+                        <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950 text-emerald-600 flex items-center justify-center">
+                            <Package size={14} />
+                        </div>
+                    </div>
+                    <p className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-2">
+                        {metrics.totalUnits}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Finished retail units</p>
+                </Card>
+
+                <Card className="p-4 bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl shadow-xs">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-500 dark:text-neutral-400">Valuation Transformed</span>
+                        <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-600 flex items-center justify-center">
+                            <Sparkles size={14} />
+                        </div>
+                    </div>
+                    <p className="text-2xl font-bold font-mono text-blue-600 dark:text-blue-400 mt-2">
+                        ₹{metrics.totalCost.toLocaleString("en-IN")}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Material + packaging cost</p>
+                </Card>
+
+                <Card className="p-4 bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl shadow-xs">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-500 dark:text-neutral-400">Reversals</span>
+                        <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-neutral-800 text-slate-500 flex items-center justify-center">
+                            <RotateCcw size={14} />
+                        </div>
+                    </div>
+                    <p className="text-2xl font-bold text-slate-700 dark:text-neutral-300 mt-2">
+                        {metrics.reversedCount}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Audited reversals</p>
+                </Card>
+            </div>
+
+            {/* Filter Bar */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-[#111111] p-3 rounded-2xl border border-slate-200/80 dark:border-neutral-800/80 shadow-xs">
+                <div className="relative flex-1 max-w-md">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <Input
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search by run #, source lot, material, or product..."
+                        className="pl-8 text-xs h-9"
+                    />
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                    {(["ALL", "COMPLETED", "REVERSED"] as const).map((st) => (
+                        <button
+                            key={st}
+                            type="button"
+                            onClick={() => setStatusFilter(st)}
+                            className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                                statusFilter === st
+                                    ? "bg-slate-900 text-white dark:bg-white dark:text-neutral-900"
+                                    : "text-slate-600 dark:text-neutral-400 hover:bg-slate-100 dark:hover:bg-neutral-800"
+                            }`}
+                        >
+                            {st === "ALL" ? "All Runs" : st === "COMPLETED" ? "Completed" : "Reversed"}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Repackaging Runs Table */}
+            <Card className="bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl overflow-hidden shadow-xs">
+                {loading ? (
+                    <div className="flex flex-col items-center justify-center py-20">
+                        <Spinner size="lg" />
+                        <p className="text-xs text-slate-400 mt-2 font-medium">Loading repackaging runs...</p>
+                    </div>
+                ) : filteredRuns.length === 0 ? (
+                    <div className="text-center py-16 px-4">
+                        <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-neutral-800 text-slate-400 flex items-center justify-center mx-auto mb-3">
+                            <Layers size={24} />
+                        </div>
+                        <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">No Repackaging Runs Found</h3>
+                        <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                            {searchQuery ? "No transformations match your filter." : "Transform your first bulk raw material into retail-ready product packs."}
+                        </p>
+                        <Link href="/manufacturing/repackaging/new">
+                            <Button
+                                variant="primary"
+                                size="sm"
+                                className="mt-4 gap-1.5 text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white"
+                            >
+                                <Plus size={13} />
+                                <span>Repackage Bulk Stock</span>
+                            </Button>
+                        </Link>
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr className="bg-slate-50/80 dark:bg-neutral-900/60 border-b border-slate-200 dark:border-neutral-800 text-slate-500 dark:text-neutral-400 font-semibold">
+                                    <th className="py-3 px-4">Run # & Date</th>
+                                    <th className="py-3 px-3">Source Bulk Material</th>
+                                    <th className="py-3 px-3">Source Lot #</th>
+                                    <th className="py-3 px-3">Target Retail Pack</th>
+                                    <th className="py-3 px-3 text-right">Yield Output</th>
+                                    <th className="py-3 px-3 text-right">Cost / Unit</th>
+                                    <th className="py-3 px-3">Lot Expiry</th>
+                                    <th className="py-3 px-3 text-center">Status</th>
+                                    <th className="py-3 px-4 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-neutral-800/80">
+                                {filteredRuns.map((r) => {
+                                    const isReversed = r.status === "REVERSED";
+
+                                    return (
+                                        <tr key={r.id} className="hover:bg-slate-50/60 dark:hover:bg-neutral-800/30 transition-colors">
+                                            <td className="py-3 px-4">
+                                                <span className="font-mono font-bold text-slate-900 dark:text-white block">
+                                                    {r.runNumber}
+                                                </span>
+                                                <span className="text-[11px] text-slate-400">
+                                                    {r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-IN") : "—"}
+                                                </span>
+                                            </td>
+
+                                            <td className="py-3 px-3">
+                                                <span className="font-semibold text-slate-900 dark:text-white block">
+                                                    {r.sourceRawMaterialName}
+                                                </span>
+                                                <span className="font-mono text-[11px] text-slate-500">
+                                                    {r.sourceQuantity} {r.sourceUnit} consumed
+                                                </span>
+                                            </td>
+
+                                            <td className="py-3 px-3">
+                                                <span className="font-mono font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded text-[11px]">
+                                                    {r.sourceLotNumber}
+                                                </span>
+                                            </td>
+
+                                            <td className="py-3 px-3">
+                                                <span className="font-semibold text-slate-900 dark:text-white block">
+                                                    {r.targetProductTitle}
+                                                </span>
+                                                <span className="text-[11px] text-slate-500">
+                                                    {r.targetVariantTitle} ({r.unitSizeQuantity} {r.unitSizeUnit})
+                                                </span>
+                                            </td>
+
+                                            <td className="py-3 px-3 text-right">
+                                                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                                                    {r.packageUnitsProduced}
+                                                </span>
+                                                <span className="text-[11px] text-slate-400 block">packs</span>
+                                            </td>
+
+                                            <td className="py-3 px-3 text-right">
+                                                <span className="font-mono font-bold text-slate-900 dark:text-white block">
+                                                    ₹{r.unitCost.toFixed(2)}
+                                                </span>
+                                                <span className="font-mono text-[11px] text-slate-400">
+                                                    Total ₹{r.totalCost.toFixed(2)}
+                                                </span>
+                                            </td>
+
+                                            <td className="py-3 px-3 font-mono text-slate-600 dark:text-neutral-400">
+                                                {r.expiryDate ? new Date(r.expiryDate).toLocaleDateString("en-IN") : "—"}
+                                            </td>
+
+                                            <td className="py-3 px-3 text-center">
+                                                {isReversed ? (
+                                                    <Badge variant="danger" size="sm">REVERSED</Badge>
+                                                ) : (
+                                                    <Badge variant="success" size="sm">COMPLETED</Badge>
+                                                )}
+                                            </td>
+
+                                            <td className="py-3 px-4 text-right">
+                                                <div className="flex items-center justify-end gap-1.5">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => setViewingRun(r)}
+                                                        className="h-7 text-[11px] px-2 text-slate-600"
+                                                        title="View run details"
+                                                    >
+                                                        <Eye size={12} className="mr-1" />
+                                                        Details
+                                                    </Button>
+
+                                                    {!isReversed && (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => setReversingRun(r)}
+                                                            className="h-7 text-[11px] px-2 text-rose-600 hover:bg-rose-50 border-rose-200"
+                                                            title="Reverse transformation and restore bulk lot"
+                                                        >
+                                                            <RotateCcw size={12} className="mr-1" />
+                                                            Reverse
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </Card>
+
+            {/* Details Modal */}
+            <Modal
+                isOpen={!!viewingRun}
+                onClose={() => setViewingRun(null)}
+                title={`Repackaging Run: ${viewingRun?.runNumber || ""}`}
+                maxWidth="md"
+            >
+                {viewingRun && (
+                    <div className="space-y-4 pt-1 text-xs">
+                        {viewingRun.status === "REVERSED" && (
+                            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 text-rose-800 dark:text-rose-200">
+                                <strong>Run Reversed:</strong> {viewingRun.reversalDetails?.reason}
+                                <span className="block text-[11px] text-rose-600 mt-0.5">
+                                    Reversed on {viewingRun.reversalDetails?.reversedAt ? new Date(viewingRun.reversalDetails.reversedAt).toLocaleDateString("en-IN") : "—"}
+                                </span>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-neutral-900 rounded-xl">
+                            <div>
+                                <span className="text-slate-400 block text-[11px]">Source Bulk Material</span>
+                                <span className="font-bold text-slate-900 dark:text-white">
+                                    {viewingRun.sourceRawMaterialName}
+                                </span>
+                            </div>
+                            <div>
+                                <span className="text-slate-400 block text-[11px]">Source Lot Number</span>
+                                <span className="font-mono font-bold text-blue-600">
+                                    {viewingRun.sourceLotNumber}
+                                </span>
+                            </div>
+                            <div>
+                                <span className="text-slate-400 block text-[11px]">Target Consumer SKU</span>
+                                <span className="font-bold text-slate-900 dark:text-white">
+                                    {viewingRun.targetProductTitle}
+                                </span>
+                            </div>
+                            <div>
+                                <span className="text-slate-400 block text-[11px]">Variant & Pack Size</span>
+                                <span className="text-slate-700 dark:text-neutral-300">
+                                    {viewingRun.targetVariantTitle} ({viewingRun.unitSizeQuantity} {viewingRun.unitSizeUnit})
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                            <div className="p-2.5 rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+                                <span className="text-slate-400 text-[10px] block">Bulk Consumed</span>
+                                <span className="font-mono font-bold text-slate-900 dark:text-white">
+                                    {viewingRun.sourceQuantity} {viewingRun.sourceUnit}
+                                </span>
+                            </div>
+                            <div className="p-2.5 rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+                                <span className="text-slate-400 text-[10px] block">Packs Produced</span>
+                                <span className="font-mono font-bold text-emerald-600">
+                                    {viewingRun.packageUnitsProduced}
+                                </span>
+                            </div>
+                            <div className="p-2.5 rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+                                <span className="text-slate-400 text-[10px] block">Cost / Pack</span>
+                                <span className="font-mono font-bold text-blue-600">
+                                    ₹{viewingRun.unitCost.toFixed(2)}
+                                </span>
+                            </div>
+                        </div>
+
+                        {viewingRun.notes && (
+                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-neutral-900 border border-slate-100">
+                                <span className="text-slate-400 text-[11px] block">Operator Notes:</span>
+                                <p className="text-slate-700 dark:text-neutral-300 mt-0.5">{viewingRun.notes}</p>
+                            </div>
+                        )}
+
+                        <div className="flex justify-end pt-2">
+                            <Button variant="outline" size="sm" onClick={() => setViewingRun(null)}>
+                                Close
+                            </Button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            {/* Reversal Confirmation Modal */}
+            <Modal
+                isOpen={!!reversingRun}
+                onClose={() => setReversingRun(null)}
+                title="Reverse Repackaging Run"
+                maxWidth="sm"
+            >
+                {reversingRun && (
+                    <form onSubmit={handleReverseRun} className="space-y-4 pt-1">
+                        <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 text-amber-900 dark:text-amber-200 text-xs">
+                            <strong>Warning:</strong> Reversing run <strong>{reversingRun.runNumber}</strong> will:
+                            <ul className="list-disc list-inside mt-1 space-y-0.5 text-[11px]">
+                                <li>Debit {reversingRun.packageUnitsProduced} units from finished store inventory.</li>
+                                <li>Restore {reversingRun.sourceQuantity} {reversingRun.sourceUnit} back to bulk lot <strong>{reversingRun.sourceLotNumber}</strong>.</li>
+                                <li>Log audited contra-movements in both stock ledgers.</li>
+                            </ul>
+                        </div>
+
+                        <FormField label="Audited Reversal Reason" required helperText="Explain why this transformation is being reversed">
+                            <Input
+                                value={reversalReason}
+                                onChange={(e) => setReversalReason(e.target.value)}
+                                placeholder="e.g. Weight deviation or defective batch packaging seal"
+                                required
+                                className="text-xs"
+                            />
+                        </FormField>
+
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-neutral-800">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setReversingRun(null)}
+                                disabled={submittingReversal}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                type="submit"
+                                variant="primary"
+                                size="sm"
+                                disabled={submittingReversal}
+                                className="bg-rose-600 hover:bg-rose-700 text-white gap-1.5"
+                            >
+                                {submittingReversal && <Spinner size="sm" />}
+                                <span>Confirm Reversal</span>
+                            </Button>
+                        </div>
+                    </form>
+                )}
+            </Modal>
+        </div>
+    );
+}

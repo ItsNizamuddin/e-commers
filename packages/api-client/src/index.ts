@@ -13,6 +13,7 @@ import { SearchClient } from "./domains/search";
 import { AdminClient } from "./domains/admin";
 import { LocationsClient } from "./domains/locations";
 import { SeoClient } from "./domains/seo";
+import { ManufacturingClient } from "./domains/manufacturing";
 
 export * from "./errors";
 export * from "./token-store";
@@ -31,6 +32,7 @@ export * from "./domains/wishlist";
 export * from "./domains/search";
 export * from "./domains/admin";
 export * from "./domains/seo";
+export * from "./domains/manufacturing";
 
 export interface EcommersApi {
     client: ApiClient;
@@ -48,6 +50,7 @@ export interface EcommersApi {
     search: SearchClient;
     admin: AdminClient;
     seo: SeoClient;
+    manufacturing: ManufacturingClient;
 }
 
 export function createEcommersClient(config: ApiClientConfig): EcommersApi {
@@ -68,6 +71,7 @@ export function createEcommersClient(config: ApiClientConfig): EcommersApi {
         search: new SearchClient(client),
         admin: new AdminClient(client),
         seo: new SeoClient(client),
+        manufacturing: new ManufacturingClient(client),
     };
 }
 

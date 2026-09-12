@@ -29,6 +29,10 @@ import {
     MapPin,
     Globe,
     FileSpreadsheet,
+    Boxes,
+    ClipboardList,
+    CalendarCheck,
+    Cpu,
 } from "lucide-react";
 import { useAppSelector, useAppDispatch } from "../../store";
 import { clearSession } from "../../store/auth-slice";
@@ -137,6 +141,41 @@ const NAV_SECTIONS: NavSection[] = [
                 href: "/seo/bulk",
                 icon: FileSpreadsheet,
                 allowedRoles: ["SUPER_ADMIN", "ADMIN", "PUBLISHER"],
+            },
+        ],
+    },
+    {
+        title: "MANUFACTURING & RECIPES",
+        items: [
+            {
+                label: "Raw Materials",
+                href: "/raw-materials",
+                icon: Boxes,
+                allowedRoles: ["SUPER_ADMIN", "ADMIN"],
+                subItems: [
+                    { label: "Material Catalog", href: "/raw-materials", icon: Boxes },
+                    { label: "Intake & Purchases", href: "/raw-materials/purchases", icon: Truck },
+                    { label: "Active Lots & FEFO", href: "/raw-materials/lots", icon: CalendarCheck },
+                    { label: "Raw Stock Ledger", href: "/raw-materials/ledger", icon: Layers },
+                ],
+            },
+            {
+                label: "Recipes (BOM)",
+                href: "/recipes",
+                icon: ClipboardList,
+                allowedRoles: ["SUPER_ADMIN", "ADMIN"],
+            },
+            {
+                label: "Production Batches",
+                href: "/manufacturing",
+                icon: Cpu,
+                allowedRoles: ["SUPER_ADMIN", "ADMIN"],
+            },
+            {
+                label: "Stock Repackaging",
+                href: "/manufacturing/repackaging",
+                icon: Layers,
+                allowedRoles: ["SUPER_ADMIN", "ADMIN"],
             },
         ],
     },

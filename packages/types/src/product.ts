@@ -217,3 +217,6 @@ export interface ProductQueryOptions {
     sortOrder?: "asc" | "desc";
 }
 
+export type Product = ProductResponse;
+export type ProductVariant = ProductVariantResponse;
+
