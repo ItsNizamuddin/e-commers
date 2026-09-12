@@ -25,13 +25,26 @@ export interface RepackagingRunDocument extends Document {
     warehouseName?: string | undefined;
     totalCost: number;
     unitCost: number;
-    status: "COMPLETED" | "REVERSED";
+    status: "COMPLETED" | "PARTIALLY_REVERSED" | "REVERSED";
     expiryDate: Date;
+    reversedUnits?: number | undefined;
+    wastageReport?: {
+        expectedLossQuantity: number;
+        actualLossQuantity: number;
+        varianceQuantity: number;
+        unit: RawMaterialUnit;
+        wastageCategory: string;
+        wastageNotes?: string | undefined;
+    } | undefined;
     reversalDetails?: {
         reversedAt: Date;
         reversalReference: string;
         reason: string;
         reversedBy?: any;
+        reversedQuantity: number;
+        originalQuantity: number;
+        soldOrReservedAtReversal: number;
+        isPartial: boolean;
     } | undefined;
     notes?: string | undefined;
     createdAt: Date;
@@ -44,6 +57,31 @@ const ReversalDetailsSubSchema = new Schema(
         reversalReference: { type: String, required: true },
         reason: { type: String, required: true },
         reversedBy: { type: AuditActorSchema, default: undefined },
+        reversedQuantity: { type: Number, required: true, default: 0 },
+        originalQuantity: { type: Number, required: true, default: 0 },
+        soldOrReservedAtReversal: { type: Number, required: true, default: 0 },
+        isPartial: { type: Boolean, required: true, default: false },
+    },
+    { _id: false }
+);
+
+const WastageReportSubSchema = new Schema(
+    {
+        expectedLossQuantity: { type: Number, required: true, default: 0 },
+        actualLossQuantity: { type: Number, required: true, default: 0 },
+        varianceQuantity: { type: Number, required: true, default: 0 },
+        unit: { type: String, required: true },
+        wastageCategory: {
+            type: String,
+            enum: [
+                "RECIPE_NORMAL_LOSS",
+                "PRODUCTION_UNPLANNED_LOSS",
+                "SPOILAGE_QC_FAILURE",
+                "DAMAGE_HANDLING",
+            ],
+            default: "RECIPE_NORMAL_LOSS",
+        },
+        wastageNotes: { type: String, trim: true },
     },
     { _id: false }
 );
@@ -161,7 +199,7 @@ const RepackagingRunSchema = new Schema<RepackagingRunDocument>(
         },
         status: {
             type: String,
-            enum: ["COMPLETED", "REVERSED"],
+            enum: ["COMPLETED", "PARTIALLY_REVERSED", "REVERSED"],
             required: true,
             default: "COMPLETED",
             index: true,
@@ -169,6 +207,14 @@ const RepackagingRunSchema = new Schema<RepackagingRunDocument>(
         expiryDate: {
             type: Date,
             required: true,
+        },
+        reversedUnits: {
+            type: Number,
+            default: 0,
+        },
+        wastageReport: {
+            type: WastageReportSubSchema,
+            default: undefined,
         },
         reversalDetails: {
             type: ReversalDetailsSubSchema,

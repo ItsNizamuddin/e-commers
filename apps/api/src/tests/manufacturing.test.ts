@@ -587,5 +587,476 @@ describe("Food Manufacturing & Raw Material Inventory Architecture Tests", () =>
         expect(outMov).not.toBeNull();
         expect(outMov!.quantityDelta).toBe(-20);
     });
+
+    // =========================================================================
+    // PHASE 11: CONCURRENT PRODUCTION RACE CONDITION GUARD
+    // =========================================================================
+    it("Phase 11: Concurrent Production Race Condition Guard (Double-Spend & Negative Balances Prevented)", async () => {
+        // Setup Besan raw material with strictly 10kg available
+        const besanRmRes = await request(app)
+            .post("/api/v1/admin/manufacturing/raw-materials")
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                code: `RM-CONC-${Date.now()}`,
+                name: "Concurrent Test Besan (Gram Flour)",
+                category: "GRAIN",
+                unit: "kg",
+                reorderThreshold: 2,
+            });
+        expect(besanRmRes.status).toBe(201);
+        const besanRmId = besanRmRes.body.data.id;
+
+        // Inward 10kg into a single lot
+        const intakeRes = await request(app)
+            .post("/api/v1/admin/manufacturing/intakes")
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                rawMaterialId: besanRmId,
+                lotNumber: `LOT-BESAN-CONC-${Date.now()}`,
+                quantity: 10,
+                unit: "kg",
+                costPerUnit: 80,
+                sourceType: "EXTERNAL_VENDOR",
+                supplier: {
+                    name: "Apex Agro Millers",
+                    invoiceNumber: "INV-BESAN-CONC-01",
+                },
+                expiryDate: new Date(Date.now() + 180 * 86400000).toISOString(),
+            });
+        expect(intakeRes.status).toBe(201);
+
+        // Recipe: 1 unit requires 1 kg Besan
+        const concRecipeRes = await request(app)
+            .post("/api/v1/admin/manufacturing/recipes")
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                name: "Concurrent Besan Ladoo 1kg",
+                code: `REC-BESAN-CONC-${Date.now()}`,
+                version: 1,
+                productId: testProductId,
+                variantId: testVariantId,
+                batchYield: { quantity: 1, unit: "pcs" },
+                shelfLifeDays: 45,
+                ingredients: [
+                    {
+                        rawMaterialId: besanRmId,
+                        quantity: 1,
+                        unit: "kg",
+                        wastagePercent: 0,
+                    },
+                ],
+            });
+        expect(concRecipeRes.status).toBe(201);
+        const concRecipeId = concRecipeRes.body.data.id;
+
+        // Worker A requests 8 units (requires 8 kg)
+        const reqWorkerA = request(app)
+            .post("/api/v1/admin/manufacturing/production-runs")
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                recipeId: concRecipeId,
+                plannedQuantity: 8,
+                actualQuantity: 8,
+                warehouseId: DEFAULT_WAREHOUSE_ID,
+                manufacturingDate: new Date().toISOString(),
+            });
+
+        // Worker B requests 7 units (requires 7 kg)
+        const reqWorkerB = request(app)
+            .post("/api/v1/admin/manufacturing/production-runs")
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                recipeId: concRecipeId,
+                plannedQuantity: 7,
+                actualQuantity: 7,
+                warehouseId: DEFAULT_WAREHOUSE_ID,
+                manufacturingDate: new Date().toISOString(),
+            });
+
+        // Fire both requests concurrently
+        const [resA, resB] = await Promise.all([reqWorkerA, reqWorkerB]);
+
+        const statuses = [resA.status, resB.status];
+        // Exactly ONE request must succeed (201), and the other must fail with 400 or 409
+        expect(statuses).toContain(201);
+        const successCount = statuses.filter((s) => s === 201).length;
+        expect(successCount).toBe(1);
+
+        const failedRes = resA.status === 201 ? resB : resA;
+        const successRes = resA.status === 201 ? resA : resB;
+        expect(failedRes.status).not.toBe(201);
+        expect([400, 409]).toContain(failedRes.status);
+
+        // Verify that Besan stock NEVER went negative (10 - 8 - 7 != -5 kg)
+        const remainingRm = await RawMaterialModel.findById(besanRmId);
+        expect(remainingRm).not.toBeNull();
+        expect(remainingRm!.currentStock).toBeGreaterThanOrEqual(0);
+
+        const expectedStock = 10 - successRes.body.data.actualQuantity;
+        expect(remainingRm!.currentStock).toBe(expectedStock);
+
+        // Verify lot availableQuantity matches exactly
+        const besanLot = await RawMaterialLotModel.findOne({ rawMaterialId: new Types.ObjectId(besanRmId) });
+        expect(besanLot).not.toBeNull();
+        expect(besanLot!.availableQuantity).toBe(expectedStock);
+        expect(besanLot!.availableQuantity).toBeGreaterThanOrEqual(0);
+    });
+
+    // =========================================================================
+    // PHASE 12: REVERSAL GUARD AFTER FINISHED GOODS ARE SOLD & PARTIAL REVERSAL
+    // =========================================================================
+    it("Phase 12: Reversal Guard when Finished Goods are Sold (Rejects Full, Allows Controlled Partial)", async () => {
+        // 1. Create a fresh batch of 100 units
+        const bulkRmRes = await request(app)
+            .post("/api/v1/admin/manufacturing/raw-materials")
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                code: `RM-REV-${Date.now()}`,
+                name: "Batch Reversal Test Flour",
+                category: "GRAIN",
+                unit: "kg",
+                reorderThreshold: 5,
+            });
+        expect(bulkRmRes.status).toBe(201);
+        const revRmId = bulkRmRes.body.data.id;
+
+        await request(app)
+            .post("/api/v1/admin/manufacturing/intakes")
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                rawMaterialId: revRmId,
+                lotNumber: `LOT-REV-FLOUR-${Date.now()}`,
+                quantity: 100,
+                unit: "kg",
+                costPerUnit: 50,
+                sourceType: "EXTERNAL_VENDOR",
+                supplier: {
+                    name: "Bulk Mills Ltd",
+                    invoiceNumber: "INV-REV-FLOUR-01",
+                },
+                expiryDate: new Date(Date.now() + 180 * 86400000).toISOString(),
+            });
+
+        const revRecipeRes = await request(app)
+            .post("/api/v1/admin/manufacturing/recipes")
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                name: "Reversal Test Cookies 100pk",
+                code: `REC-REV-${Date.now()}`,
+                version: 1,
+                productId: testProductId,
+                variantId: testVariantId,
+                batchYield: { quantity: 1, unit: "pcs" },
+                shelfLifeDays: 60,
+                ingredients: [
+                    {
+                        rawMaterialId: revRmId,
+                        quantity: 1,
+                        unit: "kg",
+                        wastagePercent: 0,
+                    },
+                ],
+            });
+        const revRecipeId = revRecipeRes.body.data.id;
+
+        // Produce 100 units
+        const prodRes = await request(app)
+            .post("/api/v1/admin/manufacturing/production-runs")
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                recipeId: revRecipeId,
+                plannedQuantity: 100,
+                actualQuantity: 100,
+                warehouseId: DEFAULT_WAREHOUSE_ID,
+                manufacturingDate: new Date().toISOString(),
+            });
+        expect(prodRes.status).toBe(201);
+        const batchId = prodRes.body.data.id;
+
+        const invBefore = await InventoryModel.findOne({
+            productId: new Types.ObjectId(testProductId),
+            warehouseId: new Types.ObjectId(DEFAULT_WAREHOUSE_ID),
+        });
+        expect(invBefore).not.toBeNull();
+
+        // 2. Simulate 60 units sold or dispatched to customers
+        // Set onHand to exactly 40 units remaining from this batch
+        invBefore!.onHand = 40;
+        await invBefore!.save();
+
+        // 3. Attempt FULL reversal of 100 units -> MUST BE REJECTED
+        const fullRevAttempt = await request(app)
+            .post(`/api/v1/admin/manufacturing/production-runs/${batchId}/reverse`)
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                reason: "Defect found in batch - attempt full reversal",
+            });
+
+        expect(fullRevAttempt.status).toBe(400);
+        expect(fullRevAttempt.body.success).toBe(false);
+        expect(fullRevAttempt.body.error.message).toContain("Maximum reversible quantity: 40");
+        expect(fullRevAttempt.body.error.message).toContain("60 units have already been sold or reserved");
+
+        // 4. Attempt partial reversal of 40 units -> MUST SUCCEED
+        const partialRev = await request(app)
+            .post(`/api/v1/admin/manufacturing/production-runs/${batchId}/reverse`)
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                reverseQuantity: 40,
+                reason: "Recall and scrap remaining 40 unsold units",
+            });
+
+        expect(partialRev.status).toBe(200);
+        expect(partialRev.body.success).toBe(true);
+        expect(partialRev.body.data.status).toBe("PARTIALLY_REVERSED");
+        expect(partialRev.body.data.reversalDetails.reversedQuantity).toBe(40);
+        expect(partialRev.body.data.reversalDetails.isPartial).toBe(true);
+        expect(partialRev.body.data.reversalDetails.soldOrReservedAtReversal).toBe(60);
+
+        // 5. Verify finished goods inventory debited by 40 units (onHand becomes 0)
+        const invAfter = await InventoryModel.findById(invBefore!._id);
+        expect(invAfter!.onHand).toBe(0);
+
+        // 6. Verify raw material lots restored PROPORTIONALLY (40% of 100kg = 40kg restored)
+        const restoredRm = await RawMaterialModel.findById(revRmId);
+        expect(restoredRm!.currentStock).toBe(40);
+
+        const restoredLot = await RawMaterialLotModel.findOne({ rawMaterialId: new Types.ObjectId(revRmId) });
+        expect(restoredLot!.availableQuantity).toBe(40);
+    });
+
+    // =========================================================================
+    // PHASE 13: REPACKAGING REVERSAL GUARD WITH SOLD RETAIL PACKS
+    // =========================================================================
+    it("Phase 13: Repackaging Reversal Guard when Retail Packs Sold (Rejects Full, Allows Partial)", async () => {
+        // 1. Create bulk cashew nuts (100 kg)
+        const cashewRmRes = await request(app)
+            .post("/api/v1/admin/manufacturing/raw-materials")
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                code: `RM-CASHEW-${Date.now()}`,
+                name: "Premium Whole Cashews Bulk",
+                category: "INGREDIENT",
+                usage: "BOTH",
+                unit: "kg",
+                reorderThreshold: 10,
+            });
+        expect(cashewRmRes.status).toBe(201);
+        const cashewRmId = cashewRmRes.body.data.id;
+
+        const cashewLotRes = await request(app)
+            .post("/api/v1/admin/manufacturing/intakes")
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                rawMaterialId: cashewRmId,
+                lotNumber: `LOT-CASHEW-${Date.now()}`,
+                quantity: 100,
+                unit: "kg",
+                costPerUnit: 600,
+                sourceType: "EXTERNAL_VENDOR",
+                supplier: {
+                    name: "Goa Cashew Plantations",
+                    invoiceNumber: "INV-CASHEW-001",
+                },
+                expiryDate: new Date(Date.now() + 365 * 86400000).toISOString(),
+            });
+        const cashewLotId = cashewLotRes.body.data.lot.id;
+
+        // Retail product for 500g pouch
+        const cashewProductRes = await request(app)
+            .post("/api/v1/products")
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                title: "Premium Whole Cashews 500g Pouch",
+                slug: `cashews-500g-pouch-${Date.now()}`,
+                categoryId: (await CategoryModel.findOne())!._id.toString(),
+                baseCurrency: "INR",
+                variants: [
+                    {
+                        title: "500g Pouch",
+                        sku: `SKU-CASHEW-500G-${Date.now()}`,
+                        prices: [{ currency: "INR", amount: 450, costAmount: 300 }],
+                    },
+                ],
+            });
+        const retailProdId = cashewProductRes.body.data.id;
+        const retailVarId = cashewProductRes.body.data.variants[0].id;
+
+        // Repackage 40 packs of 500g (20 kg bulk required)
+        const repackRes = await request(app)
+            .post("/api/v1/admin/manufacturing/repackaging")
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                sourceRawMaterialId: cashewRmId,
+                sourceLotId: cashewLotId,
+                targetProductId: retailProdId,
+                targetVariantId: retailVarId,
+                packageUnitsProduced: 40,
+                unitSizeQuantity: 500,
+                unitSizeUnit: "g",
+                warehouseId: DEFAULT_WAREHOUSE_ID,
+                notes: "Cashew 500g repackaging batch",
+            });
+        expect(repackRes.status).toBe(201);
+        const rpkRunId = repackRes.body.data.id;
+
+        // Verify bulk stock deducted from 100kg to 80kg
+        const lotAfterPack = await RawMaterialLotModel.findById(cashewLotId);
+        expect(lotAfterPack!.availableQuantity).toBe(80);
+
+        // 2. Simulate 30 packs sold to retail customers (10 packs remain on hand)
+        const inv = await InventoryModel.findOne({
+            productId: new Types.ObjectId(retailProdId),
+            variantId: new Types.ObjectId(retailVarId),
+            warehouseId: new Types.ObjectId(DEFAULT_WAREHOUSE_ID),
+        });
+        expect(inv).not.toBeNull();
+        expect(inv!.onHand).toBe(40);
+        inv!.onHand = 10;
+        await inv!.save();
+
+        // 3. Attempt FULL reversal of 40 units -> MUST BE REJECTED
+        const fullRevFail = await request(app)
+            .post(`/api/v1/admin/manufacturing/repackaging/${rpkRunId}/reverse`)
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                reason: "Mislabeling detected - attempt full recall",
+            });
+
+        expect(fullRevFail.status).toBe(400);
+        expect(fullRevFail.body.success).toBe(false);
+        expect(fullRevFail.body.error.message).toContain("Maximum reversible quantity: 10");
+        expect(fullRevFail.body.error.message).toContain("30 units have already been sold or reserved");
+
+        // 4. Execute partial reversal of 10 units -> MUST SUCCEED
+        const partialRevSuccess = await request(app)
+            .post(`/api/v1/admin/manufacturing/repackaging/${rpkRunId}/reverse`)
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                reverseQuantity: 10,
+                reason: "Recall and return to bulk for 10 unsold packs",
+            });
+
+        expect(partialRevSuccess.status).toBe(200);
+        expect(partialRevSuccess.body.success).toBe(true);
+        expect(partialRevSuccess.body.data.status).toBe("PARTIALLY_REVERSED");
+        expect(partialRevSuccess.body.data.reversalDetails.reversedQuantity).toBe(10);
+        expect(partialRevSuccess.body.data.reversalDetails.isPartial).toBe(true);
+
+        // 5. Store inventory onHand becomes 0
+        const invFinal = await InventoryModel.findById(inv!._id);
+        expect(invFinal!.onHand).toBe(0);
+
+        // 6. Proportional bulk mass restored: 10/40 * 20kg = 5kg restored
+        // Bulk lot stock should increase from 80kg to 85kg
+        const lotFinal = await RawMaterialLotModel.findById(cashewLotId);
+        expect(lotFinal!.availableQuantity).toBe(85);
+
+        const rmFinal = await RawMaterialModel.findById(cashewRmId);
+        expect(rmFinal!.currentStock).toBe(85);
+    });
+
+    // =========================================================================
+    // PHASE 14: WASTAGE VARIANCE ANALYTICS & QA EXPIRY OVERRIDE AUDIT TRAIL
+    // =========================================================================
+    it("Phase 14: Wastage Variance Tracking & QA Expiry Override Audit Trail", async () => {
+        // Create raw material with 100g
+        const saffronRmRes = await request(app)
+            .post("/api/v1/admin/manufacturing/raw-materials")
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                code: `RM-SAFFRON-${Date.now()}`,
+                name: "Kashmiri Mongra Saffron",
+                category: "SPICE",
+                unit: "g",
+                reorderThreshold: 5,
+            });
+        expect(saffronRmRes.status).toBe(201);
+        const saffronRmId = saffronRmRes.body.data.id;
+
+        await request(app)
+            .post("/api/v1/admin/manufacturing/intakes")
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                rawMaterialId: saffronRmId,
+                lotNumber: `LOT-SAFFRON-${Date.now()}`,
+                quantity: 100,
+                unit: "g",
+                costPerUnit: 250,
+                sourceType: "EXTERNAL_VENDOR",
+                supplier: {
+                    name: "Pampore Saffron Guild",
+                    invoiceNumber: "INV-SAFFRON-01",
+                },
+                expiryDate: new Date(Date.now() + 730 * 86400000).toISOString(),
+            });
+
+        // Recipe: 10 units yield, 5% normal loss
+        const saffronRecipeRes = await request(app)
+            .post("/api/v1/admin/manufacturing/recipes")
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                name: "Saffron Extract Essence 100ml",
+                code: `REC-SAFFRON-${Date.now()}`,
+                version: 1,
+                productId: testProductId,
+                variantId: testVariantId,
+                batchYield: { quantity: 10, unit: "pcs" },
+                shelfLifeDays: 90,
+                ingredients: [
+                    {
+                        rawMaterialId: saffronRmId,
+                        quantity: 10,
+                        unit: "g",
+                        wastagePercent: 5, // 5% expected loss
+                    },
+                ],
+            });
+        const saffronRecipeId = saffronRecipeRes.body.data.id;
+
+        // Custom QA Expiry Date
+        const customQAExpiry = new Date(Date.now() + 365 * 86400000).toISOString();
+
+        // Execute production with explicit actual loss variance and QA override
+        const runRes = await request(app)
+            .post("/api/v1/admin/manufacturing/production-runs")
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                recipeId: saffronRecipeId,
+                plannedQuantity: 10,
+                actualQuantity: 10,
+                actualLossQuantity: 1.2, // Actual loss 1.2g vs expected (0.5g)
+                wastageCategory: "PRODUCTION_UNPLANNED_LOSS",
+                wastageNotes: "Unplanned evaporation loss during heating process",
+                customExpiryDate: customQAExpiry,
+                qaApprovalNotes: "QA Chief approved extended 12-month expiry based on nitrogen flush packaging",
+                warehouseId: DEFAULT_WAREHOUSE_ID,
+                manufacturingDate: new Date().toISOString(),
+            });
+
+        expect(runRes.status).toBe(201);
+        expect(runRes.body.success).toBe(true);
+
+        const data = runRes.body.data;
+
+        // 1. Validate Wastage Report
+        expect(data.wastageReport).toBeDefined();
+        expect(data.wastageReport.wastageCategory).toBe("PRODUCTION_UNPLANNED_LOSS");
+        expect(data.wastageReport.actualLossQuantity).toBe(1.2);
+        expect(data.wastageReport.expectedLossQuantity).toBe(0.5); // 10g * 5% = 0.5g
+        expect(data.wastageReport.varianceQuantity).toBe(0.7); // 1.2 - 0.5 = 0.7g variance
+        expect(data.wastageReport.wastageNotes).toBe("Unplanned evaporation loss during heating process");
+
+        // 2. Validate QA Expiry Determination & Audit Trail
+        expect(data.expiryDetermination).toBeDefined();
+        expect(data.expiryDetermination.decisionType).toBe("QA_OVERRIDE");
+        expect(data.expiryDetermination.recipeShelfLifeDays).toBe(90);
+        expect(data.expiryDetermination.qaApprovalNotes).toBe(
+            "QA Chief approved extended 12-month expiry based on nitrogen flush packaging"
+        );
+        expect(new Date(data.expiryDate).toISOString().slice(0, 10)).toBe(
+            customQAExpiry.slice(0, 10)
+        );
+    });
 });
 

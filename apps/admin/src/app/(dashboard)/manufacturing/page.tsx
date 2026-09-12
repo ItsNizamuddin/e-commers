@@ -58,6 +58,7 @@ export default function ManufacturingPage() {
     // Modal: Reverse Batch
     const [reversingBatch, setReversingBatch] = useState<ProductionRun | null>(null);
     const [reversalReason, setReversalReason] = useState("");
+    const [reverseQuantity, setReverseQuantity] = useState<string>("");
     const [submittingReversal, setSubmittingReversal] = useState(false);
 
     // Load initial data
@@ -119,11 +120,13 @@ export default function ManufacturingPage() {
         try {
             await api.manufacturing.reverseProduction(reversingBatch.id, {
                 reason: reversalReason.trim(),
+                reverseQuantity: reverseQuantity ? parseFloat(reverseQuantity) : undefined,
             });
 
             toast.success(`Batch ${reversingBatch.batchNumber} has been successfully reversed.`);
             setReversingBatch(null);
             setReversalReason("");
+            setReverseQuantity("");
             loadData(true);
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : "Failed to reverse production batch.";
@@ -430,6 +433,10 @@ export default function ManufacturingPage() {
                                                     <Badge variant="success" size="sm" className="font-semibold">
                                                         Completed
                                                     </Badge>
+                                                ) : run.status === "PARTIALLY_REVERSED" ? (
+                                                    <Badge variant="warning" size="sm" className="font-semibold">
+                                                        Partially Reversed ({run.reversedQuantity || 0}/{run.actualQuantity})
+                                                    </Badge>
                                                 ) : run.status === "REVERSED" ? (
                                                     <Badge variant="danger" size="sm" className="font-semibold">
                                                         Reversed
@@ -454,7 +461,7 @@ export default function ManufacturingPage() {
                                                         Details
                                                     </Button>
 
-                                                    {run.status === "COMPLETED" && (
+                                                    {(run.status === "COMPLETED" || run.status === "PARTIALLY_REVERSED") && (
                                                         <Button
                                                             variant="outline"
                                                             size="sm"
@@ -463,6 +470,7 @@ export default function ManufacturingPage() {
                                                             title="Reverse batch: restock raw materials and debit finished goods"
                                                         >
                                                             <RotateCcw size={12} />
+                                                            <span className="sr-only">Reverse</span>
                                                         </Button>
                                                     )}
                                                 </div>
@@ -488,18 +496,23 @@ export default function ManufacturingPage() {
                 {viewingBatch && (
                     <div className="space-y-4 pt-1 text-xs">
                         {/* Status banner */}
-                        {viewingBatch.status === "REVERSED" && viewingBatch.reversalDetails && (
-                            <div className="p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-xl space-y-1">
-                                <div className="flex items-center gap-1.5 font-bold text-rose-700 dark:text-rose-400">
-                                    <RotateCcw size={14} /> Batch Reversed
+                        {viewingBatch.reversalDetails && (
+                            <div className={`p-3 ${viewingBatch.reversalDetails.isPartial ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900 text-amber-800 dark:text-amber-200" : "bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-200"} border rounded-xl space-y-1`}>
+                                <div className="flex items-center gap-1.5 font-bold">
+                                    <RotateCcw size={14} /> {viewingBatch.reversalDetails.isPartial ? `Partially Reversed (${viewingBatch.reversalDetails.reversedQuantity} / ${viewingBatch.actualQuantity} ${viewingBatch.yieldUnit})` : "Fully Reversed"}
                                 </div>
-                                <p className="text-rose-600 dark:text-rose-300">
+                                <p className="text-[11px]">
                                     <strong>Reversal Ref:</strong> {viewingBatch.reversalDetails.reversalReference}
                                 </p>
-                                <p className="text-rose-600 dark:text-rose-300">
+                                <p className="text-[11px]">
                                     <strong>Reason:</strong> {viewingBatch.reversalDetails.reason}
                                 </p>
-                                <p className="text-[11px] text-rose-500">
+                                {viewingBatch.reversalDetails.soldOrReservedAtReversal > 0 && (
+                                    <p className="text-[11px]">
+                                        <strong>Sold / Reserved at Reversal:</strong> {viewingBatch.reversalDetails.soldOrReservedAtReversal} {viewingBatch.yieldUnit}
+                                    </p>
+                                )}
+                                <p className="text-[10px] opacity-75">
                                     Reversed on {new Date(viewingBatch.reversalDetails.reversedAt).toLocaleString("en-IN")}
                                 </p>
                             </div>
@@ -543,6 +556,77 @@ export default function ManufacturingPage() {
                                 </span>
                             </div>
                         </div>
+
+                        {/* Wastage Variance & QA Expiry Audit */}
+                        {(viewingBatch.wastageReport || viewingBatch.expiryDetermination) && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {viewingBatch.wastageReport && (
+                                    <div className="p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-xl space-y-1.5">
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-bold text-amber-900 dark:text-amber-200 text-[11px] flex items-center gap-1">
+                                                <Scale size={13} /> Wastage Variance Report
+                                            </span>
+                                            <Badge variant="warning" size="sm" className="text-[10px]">
+                                                {viewingBatch.wastageReport.wastageCategory}
+                                            </Badge>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-1.5 text-center pt-1 font-mono text-[11px]">
+                                            <div className="bg-white dark:bg-neutral-900 p-1.5 rounded-lg border border-amber-100 dark:border-amber-950">
+                                                <span className="text-slate-400 text-[9px] block uppercase">Expected</span>
+                                                <span className="font-bold text-slate-700 dark:text-neutral-300">
+                                                    {viewingBatch.wastageReport.expectedLossQuantity} {viewingBatch.wastageReport.unit}
+                                                </span>
+                                            </div>
+                                            <div className="bg-white dark:bg-neutral-900 p-1.5 rounded-lg border border-amber-100 dark:border-amber-950">
+                                                <span className="text-slate-400 text-[9px] block uppercase">Actual</span>
+                                                <span className="font-bold text-amber-600">
+                                                    {viewingBatch.wastageReport.actualLossQuantity} {viewingBatch.wastageReport.unit}
+                                                </span>
+                                            </div>
+                                            <div className="bg-white dark:bg-neutral-900 p-1.5 rounded-lg border border-amber-100 dark:border-amber-950">
+                                                <span className="text-slate-400 text-[9px] block uppercase">Variance</span>
+                                                <span className={`font-bold ${viewingBatch.wastageReport.varianceQuantity > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                                                    {viewingBatch.wastageReport.varianceQuantity > 0 ? "+" : ""}{viewingBatch.wastageReport.varianceQuantity} {viewingBatch.wastageReport.unit}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {viewingBatch.wastageReport.wastageNotes && (
+                                            <p className="text-[11px] text-slate-500 dark:text-neutral-400 italic">
+                                                Note: {viewingBatch.wastageReport.wastageNotes}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+
+                                {viewingBatch.expiryDetermination && (
+                                    <div className="p-3 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/50 rounded-xl space-y-1.5">
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-bold text-blue-900 dark:text-blue-200 text-[11px] flex items-center gap-1">
+                                                <Clock size={13} /> QA Expiry Audit
+                                            </span>
+                                            <Badge variant={viewingBatch.expiryDetermination.decisionType === "QA_OVERRIDE" ? "warning" : "info"} size="sm" className="text-[10px]">
+                                                {viewingBatch.expiryDetermination.decisionType}
+                                            </Badge>
+                                        </div>
+                                        <div className="text-[11px] space-y-0.5 text-slate-600 dark:text-neutral-300">
+                                            <p>
+                                                <strong>Recipe Shelf Life:</strong> {viewingBatch.expiryDetermination.recipeShelfLifeDays ?? 30} days
+                                            </p>
+                                            {viewingBatch.expiryDetermination.shortestIngredientName && (
+                                                <p>
+                                                    <strong>Shortest Ingredient:</strong> {viewingBatch.expiryDetermination.shortestIngredientName} ({viewingBatch.expiryDetermination.shortestIngredientExpiryDate ? new Date(viewingBatch.expiryDetermination.shortestIngredientExpiryDate).toLocaleDateString("en-IN") : "N/A"})
+                                                </p>
+                                            )}
+                                            {viewingBatch.expiryDetermination.qaApprovalNotes && (
+                                                <p className="text-[11px] text-blue-700 dark:text-blue-300 font-medium pt-0.5">
+                                                    QA Note: {viewingBatch.expiryDetermination.qaApprovalNotes}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Consumed Lots Breakdown */}
                         <div>
@@ -626,6 +710,21 @@ export default function ManufacturingPage() {
                             <li>Mark this batch as REVERSED (cannot be undone).</li>
                         </ul>
                     </div>
+
+                    <FormField
+                        label={`Reversal Quantity (${reversingBatch?.yieldUnit || "units"})`}
+                        helperText={`Leave blank to reverse all unreversed units (${reversingBatch ? reversingBatch.actualQuantity - (reversingBatch.reversedQuantity || 0) : 0} ${reversingBatch?.yieldUnit || ""}), or specify quantity to perform a partial reversal.`}
+                    >
+                        <Input
+                            type="number"
+                            min={0.001}
+                            max={reversingBatch ? reversingBatch.actualQuantity - (reversingBatch.reversedQuantity || 0) : undefined}
+                            step="any"
+                            placeholder="Full batch quantity"
+                            value={reverseQuantity}
+                            onChange={(e) => setReverseQuantity(e.target.value)}
+                        />
+                    </FormField>
 
                     <FormField label="Reason for Reversal" required>
                         <Textarea

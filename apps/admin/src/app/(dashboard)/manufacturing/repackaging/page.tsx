@@ -44,6 +44,7 @@ export default function RepackagingDashboardPage() {
     // Modal: Reverse Run
     const [reversingRun, setReversingRun] = useState<RepackagingRun | null>(null);
     const [reversalReason, setReversalReason] = useState("");
+    const [reverseQuantity, setReverseQuantity] = useState("");
     const [submittingReversal, setSubmittingReversal] = useState(false);
 
     const fetchRuns = useCallback(async (isManual = false) => {
@@ -119,11 +120,13 @@ export default function RepackagingDashboardPage() {
         try {
             await api.manufacturing.reverseRepackagingRun(reversingRun.id, {
                 reason: reversalReason.trim(),
+                reverseQuantity: reverseQuantity ? parseInt(reverseQuantity, 10) : undefined,
             });
 
             toast.success(`Repackaging run ${reversingRun.runNumber} reversed. Stock restored!`);
             setReversingRun(null);
             setReversalReason("");
+            setReverseQuantity("");
             fetchRuns(true);
         } catch (err: unknown) {
             console.error("Failed to reverse repackaging run:", err);
@@ -370,10 +373,12 @@ export default function RepackagingDashboardPage() {
                                             </td>
 
                                             <td className="py-3 px-3 text-center">
-                                                {isReversed ? (
-                                                    <Badge variant="danger" size="sm">REVERSED</Badge>
-                                                ) : (
+                                                {r.status === "COMPLETED" ? (
                                                     <Badge variant="success" size="sm">COMPLETED</Badge>
+                                                ) : r.status === "PARTIALLY_REVERSED" ? (
+                                                    <Badge variant="warning" size="sm">PARTIAL ({r.reversedUnits || 0}/{r.packageUnitsProduced})</Badge>
+                                                ) : (
+                                                    <Badge variant="danger" size="sm">REVERSED</Badge>
                                                 )}
                                             </td>
 
@@ -390,7 +395,7 @@ export default function RepackagingDashboardPage() {
                                                         Details
                                                     </Button>
 
-                                                    {!isReversed && (
+                                                    {r.status !== "REVERSED" && (
                                                         <Button
                                                             variant="outline"
                                                             size="sm"
@@ -422,12 +427,37 @@ export default function RepackagingDashboardPage() {
             >
                 {viewingRun && (
                     <div className="space-y-4 pt-1 text-xs">
-                        {viewingRun.status === "REVERSED" && (
-                            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 text-rose-800 dark:text-rose-200">
-                                <strong>Run Reversed:</strong> {viewingRun.reversalDetails?.reason}
-                                <span className="block text-[11px] text-rose-600 mt-0.5">
-                                    Reversed on {viewingRun.reversalDetails?.reversedAt ? new Date(viewingRun.reversalDetails.reversedAt).toLocaleDateString("en-IN") : "—"}
+                        {viewingRun.reversalDetails && (
+                            <div className={`p-3 rounded-xl ${viewingRun.reversalDetails.isPartial ? "bg-amber-50 dark:bg-amber-950/40 border-amber-200 text-amber-800 dark:text-amber-200" : "bg-rose-50 dark:bg-rose-950/40 border-rose-200 text-rose-800 dark:text-rose-200"} border`}>
+                                <strong>{viewingRun.reversalDetails.isPartial ? `Partially Reversed (${viewingRun.reversalDetails.reversedQuantity} / ${viewingRun.packageUnitsProduced} packs)` : "Run Reversed"}:</strong> {viewingRun.reversalDetails.reason}
+                                <span className="block text-[11px] opacity-75 mt-0.5">
+                                    Reversed on {new Date(viewingRun.reversalDetails.reversedAt).toLocaleDateString("en-IN")} {viewingRun.reversalDetails.soldOrReservedAtReversal > 0 && `• Sold at Reversal: ${viewingRun.reversalDetails.soldOrReservedAtReversal} packs`}
                                 </span>
+                            </div>
+                        )}
+
+                        {viewingRun.wastageReport && (
+                            <div className="p-3 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 space-y-1">
+                                <div className="flex items-center justify-between text-[11px]">
+                                    <strong className="text-amber-900 dark:text-amber-200">Wastage / Shrinkage Report</strong>
+                                    <Badge variant="warning" size="sm" className="text-[10px]">{viewingRun.wastageReport.wastageCategory}</Badge>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2 text-center pt-1 font-mono text-[11px]">
+                                    <div className="bg-white dark:bg-neutral-900 p-1.5 rounded-lg border border-amber-100">
+                                        <span className="text-slate-400 text-[9px] block">Expected</span>
+                                        <span>{viewingRun.wastageReport.expectedLossQuantity} {viewingRun.wastageReport.unit}</span>
+                                    </div>
+                                    <div className="bg-white dark:bg-neutral-900 p-1.5 rounded-lg border border-amber-100">
+                                        <span className="text-slate-400 text-[9px] block">Actual</span>
+                                        <span className="text-amber-600 font-bold">{viewingRun.wastageReport.actualLossQuantity} {viewingRun.wastageReport.unit}</span>
+                                    </div>
+                                    <div className="bg-white dark:bg-neutral-900 p-1.5 rounded-lg border border-amber-100">
+                                        <span className="text-slate-400 text-[9px] block">Variance</span>
+                                        <span className={`font-bold ${viewingRun.wastageReport.varianceQuantity > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                                            {viewingRun.wastageReport.varianceQuantity > 0 ? "+" : ""}{viewingRun.wastageReport.varianceQuantity} {viewingRun.wastageReport.unit}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
                         )}
 
@@ -512,6 +542,21 @@ export default function RepackagingDashboardPage() {
                                 <li>Log audited contra-movements in both stock ledgers.</li>
                             </ul>
                         </div>
+
+                        <FormField
+                            label="Reversal Quantity (Packs)"
+                            helperText={`Leave blank to reverse all unreversed packs (${reversingRun.packageUnitsProduced - (reversingRun.reversedUnits || 0)} packs), or enter unsold count for partial reversal`}
+                        >
+                            <Input
+                                type="number"
+                                min={1}
+                                max={reversingRun.packageUnitsProduced - (reversingRun.reversedUnits || 0)}
+                                placeholder="Full pack count"
+                                value={reverseQuantity}
+                                onChange={(e) => setReverseQuantity(e.target.value)}
+                                className="text-xs"
+                            />
+                        </FormField>
 
                         <FormField label="Audited Reversal Reason" required helperText="Explain why this transformation is being reversed">
                             <Input

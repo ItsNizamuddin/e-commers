@@ -208,6 +208,55 @@ export interface UpdateRecipeInput {
     bumpVersion?: boolean | undefined; // If true, increments version number e.g. v1 -> v2
 }
 
+export type WastageReasonCategory =
+    | "RECIPE_NORMAL_LOSS"         // Evaporation, boiling shrinkage, standard peeling loss
+    | "PRODUCTION_UNPLANNED_LOSS"  // Machine spillage, operator overrun
+    | "SPOILAGE_QC_FAILURE"        // Batch failed hygiene/consistency test
+    | "DAMAGE_HANDLING";           // Dropped container, packaging tear
+
+export interface ProductionWastageReport {
+    expectedLossQuantity: number;
+    actualLossQuantity: number;
+    varianceQuantity: number; // actual - expected (+ is unfavorable loss, - is efficient yield)
+    unit: RawMaterialUnit;
+    wastageCategory: WastageReasonCategory;
+    wastageNotes?: string | undefined;
+}
+
+export interface BatchExpiryDetermination {
+    recipeShelfLifeDays?: number | undefined;
+    recipeTheoreticalExpiryDate?: string | undefined;
+    shortestIngredientExpiryDate?: string | undefined;
+    shortestIngredientName?: string | undefined;
+    systemRecommendedExpiryDate: string;
+    finalExpiryDate: string;
+    decisionType: "ACCEPTED_SYSTEM_RECOMMENDATION" | "QA_OVERRIDE" | "MANUAL_SPECIFICATION";
+    qaApprovalNotes?: string | undefined;
+}
+
+export type ProductionRunStatus =
+    | "PLANNED"
+    | "IN_PROGRESS"
+    | "COMPLETED"
+    | "PARTIALLY_REVERSED"
+    | "REVERSED";
+
+export type RepackagingRunStatus =
+    | "COMPLETED"
+    | "PARTIALLY_REVERSED"
+    | "REVERSED";
+
+export interface ReversalDetails {
+    reversedAt: string;
+    reversalReference: string;
+    reason: string;
+    reversedBy?: AuditActor | undefined;
+    reversedQuantity: number;
+    originalQuantity: number;
+    soldOrReservedAtReversal: number;
+    isPartial: boolean;
+}
+
 export interface LotConsumptionItem {
     rawMaterialId: string;
     rawMaterialName?: string | undefined;
@@ -235,20 +284,18 @@ export interface ProductionRun {
     plannedQuantity: number;
     actualQuantity: number;
     yieldUnit: string;
-    status: "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "REVERSED";
+    status: ProductionRunStatus;
     manufacturingDate: string;
-    expiryDate: string; // Calculated best before date
+    expiryDate: string; // Final legal/QA best before date
+    expiryDetermination?: BatchExpiryDetermination | undefined;
     lotsConsumed: LotConsumptionItem[];
     actualTotalCost: number;
     actualUnitCost: number;
     estimatedUnitCost: number;
     costVariance: number;
-    reversalDetails?: {
-        reversedAt: string;
-        reversalReference: string;
-        reason: string;
-        reversedBy?: AuditActor | undefined;
-    } | undefined;
+    wastageReport?: ProductionWastageReport | undefined;
+    reversedQuantity?: number | undefined;
+    reversalDetails?: ReversalDetails | undefined;
     notes?: string | undefined;
     createdAt?: string | undefined;
     updatedAt?: string | undefined;
@@ -265,11 +312,18 @@ export interface ExecuteProductionInput {
         lotId: string;
         quantity: number;
     }> | undefined;
+    actualLossQuantity?: number | undefined;
+    wastageCategory?: WastageReasonCategory | undefined;
+    wastageNotes?: string | undefined;
+    customExpiryDate?: string | undefined;
+    qaApprovalNotes?: string | undefined;
     notes?: string | undefined;
 }
 
 export interface ReverseProductionInput {
     reason: string;
+    reverseQuantity?: number | undefined;
+    allowPartial?: boolean | undefined;
 }
 
 export interface ProductionFeasibilityCheck {
@@ -321,6 +375,7 @@ export interface RepackagingRun {
     targetProductTitle: string;
     targetVariantId: string;
     targetVariantTitle: string;
+    targetVariantSku: string;
     packageUnitsProduced: number;
     unitSizeQuantity: number;
     unitSizeUnit: RawMaterialUnit;
@@ -328,18 +383,15 @@ export interface RepackagingRun {
     packagingMaterialName?: string | undefined;
     packagingMaterialQuantity?: number | undefined;
     wastageQuantity?: number | undefined;
+    wastageReport?: ProductionWastageReport | undefined;
     warehouseId: string;
     warehouseName?: string | undefined;
     totalCost: number;
     unitCost: number;
-    status: "COMPLETED" | "REVERSED";
+    status: RepackagingRunStatus;
     expiryDate: string;
-    reversalDetails?: {
-        reversedAt: string;
-        reversalReference: string;
-        reason: string;
-        reversedBy?: AuditActor | undefined;
-    } | undefined;
+    reversedUnits?: number | undefined;
+    reversalDetails?: ReversalDetails | undefined;
     notes?: string | undefined;
     createdAt?: string | undefined;
     updatedAt?: string | undefined;
@@ -356,9 +408,14 @@ export interface CreateRepackagingRunInput {
     warehouseId: string;
     packagingMaterialId?: string | undefined;
     wastageQuantity?: number | undefined;
+    expectedLossQuantity?: number | undefined;
+    wastageCategory?: WastageReasonCategory | undefined;
+    wastageNotes?: string | undefined;
     notes?: string | undefined;
 }
 
 export interface ReverseRepackagingRunInput {
     reason: string;
+    reverseQuantity?: number | undefined;
+    allowPartial?: boolean | undefined;
 }

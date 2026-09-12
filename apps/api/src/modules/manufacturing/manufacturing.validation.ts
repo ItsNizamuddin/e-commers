@@ -117,6 +117,13 @@ export const updateRecipeSchema = z.object({
     bumpVersion: z.boolean().optional(),
 });
 
+export const wastageCategoryEnum = z.enum([
+    "RECIPE_NORMAL_LOSS",
+    "PRODUCTION_UNPLANNED_LOSS",
+    "SPOILAGE_QC_FAILURE",
+    "DAMAGE_HANDLING",
+]);
+
 export const executeProductionSchema = z.object({
     recipeId: z.string().min(1),
     warehouseId: z.string().min(1),
@@ -132,11 +139,18 @@ export const executeProductionSchema = z.object({
             })
         )
         .optional(),
+    actualLossQuantity: z.number().min(0).optional(),
+    wastageCategory: wastageCategoryEnum.optional(),
+    wastageNotes: z.string().trim().optional(),
+    customExpiryDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}/)).optional(),
+    qaApprovalNotes: z.string().trim().optional(),
     notes: z.string().trim().optional(),
 });
 
 export const reverseProductionSchema = z.object({
     reason: z.string().min(3, "Please provide a reason for reversal").trim(),
+    reverseQuantity: z.number().positive().optional(),
+    allowPartial: z.boolean().optional(),
 });
 
 export const syncVariantCostSchema = z.object({
@@ -158,9 +172,13 @@ export const createRepackagingRunSchema = z.object({
     warehouseId: z.string().min(1),
     packagingMaterialId: z.string().optional(),
     wastageQuantity: z.number().min(0).optional(),
+    wastageCategory: wastageCategoryEnum.optional(),
+    wastageNotes: z.string().trim().optional(),
     notes: z.string().trim().optional(),
 });
 
 export const reverseRepackagingRunSchema = z.object({
     reason: z.string().min(3, "Please provide a reason for reversal").trim(),
+    reverseQuantity: z.number().int().positive().optional(),
+    allowPartial: z.boolean().optional(),
 });

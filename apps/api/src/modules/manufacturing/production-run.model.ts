@@ -16,9 +16,19 @@ export interface ProductionRunDocument extends Document {
     plannedQuantity: number;
     actualQuantity: number;
     yieldUnit: string;
-    status: "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "REVERSED";
+    status: "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "PARTIALLY_REVERSED" | "REVERSED";
     manufacturingDate: Date;
     expiryDate: Date;
+    expiryDetermination?: {
+        recipeShelfLifeDays?: number | undefined;
+        recipeTheoreticalExpiryDate?: string | undefined;
+        shortestIngredientExpiryDate?: string | undefined;
+        shortestIngredientName?: string | undefined;
+        systemRecommendedExpiryDate: string;
+        finalExpiryDate: string;
+        decisionType: "ACCEPTED_SYSTEM_RECOMMENDATION" | "QA_OVERRIDE" | "MANUAL_SPECIFICATION";
+        qaApprovalNotes?: string | undefined;
+    } | undefined;
     lotsConsumed: Array<{
         rawMaterialId: mongoose.Types.ObjectId;
         rawMaterialName: string;
@@ -33,12 +43,25 @@ export interface ProductionRunDocument extends Document {
     actualUnitCost: number;
     estimatedUnitCost: number;
     costVariance: number;
+    wastageReport?: {
+        expectedLossQuantity: number;
+        actualLossQuantity: number;
+        varianceQuantity: number;
+        unit: RawMaterialUnit;
+        wastageCategory: string;
+        wastageNotes?: string | undefined;
+    } | undefined;
+    reversedQuantity?: number | undefined;
     reversalDetails?: {
         reversedAt: Date;
         reversalReference: string;
         reason: string;
         reversedBy?: any;
-    };
+        reversedQuantity: number;
+        originalQuantity: number;
+        soldOrReservedAtReversal: number;
+        isPartial: boolean;
+    } | undefined;
     notes?: string;
     createdAt: Date;
     updatedAt: Date;
@@ -94,6 +117,49 @@ const ReversalDetailsSubSchema = new Schema(
         reversalReference: { type: String, required: true },
         reason: { type: String, required: true },
         reversedBy: { type: AuditActorSchema, default: undefined },
+        reversedQuantity: { type: Number, required: true, default: 0 },
+        originalQuantity: { type: Number, required: true, default: 0 },
+        soldOrReservedAtReversal: { type: Number, required: true, default: 0 },
+        isPartial: { type: Boolean, required: true, default: false },
+    },
+    { _id: false }
+);
+
+const WastageReportSubSchema = new Schema(
+    {
+        expectedLossQuantity: { type: Number, required: true, default: 0 },
+        actualLossQuantity: { type: Number, required: true, default: 0 },
+        varianceQuantity: { type: Number, required: true, default: 0 },
+        unit: { type: String, required: true },
+        wastageCategory: {
+            type: String,
+            enum: [
+                "RECIPE_NORMAL_LOSS",
+                "PRODUCTION_UNPLANNED_LOSS",
+                "SPOILAGE_QC_FAILURE",
+                "DAMAGE_HANDLING",
+            ],
+            default: "RECIPE_NORMAL_LOSS",
+        },
+        wastageNotes: { type: String, trim: true },
+    },
+    { _id: false }
+);
+
+const ExpiryDeterminationSubSchema = new Schema(
+    {
+        recipeShelfLifeDays: { type: Number },
+        recipeTheoreticalExpiryDate: { type: String },
+        shortestIngredientExpiryDate: { type: String },
+        shortestIngredientName: { type: String },
+        systemRecommendedExpiryDate: { type: String, required: true },
+        finalExpiryDate: { type: String, required: true },
+        decisionType: {
+            type: String,
+            enum: ["ACCEPTED_SYSTEM_RECOMMENDATION", "QA_OVERRIDE", "MANUAL_SPECIFICATION"],
+            default: "ACCEPTED_SYSTEM_RECOMMENDATION",
+        },
+        qaApprovalNotes: { type: String, trim: true },
     },
     { _id: false }
 );
@@ -166,7 +232,7 @@ const ProductionRunSchema = new Schema<ProductionRunDocument>(
         },
         status: {
             type: String,
-            enum: ["PLANNED", "IN_PROGRESS", "COMPLETED", "REVERSED"],
+            enum: ["PLANNED", "IN_PROGRESS", "COMPLETED", "PARTIALLY_REVERSED", "REVERSED"],
             required: true,
             default: "COMPLETED",
             index: true,
@@ -179,6 +245,10 @@ const ProductionRunSchema = new Schema<ProductionRunDocument>(
         expiryDate: {
             type: Date,
             required: true,
+        },
+        expiryDetermination: {
+            type: ExpiryDeterminationSubSchema,
+            default: undefined,
         },
         lotsConsumed: [LotConsumptionSubSchema],
         actualTotalCost: {
@@ -199,6 +269,14 @@ const ProductionRunSchema = new Schema<ProductionRunDocument>(
         costVariance: {
             type: Number,
             required: true,
+            default: 0,
+        },
+        wastageReport: {
+            type: WastageReportSubSchema,
+            default: undefined,
+        },
+        reversedQuantity: {
+            type: Number,
             default: 0,
         },
         reversalDetails: {

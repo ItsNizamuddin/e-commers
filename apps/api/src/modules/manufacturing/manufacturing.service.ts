@@ -25,6 +25,7 @@ import { StockMovementModel } from "../inventory/models/stock-movement.model.js"
 import { ProductModel } from "../products/product.model.js";
 import { convertUnits, normalizeToBaseUnit } from "./unit-conversion.js";
 import { resolveActor } from "../../utils/audit.js";
+import { AppError } from "../../utils/app-error.js";
 
 async function getActorSnapshot(actor?: any): Promise<AuditActor | undefined> {
     if (!actor) return undefined;
@@ -662,7 +663,7 @@ export class ManufacturingService {
 
         if (!check.canProduce) {
             const missingNames = check.shortages.map((s) => `${s.rawMaterialName} (need ${s.deficit} more ${s.unit})`).join(", ");
-            throw new Error(`Cannot execute production run: Insufficient stock for ${missingNames}`);
+            throw new AppError(`Cannot execute production run: Insufficient stock for ${missingNames}`, 400, "INSUFFICIENT_STOCK", check.shortages);
         }
 
         // 2. Generate Unique Batch Number: MFG-YYYYMMDD-XXXX
@@ -683,62 +684,127 @@ export class ManufacturingService {
         }> = [];
 
         let actualTotalCost = 0;
+        const successfullyDeductedLots: Array<{
+            lotId: Types.ObjectId;
+            rawMaterialId: Types.ObjectId;
+            quantity: number;
+        }> = [];
 
         for (const alloc of check.fefoAllocations) {
-            const lot = await RawMaterialLotModel.findById(alloc.lotId);
-            if (!lot) {
-                throw new Error(`Lot with ID '${alloc.lotId}' vanished during allocation.`);
-            }
-
             const deductQty = alloc.allocatedQuantity;
-            if (lot.availableQuantity < deductQty) {
-                throw new Error(`Insufficient quantity in lot '${lot.lotNumber}' for material '${alloc.rawMaterialName}'.`);
+
+            // Atomic conditional deduction on the Lot
+            // Only succeeds if availableQuantity is currently >= deductQty and lot is not depleted
+            const updatedLot = await RawMaterialLotModel.findOneAndUpdate(
+                {
+                    _id: alloc.lotId,
+                    availableQuantity: { $gte: deductQty },
+                    isDepleted: false,
+                },
+                {
+                    $inc: { availableQuantity: -deductQty },
+                    $set: { updatedAt: new Date() },
+                },
+                { returnDocument: "after" }
+            );
+
+            if (!updatedLot) {
+                // Concurrency race condition detected!
+                // Another concurrent worker consumed this lot balance between check and execution.
+                // Roll back any lots already deducted in this loop:
+                for (const rollbackItem of successfullyDeductedLots) {
+                    await RawMaterialLotModel.findByIdAndUpdate(rollbackItem.lotId, {
+                        $inc: { availableQuantity: rollbackItem.quantity },
+                        $set: { isDepleted: false },
+                    });
+                    await RawMaterialModel.findByIdAndUpdate(rollbackItem.rawMaterialId, {
+                        $inc: { currentStock: rollbackItem.quantity },
+                    });
+                }
+
+                throw new AppError(
+                    `Concurrency Conflict: Lot '${alloc.lotNumber}' for '${alloc.rawMaterialName}' has insufficient available stock (${alloc.allocatedQuantity} ${alloc.unit} required). Another concurrent production run or order may have consumed this inventory. Please retry.`,
+                    409,
+                    "CONCURRENCY_CONFLICT"
+                );
             }
 
-            lot.availableQuantity -= deductQty;
-            if (lot.availableQuantity <= 0.0001) {
-                lot.availableQuantity = 0;
-                lot.isDepleted = true;
+            if (updatedLot.availableQuantity <= 0.0001) {
+                updatedLot.availableQuantity = 0;
+                updatedLot.isDepleted = true;
+                await updatedLot.save();
             }
-            await lot.save();
 
-            // Deduct RawMaterial stock cache
-            const rm = await RawMaterialModel.findById(lot.rawMaterialId);
-            if (rm) {
-                const prevStock = rm.currentStock;
-                const newStock = Math.max(0, prevStock - deductQty);
-                rm.currentStock = newStock;
-                await rm.save();
+            // Atomic conditional update on RawMaterial currentStock
+            const updatedRm = await RawMaterialModel.findOneAndUpdate(
+                {
+                    _id: updatedLot.rawMaterialId,
+                    currentStock: { $gte: deductQty },
+                },
+                {
+                    $inc: { currentStock: -deductQty },
+                },
+                { returnDocument: "after" }
+            );
 
-                // Log Raw Material Ledger
-                const ledger = new RawMaterialStockMovementModel({
-                    rawMaterialId: rm._id,
-                    lotId: lot._id,
-                    lotNumber: lot.lotNumber,
-                    type: "MANUFACTURING_CONSUMPTION",
-                    quantityDelta: -deductQty,
-                    unit: rm.unit,
-                    previousStock: prevStock,
-                    newStock: newStock,
-                    referenceType: "PRODUCTION_RUN",
-                    referenceId: batchNumber,
-                    reason: `Consumed for batch ${batchNumber} (${recipe.name} v${recipe.version})`,
-                    actor: resolvedActor,
+            if (!updatedRm) {
+                // Rollback current lot as well
+                await RawMaterialLotModel.findByIdAndUpdate(updatedLot._id, {
+                    $inc: { availableQuantity: deductQty },
+                    $set: { isDepleted: false },
                 });
-                await ledger.save();
+                for (const rollbackItem of successfullyDeductedLots) {
+                    await RawMaterialLotModel.findByIdAndUpdate(rollbackItem.lotId, {
+                        $inc: { availableQuantity: rollbackItem.quantity },
+                        $set: { isDepleted: false },
+                    });
+                    await RawMaterialModel.findByIdAndUpdate(rollbackItem.rawMaterialId, {
+                        $inc: { currentStock: rollbackItem.quantity },
+                    });
+                }
+                throw new AppError(
+                    `Concurrency Conflict: Raw material '${alloc.rawMaterialName}' current stock was modified concurrently. Please retry.`,
+                    409,
+                    "CONCURRENCY_CONFLICT"
+                );
             }
 
-            const itemCost = deductQty * lot.costPerUnit;
+            successfullyDeductedLots.push({
+                lotId: updatedLot._id as Types.ObjectId,
+                rawMaterialId: updatedLot.rawMaterialId as Types.ObjectId,
+                quantity: deductQty,
+            });
+
+            // Log Raw Material Ledger
+            const prevStock = updatedRm.currentStock + deductQty;
+            const newStock = updatedRm.currentStock;
+            const ledger = new RawMaterialStockMovementModel({
+                rawMaterialId: updatedRm._id,
+                lotId: updatedLot._id,
+                lotNumber: updatedLot.lotNumber,
+                type: "MANUFACTURING_CONSUMPTION",
+                quantityDelta: -deductQty,
+                unit: updatedRm.unit,
+                previousStock: prevStock,
+                newStock: newStock,
+                referenceType: "PRODUCTION_RUN",
+                referenceId: batchNumber,
+                reason: `Consumed for batch ${batchNumber} (${recipe.name} v${recipe.version})`,
+                actor: resolvedActor,
+            });
+            await ledger.save();
+
+            const itemCost = deductQty * updatedLot.costPerUnit;
             actualTotalCost += itemCost;
 
             lotsConsumed.push({
-                rawMaterialId: lot.rawMaterialId,
+                rawMaterialId: updatedLot.rawMaterialId,
                 rawMaterialName: alloc.rawMaterialName,
-                lotId: lot._id as Types.ObjectId,
-                lotNumber: lot.lotNumber,
+                lotId: updatedLot._id as Types.ObjectId,
+                lotNumber: updatedLot.lotNumber,
                 quantity: deductQty,
                 unit: alloc.unit,
-                costPerUnit: lot.costPerUnit,
+                costPerUnit: updatedLot.costPerUnit,
                 expiryDate: new Date(alloc.expiryDate),
             });
         }
@@ -751,6 +817,66 @@ export class ManufacturingService {
         const actualUnitCost = Math.round((actualTotalCost / input.actualQuantity) * 100) / 100;
         const estimatedUnitCost = check.estimatedCostWac;
         const costVariance = Math.round((actualUnitCost - estimatedUnitCost) * 100) / 100;
+
+        // Calculate Expected vs Actual Wastage
+        let expectedLossQuantity = 0;
+        if (recipe.ingredients && recipe.ingredients.length > 0) {
+            for (const ing of recipe.ingredients) {
+                const ingMultiplier = input.actualQuantity / batchYieldQty;
+                const expectedGross = ing.quantity * ingMultiplier;
+                const expectedLoss = expectedGross * (((ing as any).wastagePercent ?? (ing as any).lossPercentage ?? 0) / 100);
+                expectedLossQuantity += expectedLoss;
+            }
+        }
+        expectedLossQuantity = Math.round(expectedLossQuantity * 1000) / 1000;
+
+        const actualLossQuantity = input.actualLossQuantity !== undefined
+            ? input.actualLossQuantity
+            : expectedLossQuantity;
+        const varianceQuantity = Math.round((actualLossQuantity - expectedLossQuantity) * 1000) / 1000;
+
+        const wastageReport = {
+            expectedLossQuantity,
+            actualLossQuantity,
+            varianceQuantity,
+            unit: (recipe.batchYield.unit || "kg") as RawMaterialUnit,
+            wastageCategory: input.wastageCategory || "RECIPE_NORMAL_LOSS",
+            wastageNotes: input.wastageNotes || undefined,
+        };
+
+        // Determine Expiry Date & QA Audit Trail
+        const recipeShelfLifeDays = recipe.shelfLifeDays || 30;
+        const recipeTheoreticalDate = new Date(mfgDate);
+        recipeTheoreticalDate.setDate(recipeTheoreticalDate.getDate() + recipeShelfLifeDays);
+
+        let shortestIngredientExpiryDate: string | undefined = undefined;
+        let shortestIngredientName: string | undefined = undefined;
+        if (lotsConsumed.length > 0) {
+            const sortedLots = [...lotsConsumed].sort((a, b) => a.expiryDate.getTime() - b.expiryDate.getTime());
+            shortestIngredientExpiryDate = sortedLots[0]!.expiryDate.toISOString();
+            shortestIngredientName = sortedLots[0]!.rawMaterialName;
+        }
+
+        const systemRecommendedDate = check.recommendedBestBeforeDate;
+        let finalExpiryDate = systemRecommendedDate;
+        let decisionType: "ACCEPTED_SYSTEM_RECOMMENDATION" | "QA_OVERRIDE" | "MANUAL_SPECIFICATION" =
+            "ACCEPTED_SYSTEM_RECOMMENDATION";
+
+        if (input.customExpiryDate) {
+            finalExpiryDate = new Date(input.customExpiryDate).toISOString();
+            decisionType = "QA_OVERRIDE";
+        }
+
+        const expiryDetermination = {
+            recipeShelfLifeDays,
+            recipeTheoreticalExpiryDate: recipeTheoreticalDate.toISOString(),
+            shortestIngredientExpiryDate,
+            shortestIngredientName,
+            systemRecommendedExpiryDate: systemRecommendedDate,
+            finalExpiryDate,
+            decisionType,
+            qaApprovalNotes: input.qaApprovalNotes || undefined,
+        };
 
         // 4. Record Finished Goods into Store Inventory Ledger
         const variantId = recipe.variantId || (product.variants[0] as any)?._id || product.variants[0]?.id;
@@ -807,13 +933,13 @@ export class ManufacturingService {
             newBackordered: inventory.backordered,
             referenceType: "MANUAL_ADJUSTMENT",
             referenceId: batchNumber,
-            reason: `Manufactured batch ${batchNumber} (${recipe.name} v${recipe.version}, Best Before: ${check.recommendedBestBeforeDate.slice(0, 10)})`,
+            reason: `Manufactured batch ${batchNumber} (${recipe.name} v${recipe.version}, Best Before: ${finalExpiryDate.slice(0, 10)})`,
             actor: resolvedActor,
         });
         await finishedMovement.save();
 
         // 5. Create ProductionRun record
-        const variantObj = product.variants.find((v: any) => v.id === variantId?.toString());
+        const variantObj = product.variants.find((v: any) => v.id === variantId?.toString() || (v as any)._id?.toString() === variantId?.toString());
 
         const productionRun = new ProductionRunModel({
             batchNumber,
@@ -831,7 +957,9 @@ export class ManufacturingService {
             yieldUnit: recipe.batchYield.unit,
             status: "COMPLETED",
             manufacturingDate: mfgDate,
-            expiryDate: new Date(check.recommendedBestBeforeDate),
+            expiryDate: new Date(finalExpiryDate),
+            expiryDetermination,
+            wastageReport,
             lotsConsumed,
             actualTotalCost: Math.round(actualTotalCost * 100) / 100,
             actualUnitCost,
@@ -853,11 +981,13 @@ export class ManufacturingService {
 
         const run = await ProductionRunModel.findById(batchId);
         if (!run) {
-            throw new Error(`Production run with ID '${batchId}' not found.`);
+            throw new AppError(`Production run with ID '${batchId}' not found.`, 404, "NOT_FOUND");
         }
 
-        if (run.status === "REVERSED") {
-            throw new Error(`Production run '${run.batchNumber}' has already been reversed.`);
+        const previouslyReversed = run.reversedQuantity || 0;
+        const remainingBatchUnits = run.actualQuantity - previouslyReversed;
+        if (remainingBatchUnits <= 0 || run.status === "REVERSED") {
+            throw new AppError(`Production run '${run.batchNumber}' has already been fully reversed.`, 400, "ALREADY_REVERSED");
         }
 
         // 1. Verify finished inventory has not already been dispatched
@@ -870,22 +1000,37 @@ export class ManufacturingService {
         }
         const inventory = await InventoryModel.findOne(invFilter);
 
-        if (!inventory || inventory.onHand < run.actualQuantity) {
-            throw new Error(
-                `Cannot reverse production batch: ${run.actualQuantity} units were manufactured, but only ${inventory?.onHand || 0} units are currently on hand in the warehouse (some units may have already been fulfilled or shipped).`
+        const currentOnHand = inventory ? inventory.onHand : 0;
+        const targetReverseQty = input.reverseQuantity !== undefined ? input.reverseQuantity : remainingBatchUnits;
+        const soldOrReserved = Math.max(0, remainingBatchUnits - currentOnHand);
+
+        if (targetReverseQty <= 0) {
+            throw new AppError("Reversal quantity must be greater than 0.", 400, "INVALID_QUANTITY");
+        }
+        if (targetReverseQty > remainingBatchUnits) {
+            throw new AppError(`Cannot reverse ${targetReverseQty} units: only ${remainingBatchUnits} units remain unreversed in batch ${run.batchNumber}.`, 400, "INVALID_QUANTITY");
+        }
+
+        if (!inventory || currentOnHand < targetReverseQty) {
+            throw new AppError(
+                `Cannot reverse production run '${run.batchNumber}': ${run.actualQuantity} units were produced, but ${soldOrReserved} units have already been sold or reserved from warehouse inventory. Currently available on hand: ${currentOnHand} units. Maximum reversible quantity: ${currentOnHand}. To reverse the remaining available stock, specify reverseQuantity: ${currentOnHand}.`,
+                400,
+                "CANNOT_REVERSE_SOLD_UNITS"
             );
         }
 
         // 2. Decrement Finished Inventory
+        const ratio = targetReverseQty / run.actualQuantity;
         const prevOnHand = inventory.onHand;
-        const newOnHand = prevOnHand - run.actualQuantity;
+        const newOnHand = prevOnHand - targetReverseQty;
         inventory.onHand = newOnHand;
         if (resolvedActor) {
             inventory.updatedBy = resolvedActor;
         }
         await inventory.save();
 
-        const reversalRef = `${run.batchNumber}-REV-001`;
+        const revIndex = run.status === "PARTIALLY_REVERSED" ? 2 : 1;
+        const reversalRef = `${run.batchNumber}-REV-00${revIndex}`;
 
         const finishedMovement = new StockMovementModel({
             inventoryId: inventory._id,
@@ -893,7 +1038,7 @@ export class ManufacturingService {
             variantId: run.variantId || inventory.variantId,
             warehouseId: run.warehouseId,
             type: "DAMAGE_WRITE_OFF",
-            quantityDelta: -run.actualQuantity,
+            quantityDelta: -targetReverseQty,
             previousOnHand: prevOnHand,
             newOnHand: newOnHand,
             previousReserved: inventory.reserved,
@@ -902,16 +1047,17 @@ export class ManufacturingService {
             newBackordered: inventory.backordered,
             referenceType: "MANUAL_ADJUSTMENT",
             referenceId: reversalRef,
-            reason: `Reversal of batch ${run.batchNumber}: ${input.reason}`,
+            reason: `Reversal of ${targetReverseQty} units of batch ${run.batchNumber}: ${input.reason}`,
             actor: resolvedActor,
         });
         await finishedMovement.save();
 
-        // 3. Restore Raw Material Lots & Raw Material Stock Ledger
+        // 3. Restore Raw Material Lots & Raw Material Stock Ledger Proportionally
         for (const item of run.lotsConsumed) {
+            const restoreQty = Math.round(item.quantity * ratio * 1000) / 1000;
             const lot = await RawMaterialLotModel.findById(item.lotId);
             if (lot) {
-                lot.availableQuantity += item.quantity;
+                lot.availableQuantity += restoreQty;
                 lot.isDepleted = false;
                 await lot.save();
             }
@@ -919,7 +1065,7 @@ export class ManufacturingService {
             const rm = await RawMaterialModel.findById(item.rawMaterialId);
             if (rm) {
                 const prevStock = rm.currentStock;
-                const newStock = prevStock + item.quantity;
+                const newStock = prevStock + restoreQty;
                 rm.currentStock = newStock;
                 await rm.save();
 
@@ -928,13 +1074,13 @@ export class ManufacturingService {
                     lotId: item.lotId,
                     lotNumber: item.lotNumber,
                     type: "MANUFACTURING_REVERSAL",
-                    quantityDelta: item.quantity,
+                    quantityDelta: restoreQty,
                     unit: item.unit,
                     previousStock: prevStock,
                     newStock: newStock,
                     referenceType: "PRODUCTION_RUN",
                     referenceId: reversalRef,
-                    reason: `Reversal of batch ${run.batchNumber}: ${input.reason}`,
+                    reason: `Reversal of ${targetReverseQty} units of batch ${run.batchNumber}: ${input.reason}`,
                     actor: resolvedActor,
                 });
                 await ledger.save();
@@ -942,12 +1088,18 @@ export class ManufacturingService {
         }
 
         // 4. Update ProductionRun Status
-        run.status = "REVERSED";
+        const newTotalReversed = (run.reversedQuantity || 0) + targetReverseQty;
+        run.reversedQuantity = newTotalReversed;
+        run.status = newTotalReversed >= run.actualQuantity ? "REVERSED" : "PARTIALLY_REVERSED";
         run.reversalDetails = {
             reversedAt: new Date(),
             reversalReference: reversalRef,
             reason: input.reason.trim(),
             reversedBy: resolvedActor,
+            reversedQuantity: targetReverseQty,
+            originalQuantity: run.actualQuantity,
+            soldOrReservedAtReversal: soldOrReserved,
+            isPartial: run.status === "PARTIALLY_REVERSED",
         };
         await run.save();
 
@@ -1087,6 +1239,17 @@ export class ManufacturingService {
         );
         const wastage = input.wastageQuantity || 0;
         const totalSourceQuantityNeeded = Math.round((totalNetContentInSourceUnit + wastage) * 1000) / 1000;
+        const expectedLoss = input.expectedLossQuantity !== undefined ? input.expectedLossQuantity : wastage;
+        const variance = Math.round((wastage - expectedLoss) * 1000) / 1000;
+
+        const wastageReport = (wastage > 0 || input.expectedLossQuantity !== undefined) ? {
+            expectedLossQuantity: expectedLoss,
+            actualLossQuantity: wastage,
+            varianceQuantity: variance,
+            unit: sourceMaterial.unit as RawMaterialUnit,
+            wastageCategory: input.wastageCategory || "RECIPE_NORMAL_LOSS",
+            wastageNotes: input.wastageNotes || undefined,
+        } : undefined;
 
         if (sourceLot.availableQuantity < totalSourceQuantityNeeded) {
             throw new Error(
@@ -1100,19 +1263,55 @@ export class ManufacturingService {
         const randStr = Math.floor(1000 + Math.random() * 9000);
         const runNumber = `RPK-${dateStr}-${randStr}`;
 
-        // 5. Deduct from Source Lot
-        sourceLot.availableQuantity -= totalSourceQuantityNeeded;
-        if (sourceLot.availableQuantity <= 0.0001) {
-            sourceLot.availableQuantity = 0;
-            sourceLot.isDepleted = true;
+        // 5. Concurrency-Safe Atomic Deduct from Source Lot
+        const updatedSourceLot = await RawMaterialLotModel.findOneAndUpdate(
+            { _id: sourceLot._id, availableQuantity: { $gte: totalSourceQuantityNeeded } },
+            {
+                $inc: { availableQuantity: -totalSourceQuantityNeeded },
+                $set: { updatedAt: new Date() },
+            },
+            { returnDocument: "after" }
+        );
+
+        if (!updatedSourceLot) {
+            throw new AppError(
+                `Concurrency Conflict: Source lot '${sourceLot.lotNumber}' does not have sufficient available stock (${totalSourceQuantityNeeded} ${sourceMaterial.unit} required). Another concurrent operation may have allocated this stock.`,
+                409,
+                "CONCURRENCY_CONFLICT"
+            );
         }
-        await sourceLot.save();
+
+        if (updatedSourceLot.availableQuantity <= 0.0001) {
+            updatedSourceLot.availableQuantity = 0;
+            updatedSourceLot.isDepleted = true;
+            await updatedSourceLot.save();
+        }
 
         // 6. Deduct from Source Raw Material currentStock & log ledger
-        const prevStock = sourceMaterial.currentStock;
-        const newStock = Math.max(0, prevStock - totalSourceQuantityNeeded);
-        sourceMaterial.currentStock = newStock;
-        await sourceMaterial.save();
+        const updatedSourceMaterial = await RawMaterialModel.findOneAndUpdate(
+            { _id: sourceMaterial._id, currentStock: { $gte: totalSourceQuantityNeeded } },
+            {
+                $inc: { currentStock: -totalSourceQuantityNeeded },
+                $set: { updatedAt: new Date() },
+            },
+            { returnDocument: "after" }
+        );
+
+        if (!updatedSourceMaterial) {
+            // Rollback lot deduction if material stock was unexpectedly lower
+            await RawMaterialLotModel.updateOne(
+                { _id: sourceLot._id },
+                { $inc: { availableQuantity: totalSourceQuantityNeeded }, $set: { isDepleted: false } }
+            );
+            throw new AppError(
+                `Concurrency Conflict: Source raw material '${sourceMaterial.name}' does not have sufficient aggregate stock (${totalSourceQuantityNeeded} ${sourceMaterial.unit} required).`,
+                409,
+                "CONCURRENCY_CONFLICT"
+            );
+        }
+
+        const prevStock = updatedSourceMaterial.currentStock + totalSourceQuantityNeeded;
+        const newStock = updatedSourceMaterial.currentStock;
 
         const rawMovement = new RawMaterialStockMovementModel({
             rawMaterialId: sourceMaterial._id,
@@ -1245,6 +1444,7 @@ export class ManufacturingService {
             packagingMaterialName: packagingRmName,
             packagingMaterialQuantity: packagingQty,
             wastageQuantity: wastage,
+            wastageReport,
             warehouseId,
             totalCost,
             unitCost,
@@ -1262,11 +1462,13 @@ export class ManufacturingService {
 
         const run = await RepackagingRunModel.findById(runId);
         if (!run) {
-            throw new Error(`Repackaging run with ID '${runId}' not found.`);
+            throw new AppError(`Repackaging run with ID '${runId}' not found.`, 404, "NOT_FOUND");
         }
 
-        if (run.status === "REVERSED") {
-            throw new Error(`Repackaging run '${run.runNumber}' has already been reversed.`);
+        const previouslyReversed = run.reversedUnits || 0;
+        const remainingBatchUnits = run.packageUnitsProduced - previouslyReversed;
+        if (remainingBatchUnits <= 0 || run.status === "REVERSED") {
+            throw new AppError(`Repackaging run '${run.runNumber}' has already been fully reversed.`, 400, "ALREADY_REVERSED");
         }
 
         // 1. Verify Finished Inventory is still available
@@ -1277,20 +1479,37 @@ export class ManufacturingService {
         };
 
         const inventory = await InventoryModel.findOne(invQuery);
-        if (!inventory || inventory.onHand < run.packageUnitsProduced) {
-            throw new Error(
-                `Cannot reverse repackaging run: ${run.packageUnitsProduced} units were produced, but only ${inventory?.onHand || 0} units are currently on hand in the warehouse (some units may have already been sold or dispatched).`
+        const currentOnHand = inventory ? inventory.onHand : 0;
+        const targetReverseQty = input.reverseQuantity !== undefined ? input.reverseQuantity : remainingBatchUnits;
+        const soldOrReserved = Math.max(0, remainingBatchUnits - currentOnHand);
+
+        if (targetReverseQty <= 0) {
+            throw new AppError("Reversal quantity must be greater than 0.", 400, "INVALID_QUANTITY");
+        }
+        if (targetReverseQty > remainingBatchUnits) {
+            throw new AppError(`Cannot reverse ${targetReverseQty} units: only ${remainingBatchUnits} units remain unreversed in repackaging run ${run.runNumber}.`, 400, "INVALID_QUANTITY");
+        }
+
+        if (!inventory || currentOnHand < targetReverseQty) {
+            throw new AppError(
+                `Cannot reverse repackaging run '${run.runNumber}': ${run.packageUnitsProduced} units were packaged, but ${soldOrReserved} units have already been sold or reserved from warehouse inventory. Currently available on hand: ${currentOnHand} units. Maximum reversible quantity: ${currentOnHand}. To reverse the remaining available stock, specify reverseQuantity: ${currentOnHand}.`,
+                400,
+                "CANNOT_REVERSE_SOLD_UNITS"
             );
         }
 
         // 2. Deduct from finished goods inventory
+        const ratio = targetReverseQty / run.packageUnitsProduced;
         const prevOnHand = inventory.onHand;
-        const newOnHand = prevOnHand - run.packageUnitsProduced;
+        const newOnHand = prevOnHand - targetReverseQty;
         inventory.onHand = newOnHand;
         if (resolvedActor) {
             inventory.updatedBy = resolvedActor;
         }
         await inventory.save();
+
+        const revIndex = run.status === "PARTIALLY_REVERSED" ? 2 : 1;
+        const reversalRef = `${run.runNumber}-REV-00${revIndex}`;
 
         const contraFinishedMovement = new StockMovementModel({
             inventoryId: inventory._id,
@@ -1298,7 +1517,7 @@ export class ManufacturingService {
             variantId: run.targetVariantId,
             warehouseId: run.warehouseId,
             type: "DAMAGE_WRITE_OFF",
-            quantityDelta: -run.packageUnitsProduced,
+            quantityDelta: -targetReverseQty,
             previousOnHand: prevOnHand,
             newOnHand: newOnHand,
             previousReserved: inventory.reserved,
@@ -1306,16 +1525,17 @@ export class ManufacturingService {
             previousBackordered: inventory.backordered,
             newBackordered: inventory.backordered,
             referenceType: "MANUAL_ADJUSTMENT",
-            referenceId: `REV-${run.runNumber}`,
-            reason: `Reversal of repackaging run ${run.runNumber}: ${input.reason}`,
+            referenceId: reversalRef,
+            reason: `Reversal of ${targetReverseQty} units of repackaging run ${run.runNumber}: ${input.reason}`,
             actor: resolvedActor,
         });
         await contraFinishedMovement.save();
 
-        // 3. Restore bulk stock to source lot
+        // 3. Restore bulk stock to source lot proportionally
+        const restoreSourceQty = Math.round(run.sourceQuantity * ratio * 1000) / 1000;
         const sourceLot = await RawMaterialLotModel.findById(run.sourceLotId);
         if (sourceLot) {
-            sourceLot.availableQuantity += run.sourceQuantity;
+            sourceLot.availableQuantity += restoreSourceQty;
             sourceLot.isDepleted = false;
             await sourceLot.save();
         }
@@ -1324,7 +1544,7 @@ export class ManufacturingService {
         const sourceMaterial = await RawMaterialModel.findById(run.sourceRawMaterialId);
         if (sourceMaterial) {
             const prevStock = sourceMaterial.currentStock;
-            const newStock = prevStock + run.sourceQuantity;
+            const newStock = prevStock + restoreSourceQty;
             sourceMaterial.currentStock = newStock;
             await sourceMaterial.save();
 
@@ -1333,49 +1553,58 @@ export class ManufacturingService {
                 lotId: run.sourceLotId,
                 lotNumber: run.sourceLotNumber,
                 type: "REPACKAGING_REVERSAL",
-                quantityDelta: run.sourceQuantity,
+                quantityDelta: restoreSourceQty,
                 unit: run.sourceUnit,
                 previousStock: prevStock,
                 newStock: newStock,
                 referenceType: "REPACKAGING_RUN",
-                referenceId: run.runNumber,
-                reason: `Reversal of repackaging run ${run.runNumber}: ${input.reason}`,
+                referenceId: reversalRef,
+                reason: `Reversal of ${targetReverseQty} units of repackaging run ${run.runNumber}: ${input.reason}`,
                 actor: resolvedActor,
             });
             await contraRawMovement.save();
         }
 
-        // 5. If packaging materials were used, restore them
+        // 5. If packaging materials were used, restore them proportionally
         if (run.packagingMaterialId && run.packagingMaterialQuantity) {
             const packRm = await RawMaterialModel.findById(run.packagingMaterialId);
             if (packRm) {
-                const prevPackStock = packRm.currentStock;
-                packRm.currentStock += run.packagingMaterialQuantity;
-                await packRm.save();
+                const restorePackQty = Math.round(run.packagingMaterialQuantity * ratio);
+                if (restorePackQty > 0) {
+                    const prevPackStock = packRm.currentStock;
+                    packRm.currentStock += restorePackQty;
+                    await packRm.save();
 
-                const contraPackaging = new RawMaterialStockMovementModel({
-                    rawMaterialId: packRm._id,
-                    type: "REPACKAGING_REVERSAL",
-                    quantityDelta: run.packagingMaterialQuantity,
-                    unit: packRm.unit,
-                    previousStock: prevPackStock,
-                    newStock: packRm.currentStock,
-                    referenceType: "REPACKAGING_RUN",
-                    referenceId: run.runNumber,
-                    reason: `Reversal of packaging used in repackaging run ${run.runNumber}: ${input.reason}`,
-                    actor: resolvedActor,
-                });
-                await contraPackaging.save();
+                    const contraPackaging = new RawMaterialStockMovementModel({
+                        rawMaterialId: packRm._id,
+                        type: "REPACKAGING_REVERSAL",
+                        quantityDelta: restorePackQty,
+                        unit: packRm.unit,
+                        previousStock: prevPackStock,
+                        newStock: packRm.currentStock,
+                        referenceType: "REPACKAGING_RUN",
+                        referenceId: reversalRef,
+                        reason: `Reversal of ${restorePackQty} packaging units used in repackaging run ${run.runNumber}: ${input.reason}`,
+                        actor: resolvedActor,
+                    });
+                    await contraPackaging.save();
+                }
             }
         }
 
-        // 6. Mark Run as REVERSED
-        run.status = "REVERSED";
+        // 6. Update RepackagingRun document
+        const newTotalReversed = (run.reversedUnits || 0) + targetReverseQty;
+        run.reversedUnits = newTotalReversed;
+        run.status = newTotalReversed >= run.packageUnitsProduced ? "REVERSED" : "PARTIALLY_REVERSED";
         run.reversalDetails = {
             reversedAt: new Date(),
-            reversalReference: `REV-${run.runNumber}`,
+            reversalReference: reversalRef,
             reason: input.reason.trim(),
             reversedBy: resolvedActor,
+            reversedQuantity: targetReverseQty,
+            originalQuantity: run.packageUnitsProduced,
+            soldOrReservedAtReversal: soldOrReserved,
+            isPartial: run.status === "PARTIALLY_REVERSED",
         };
         await run.save();
 
