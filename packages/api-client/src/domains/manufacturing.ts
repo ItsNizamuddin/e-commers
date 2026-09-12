@@ -19,6 +19,23 @@ import type {
     SyncVariantCostInput,
 } from "@ecommers/types";
 
+function extractData<T>(res: any): T {
+    if (res && typeof res === "object" && !Array.isArray(res) && "data" in res && "success" in res) {
+        return (res as any).data as T;
+    }
+    return res as T;
+}
+
+function extractList<T>(res: any): T[] {
+    const data = extractData<any>(res);
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === "object") {
+        if (Array.isArray(data.items)) return data.items;
+        if (Array.isArray(data.data)) return data.data;
+    }
+    return [];
+}
+
 export class ManufacturingClient {
     constructor(private readonly client: ApiClient) {}
 
@@ -29,34 +46,34 @@ export class ManufacturingClient {
         usage?: string;
         isActive?: boolean;
     }): Promise<RawMaterial[]> {
-        const res = await this.client.get<{ success: boolean; data: RawMaterial[] }>(
+        const res = await this.client.get<any>(
             "/admin/manufacturing/raw-materials",
             { params }
         );
-        return res.data;
+        return extractList<RawMaterial>(res);
     }
 
     async getRawMaterialById(id: string): Promise<RawMaterial> {
-        const res = await this.client.get<{ success: boolean; data: RawMaterial }>(
+        const res = await this.client.get<any>(
             `/admin/manufacturing/raw-materials/${id}`
         );
-        return res.data;
+        return extractData<RawMaterial>(res);
     }
 
     async createRawMaterial(body: CreateRawMaterialInput): Promise<RawMaterial> {
-        const res = await this.client.post<{ success: boolean; data: RawMaterial }>(
+        const res = await this.client.post<any>(
             "/admin/manufacturing/raw-materials",
             body
         );
-        return res.data;
+        return extractData<RawMaterial>(res);
     }
 
     async updateRawMaterial(id: string, body: UpdateRawMaterialInput): Promise<RawMaterial> {
-        const res = await this.client.patch<{ success: boolean; data: RawMaterial }>(
+        const res = await this.client.patch<any>(
             `/admin/manufacturing/raw-materials/${id}`,
             body
         );
-        return res.data;
+        return extractData<RawMaterial>(res);
     }
 
     // Purchases & Intakes
@@ -65,37 +82,37 @@ export class ManufacturingClient {
         lot: RawMaterialLot;
         movement: RawMaterialStockMovement;
     }> {
-        const res = await this.client.post<{
-            success: boolean;
-            data: {
-                rawMaterial: RawMaterial;
-                lot: RawMaterialLot;
-                movement: RawMaterialStockMovement;
-            };
-        }>("/admin/manufacturing/purchases", body);
-        return res.data;
+        const res = await this.client.post<any>(
+            "/admin/manufacturing/purchases",
+            body
+        );
+        return extractData<{
+            rawMaterial: RawMaterial;
+            lot: RawMaterialLot;
+            movement: RawMaterialStockMovement;
+        }>(res);
     }
 
     async listLots(params?: {
         rawMaterialId?: string;
         isDepleted?: boolean;
     }): Promise<RawMaterialLot[]> {
-        const res = await this.client.get<{ success: boolean; data: RawMaterialLot[] }>(
+        const res = await this.client.get<any>(
             "/admin/manufacturing/lots",
             { params }
         );
-        return res.data;
+        return extractList<RawMaterialLot>(res);
     }
 
     async listLedger(params?: {
         rawMaterialId?: string;
         limit?: number;
     }): Promise<RawMaterialStockMovement[]> {
-        const res = await this.client.get<{ success: boolean; data: RawMaterialStockMovement[] }>(
+        const res = await this.client.get<any>(
             "/admin/manufacturing/ledger",
             { params }
         );
-        return res.data;
+        return extractList<RawMaterialStockMovement>(res);
     }
 
     // Recipes
@@ -103,34 +120,34 @@ export class ManufacturingClient {
         productId?: string;
         status?: string;
     }): Promise<Recipe[]> {
-        const res = await this.client.get<{ success: boolean; data: Recipe[] }>(
+        const res = await this.client.get<any>(
             "/admin/manufacturing/recipes",
             { params }
         );
-        return res.data;
+        return extractList<Recipe>(res);
     }
 
     async getRecipeById(id: string): Promise<Recipe> {
-        const res = await this.client.get<{ success: boolean; data: Recipe }>(
+        const res = await this.client.get<any>(
             `/admin/manufacturing/recipes/${id}`
         );
-        return res.data;
+        return extractData<Recipe>(res);
     }
 
     async createRecipe(body: CreateRecipeInput): Promise<Recipe> {
-        const res = await this.client.post<{ success: boolean; data: Recipe }>(
+        const res = await this.client.post<any>(
             "/admin/manufacturing/recipes",
             body
         );
-        return res.data;
+        return extractData<Recipe>(res);
     }
 
     async updateRecipe(id: string, body: UpdateRecipeInput): Promise<Recipe> {
-        const res = await this.client.patch<{ success: boolean; data: Recipe }>(
+        const res = await this.client.patch<any>(
             `/admin/manufacturing/recipes/${id}`,
             body
         );
-        return res.data;
+        return extractData<Recipe>(res);
     }
 
     // Feasibility & Production
@@ -139,7 +156,7 @@ export class ManufacturingClient {
         quantity: number,
         manufacturingDate?: string
     ): Promise<ProductionFeasibilityCheck> {
-        const res = await this.client.get<{ success: boolean; data: ProductionFeasibilityCheck }>(
+        const res = await this.client.get<any>(
             "/admin/manufacturing/feasibility",
             {
                 params: {
@@ -149,23 +166,23 @@ export class ManufacturingClient {
                 },
             }
         );
-        return res.data;
+        return extractData<ProductionFeasibilityCheck>(res);
     }
 
     async executeProduction(body: ExecuteProductionInput): Promise<ProductionRun> {
-        const res = await this.client.post<{ success: boolean; data: ProductionRun }>(
+        const res = await this.client.post<any>(
             "/admin/manufacturing/production-runs",
             body
         );
-        return res.data;
+        return extractData<ProductionRun>(res);
     }
 
     async reverseProduction(id: string, body: ReverseProductionInput): Promise<ProductionRun> {
-        const res = await this.client.post<{ success: boolean; data: ProductionRun }>(
+        const res = await this.client.post<any>(
             `/admin/manufacturing/production-runs/${id}/reverse`,
             body
         );
-        return res.data;
+        return extractData<ProductionRun>(res);
     }
 
     async listProductionRuns(params?: {
@@ -174,11 +191,11 @@ export class ManufacturingClient {
         status?: string;
         limit?: number;
     }): Promise<ProductionRun[]> {
-        const res = await this.client.get<{ success: boolean; data: ProductionRun[] }>(
+        const res = await this.client.get<any>(
             "/admin/manufacturing/production-runs",
             { params }
         );
-        return res.data;
+        return extractList<ProductionRun>(res);
     }
 
     async syncVariantCost(body: SyncVariantCostInput): Promise<{
@@ -187,16 +204,16 @@ export class ManufacturingClient {
         updatedCostAmount: number;
         currency: string;
     }> {
-        const res = await this.client.post<{
-            success: boolean;
-            data: {
-                productId: string;
-                variantId: string;
-                updatedCostAmount: number;
-                currency: string;
-            };
-        }>("/admin/manufacturing/sync-variant-cost", body);
-        return res.data;
+        const res = await this.client.post<any>(
+            "/admin/manufacturing/sync-variant-cost",
+            body
+        );
+        return extractData<{
+            productId: string;
+            variantId: string;
+            updatedCostAmount: number;
+            currency: string;
+        }>(res);
     }
 
     // Stock Repackaging (Bulk to Retail)
@@ -205,27 +222,27 @@ export class ManufacturingClient {
         targetProductId?: string;
         status?: string;
     }): Promise<RepackagingRun[]> {
-        const res = await this.client.get<{ success: boolean; data: RepackagingRun[] }>(
+        const res = await this.client.get<any>(
             "/admin/manufacturing/repackaging",
             { params }
         );
-        return res.data;
+        return extractList<RepackagingRun>(res);
     }
 
     async createRepackagingRun(body: CreateRepackagingRunInput): Promise<RepackagingRun> {
-        const res = await this.client.post<{ success: boolean; data: RepackagingRun }>(
+        const res = await this.client.post<any>(
             "/admin/manufacturing/repackaging",
             body
         );
-        return res.data;
+        return extractData<RepackagingRun>(res);
     }
 
     async reverseRepackagingRun(id: string, body: ReverseRepackagingRunInput): Promise<RepackagingRun> {
-        const res = await this.client.post<{ success: boolean; data: RepackagingRun }>(
+        const res = await this.client.post<any>(
             `/admin/manufacturing/repackaging/${id}/reverse`,
             body
         );
-        return res.data;
+        return extractData<RepackagingRun>(res);
     }
 }
 

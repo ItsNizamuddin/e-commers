@@ -68,14 +68,14 @@ export default function ManufacturingPage() {
 
         try {
             const [runsData, recipesData, locationsData] = await Promise.all([
-                api.manufacturing.listProductionRuns(),
-                api.manufacturing.listRecipes(),
+                api.manufacturing.listProductionRuns().catch(() => []),
+                api.manufacturing.listRecipes().catch(() => []),
                 api.locations.adminList().catch(() => []),
             ]);
 
-            setProductionRuns(runsData);
-            setRecipes(recipesData);
-            setLocations(locationsData || []);
+            setProductionRuns(Array.isArray(runsData) ? runsData : []);
+            setRecipes(Array.isArray(recipesData) ? recipesData : []);
+            setLocations(Array.isArray(locationsData) ? locationsData : []);
         } catch (err: unknown) {
             console.error("Failed to load manufacturing data:", err);
             toast.error("Failed to load manufacturing runs.");
@@ -89,8 +89,10 @@ export default function ManufacturingPage() {
         loadData();
     }, [loadData]);
 
+    const safeRuns = Array.isArray(productionRuns) ? productionRuns : [];
+
     // Filtered runs
-    const filteredRuns = productionRuns.filter((run) => {
+    const filteredRuns = safeRuns.filter((run) => {
         const matchesStatus = statusFilter === "ALL" || run.status === statusFilter;
         const q = searchQuery.toLowerCase().trim();
         const matchesQuery =
@@ -102,10 +104,10 @@ export default function ManufacturingPage() {
     });
 
     // KPI Aggregations
-    const completedRuns = productionRuns.filter((r) => r.status === "COMPLETED");
+    const completedRuns = safeRuns.filter((r) => r.status === "COMPLETED");
     const totalYieldUnits = completedRuns.reduce((acc, r) => acc + (r.actualQuantity || 0), 0);
     const totalProductionCost = completedRuns.reduce((acc, r) => acc + (r.actualTotalCost || 0), 0);
-    const reversedCount = productionRuns.filter((r) => r.status === "REVERSED").length;
+    const reversedCount = safeRuns.filter((r) => r.status === "REVERSED" || r.status === "PARTIALLY_REVERSED").length;
 
     // Handle Batch Reversal
     const handleConfirmReversal = async (e: React.FormEvent) => {

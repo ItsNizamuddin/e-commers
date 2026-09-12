@@ -55,7 +55,7 @@ export default function RepackagingDashboardPage() {
             const data = await api.manufacturing.listRepackagingRuns({
                 status: statusFilter !== "ALL" ? statusFilter : undefined,
             });
-            setRuns(data || []);
+            setRuns(Array.isArray(data) ? data : []);
         } catch (err: unknown) {
             console.error("Failed to load repackaging runs:", err);
             toast.error("Failed to load repackaging runs.");
@@ -69,18 +69,20 @@ export default function RepackagingDashboardPage() {
         fetchRuns();
     }, [fetchRuns]);
 
+    const safeRuns = Array.isArray(runs) ? runs : [];
+
     // KPI Metrics
     const metrics = useMemo(() => {
-        const total = runs.length;
+        const total = safeRuns.length;
         let totalUnits = 0;
         let totalCost = 0;
         let reversedCount = 0;
 
-        for (const r of runs) {
+        for (const r of safeRuns) {
             if (r.status === "COMPLETED") {
                 totalUnits += r.packageUnitsProduced || 0;
                 totalCost += r.totalCost || 0;
-            } else if (r.status === "REVERSED") {
+            } else if (r.status === "REVERSED" || r.status === "PARTIALLY_REVERSED") {
                 reversedCount++;
             }
         }
@@ -91,10 +93,10 @@ export default function RepackagingDashboardPage() {
             totalCost: Math.round(totalCost),
             reversedCount,
         };
-    }, [runs]);
+    }, [safeRuns]);
 
     const filteredRuns = useMemo(() => {
-        return runs.filter((r) => {
+        return safeRuns.filter((r) => {
             const matchesStatus = statusFilter === "ALL" || r.status === statusFilter;
             const q = searchQuery.toLowerCase().trim();
             const matchesQuery =
@@ -105,7 +107,7 @@ export default function RepackagingDashboardPage() {
                 r.targetProductTitle.toLowerCase().includes(q);
             return matchesStatus && matchesQuery;
         });
-    }, [runs, statusFilter, searchQuery]);
+    }, [safeRuns, statusFilter, searchQuery]);
 
     const handleReverseRun = async (e: React.FormEvent) => {
         e.preventDefault();
