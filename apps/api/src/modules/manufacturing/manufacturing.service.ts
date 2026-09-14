@@ -11,12 +11,17 @@ import {
     CreateRepackagingRunInput,
     ReverseRepackagingRunInput,
     SyncVariantCostInput,
+    BatchSyncVariantPricingInput,
+    AutoGenerateVariantRecipesInput,
     ProductionFeasibilityCheck,
     AuditActor,
+    CreateVendorInput,
+    UpdateVendorInput,
 } from "@ecommers/types";
 import { RawMaterialModel, RawMaterialDocument } from "./raw-material.model.js";
 import { RawMaterialLotModel, RawMaterialLotDocument } from "./raw-material-lot.model.js";
 import { RawMaterialStockMovementModel } from "./raw-material-ledger.model.js";
+import { VendorModel, VendorDocument } from "./vendor.model.js";
 import { RecipeModel, RecipeDocument } from "./recipe.model.js";
 import { ProductionRunModel, ProductionRunDocument } from "./production-run.model.js";
 import { RepackagingRunModel, RepackagingRunDocument } from "./repackaging-run.model.js";
@@ -26,6 +31,8 @@ import { ProductModel } from "../products/product.model.js";
 import { convertUnits, normalizeToBaseUnit } from "./unit-conversion.js";
 import { resolveActor } from "../../utils/audit.js";
 import { AppError } from "../../utils/app-error.js";
+import { outboxService } from "../outbox/outbox.service.js";
+import { outboxDispatcher } from "../outbox/outbox.dispatcher.js";
 
 async function getActorSnapshot(actor?: any): Promise<AuditActor | undefined> {
     if (!actor) return undefined;
@@ -70,7 +77,11 @@ export class ManufacturingService {
             filter.$or = [{ name: regex }, { code: regex }];
         }
 
-        return RawMaterialModel.find(filter).sort({ name: 1 }).lean();
+        const items = await RawMaterialModel.find(filter).sort({ name: 1 }).lean();
+        return items.map((rm: any) => ({
+            ...rm,
+            id: rm._id?.toString() || rm.id,
+        }));
     }
 
     async getRawMaterialById(id: string) {
@@ -78,19 +89,88 @@ export class ManufacturingService {
         if (!rm) {
             throw new Error(`Raw material with ID '${id}' not found.`);
         }
-        return rm;
+        return {
+            ...rm,
+            id: (rm as any)._id?.toString() || (rm as any).id,
+        };
+    }
+
+    async generateUniqueRawMaterialCode(name: string, preferredCode?: string): Promise<string> {
+        let baseCode = "";
+        if (preferredCode?.trim()) {
+            baseCode = preferredCode.trim().toUpperCase();
+        } else {
+            const baseSlug = name
+                .trim()
+                .replace(/[^\w\s-]/g, " ")
+                .replace(/[\s_]+/g, " ")
+                .trim()
+                .split(" ")
+                .map((w) => w.toUpperCase().replace(/[^A-Z0-9]/g, ""))
+                .filter(Boolean)
+                .slice(0, 4)
+                .join("-")
+                .slice(0, 24) || "ITEM";
+            baseCode = `RM-${baseSlug}`;
+        }
+
+        const existing = await RawMaterialModel.findOne({ code: baseCode }).select("_id").lean();
+        if (!existing) {
+            return baseCode;
+        }
+
+        let counter = 1;
+        while (counter <= 999) {
+            const suffix = counter < 10 ? `0${counter}` : `${counter}`;
+            const candidate = `${baseCode}-${suffix}`;
+            const exists = await RawMaterialModel.findOne({ code: candidate }).select("_id").lean();
+            if (!exists) {
+                return candidate;
+            }
+            counter++;
+        }
+
+        return `${baseCode}-${Date.now().toString().slice(-4)}`;
+    }
+
+    async checkCodeAvailability(code: string): Promise<{
+        code: string;
+        isAvailable: boolean;
+        suggestedCode?: string;
+    }> {
+        const cleanCode = (code || "").trim().toUpperCase();
+        if (!cleanCode) {
+            return { code: "", isAvailable: false };
+        }
+
+        const existing = await RawMaterialModel.findOne({ code: cleanCode }).select("_id").lean();
+        if (!existing) {
+            return { code: cleanCode, isAvailable: true };
+        }
+
+        const suggestedCode = await this.generateUniqueRawMaterialCode("", cleanCode);
+        return {
+            code: cleanCode,
+            isAvailable: false,
+            suggestedCode,
+        };
     }
 
     async createRawMaterial(input: CreateRawMaterialInput, actor?: any) {
-        const existing = await RawMaterialModel.findOne({
-            code: input.code.trim().toUpperCase(),
-        });
-        if (existing) {
-            throw new Error(`Raw material code '${input.code}' already exists.`);
+        let finalCode = input.code?.trim().toUpperCase();
+        if (!finalCode) {
+            finalCode = await this.generateUniqueRawMaterialCode(input.name);
+        } else {
+            const existing = await RawMaterialModel.findOne({
+                code: finalCode,
+            });
+            if (existing) {
+                throw new Error(`Raw material code '${finalCode}' already exists.`);
+            }
         }
 
         const rm = new RawMaterialModel({
-            code: input.code.trim().toUpperCase(),
+            code: finalCode,
             name: input.name.trim(),
             category: input.category,
             usage: input.usage || "RAW_MATERIAL",
@@ -158,10 +238,14 @@ export class ManufacturingService {
         if (input.category !== undefined) rm.category = input.category;
         if (input.usage !== undefined) rm.usage = input.usage;
         if (input.linkedProductId !== undefined) {
-            rm.linkedProductId = input.linkedProductId ? new Types.ObjectId(input.linkedProductId) : undefined;
+            rm.linkedProductId = (input.linkedProductId && input.linkedProductId.trim() !== "")
+                ? new Types.ObjectId(input.linkedProductId)
+                : undefined;
         }
         if (input.linkedVariantId !== undefined) {
-            rm.linkedVariantId = input.linkedVariantId ? new Types.ObjectId(input.linkedVariantId) : undefined;
+            rm.linkedVariantId = (input.linkedVariantId && input.linkedVariantId.trim() !== "")
+                ? new Types.ObjectId(input.linkedVariantId)
+                : undefined;
         }
         if (input.reorderThreshold !== undefined) rm.reorderThreshold = input.reorderThreshold;
         if (input.isActive !== undefined) rm.isActive = input.isActive;
@@ -206,9 +290,52 @@ export class ManufacturingService {
             input.lotNumber?.trim().toUpperCase() ||
             `${prefix}-${rm.code}-${dateStr}-${randStr}`;
 
+        // 3.1 Resolve and update Vendor if external purchase
+        let resolvedVendorId: Types.ObjectId | undefined = undefined;
+        if (input.sourceType === "EXTERNAL_VENDOR") {
+            if (input.vendorId && Types.ObjectId.isValid(input.vendorId)) {
+                const existingVendor = await VendorModel.findById(input.vendorId);
+                if (existingVendor) {
+                    resolvedVendorId = existingVendor._id;
+                    existingVendor.totalIntakes = (existingVendor.totalIntakes || 0) + 1;
+                    existingVendor.totalSpend = (existingVendor.totalSpend || 0) + totalCost;
+                    existingVendor.lastPurchaseDate = purchaseDate;
+                    if (!existingVendor.contactNumber && input.supplier?.contact) {
+                        existingVendor.contactNumber = input.supplier.contact;
+                    }
+                    await existingVendor.save();
+                }
+            } else if (input.supplier?.name?.trim()) {
+                const cleanName = input.supplier.name.trim();
+                let vendor = await VendorModel.findOne({
+                    name: { $regex: new RegExp(`^${cleanName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") },
+                });
+                if (!vendor) {
+                    vendor = new VendorModel({
+                        name: cleanName,
+                        contactNumber: input.supplier.contact?.trim() || "",
+                        status: "ACTIVE",
+                        totalIntakes: 1,
+                        totalSpend: totalCost,
+                        lastPurchaseDate: purchaseDate,
+                    });
+                } else {
+                    vendor.totalIntakes = (vendor.totalIntakes || 0) + 1;
+                    vendor.totalSpend = (vendor.totalSpend || 0) + totalCost;
+                    vendor.lastPurchaseDate = purchaseDate;
+                    if (!vendor.contactNumber && input.supplier.contact?.trim()) {
+                        vendor.contactNumber = input.supplier.contact.trim();
+                    }
+                }
+                await vendor.save();
+                resolvedVendorId = vendor._id;
+            }
+        }
+
         // 4. Create RawMaterialLot
         const lot = new RawMaterialLotModel({
             rawMaterialId: rm._id,
+            vendorId: resolvedVendorId,
             lotNumber,
             expiryDate: new Date(input.expiryDate),
             receivedDate: purchaseDate,
@@ -279,10 +406,14 @@ export class ManufacturingService {
             filter.isDepleted = query.isDepleted;
         }
 
-        return RawMaterialLotModel.find(filter)
+        const lots = await RawMaterialLotModel.find(filter)
             .populate("rawMaterialId", "code name unit category")
             .sort({ expiryDate: 1 })
             .lean();
+        return lots.map((l: any) => ({
+            ...l,
+            id: l._id?.toString() || l.id,
+        }));
     }
 
     async listLedger(query?: { rawMaterialId?: string | undefined; limit?: number | undefined }) {
@@ -291,11 +422,15 @@ export class ManufacturingService {
             filter.rawMaterialId = new Types.ObjectId(query.rawMaterialId);
         }
 
-        return RawMaterialStockMovementModel.find(filter)
+        const movements = await RawMaterialStockMovementModel.find(filter)
             .populate("rawMaterialId", "code name unit")
             .sort({ createdAt: -1 })
             .limit(query?.limit || 100)
             .lean();
+        return movements.map((m: any) => ({
+            ...m,
+            id: m._id?.toString() || m.id,
+        }));
     }
 
     // -------------------------------------------------------------------------
@@ -311,12 +446,16 @@ export class ManufacturingService {
             filter.status = query.status;
         }
 
-        return RecipeModel.find(filter)
+        const recipes = await RecipeModel.find(filter)
             .populate("productId", "title slug baseCurrency variants")
             .populate("ingredients.rawMaterialId", "code name unit averageCost lastPurchasePrice")
             .populate("packagingMaterials.rawMaterialId", "code name unit averageCost lastPurchasePrice")
             .sort({ code: 1, version: -1 })
             .lean();
+        return recipes.map((r: any) => ({
+            ...r,
+            id: r._id?.toString() || r.id,
+        }));
     }
 
     async getRecipeById(id: string) {
@@ -327,13 +466,44 @@ export class ManufacturingService {
             .lean();
 
         if (!recipe) {
-            throw new Error(`Recipe with ID '${id}' not found.`);
+            throw new AppError(`Recipe with ID '${id}' not found.`, 404, "NOT_FOUND");
         }
 
         // Recalculate dynamic live estimated costs based on current raw material values
         const costs = await this.calculateRecipeEstimatedCost(recipe as any);
+
+        const prodObj = recipe.productId as any;
+        const productIdStr = prodObj?._id ? prodObj._id.toString() : (recipe.productId?.toString() || "");
+
         return {
             ...recipe,
+            id: recipe._id.toString(),
+            productId: productIdStr,
+            product: prodObj && typeof prodObj === "object" ? {
+                ...prodObj,
+                id: prodObj._id?.toString() || prodObj.id,
+                variants: (prodObj.variants || []).map((v: any) => ({
+                    ...v,
+                    id: v._id?.toString() || v.id,
+                })),
+            } : undefined,
+            variantId: recipe.variantId ? recipe.variantId.toString() : undefined,
+            ingredients: (recipe.ingredients || []).map((ing: any) => ({
+                ...ing,
+                rawMaterialId: ing.rawMaterialId?._id ? ing.rawMaterialId._id.toString() : (ing.rawMaterialId?.toString() || ""),
+                rawMaterial: ing.rawMaterialId && typeof ing.rawMaterialId === "object" ? {
+                    ...ing.rawMaterialId,
+                    id: ing.rawMaterialId._id?.toString() || ing.rawMaterialId.id,
+                } : undefined,
+            })),
+            packagingMaterials: (recipe.packagingMaterials || []).map((pkg: any) => ({
+                ...pkg,
+                rawMaterialId: pkg.rawMaterialId?._id ? pkg.rawMaterialId._id.toString() : (pkg.rawMaterialId?.toString() || ""),
+                rawMaterial: pkg.rawMaterialId && typeof pkg.rawMaterialId === "object" ? {
+                    ...pkg.rawMaterialId,
+                    id: pkg.rawMaterialId._id?.toString() || pkg.rawMaterialId.id,
+                } : undefined,
+            })),
             estimatedCostWac: costs.estimatedCostWac,
             estimatedCostHighest: costs.estimatedCostHighest,
         };
@@ -345,7 +515,8 @@ export class ManufacturingService {
 
         // 1. Ingredients
         for (const ing of recipe.ingredients) {
-            const rm = await RawMaterialModel.findById(ing.rawMaterialId);
+            const rmId = (ing.rawMaterialId as any)?._id || ing.rawMaterialId;
+            const rm = await RawMaterialModel.findById(rmId);
             if (!rm) continue;
 
             const baseQty = normalizeToBaseUnit(ing.quantity, ing.unit, rm.unit);
@@ -358,7 +529,8 @@ export class ManufacturingService {
 
         // 2. Packaging Materials
         for (const pkg of recipe.packagingMaterials || []) {
-            const rm = await RawMaterialModel.findById(pkg.rawMaterialId);
+            const pkgRmId = (pkg.rawMaterialId as any)?._id || pkg.rawMaterialId;
+            const rm = await RawMaterialModel.findById(pkgRmId);
             if (!rm) continue;
 
             const baseQty = normalizeToBaseUnit(pkg.quantity, pkg.unit, rm.unit);
@@ -451,18 +623,18 @@ export class ManufacturingService {
                 batchYield: input.batchYield ?? recipe.batchYield,
                 ingredients: input.ingredients
                     ? input.ingredients.map((i) => ({
-                          rawMaterialId: new Types.ObjectId(i.rawMaterialId),
-                          quantity: i.quantity,
-                          unit: i.unit,
-                          wastagePercent: i.wastagePercent || 0,
-                      }))
+                        rawMaterialId: new Types.ObjectId(i.rawMaterialId),
+                        quantity: i.quantity,
+                        unit: i.unit,
+                        wastagePercent: i.wastagePercent || 0,
+                    }))
                     : recipe.ingredients,
                 packagingMaterials: input.packagingMaterials
                     ? input.packagingMaterials.map((p) => ({
-                          rawMaterialId: new Types.ObjectId(p.rawMaterialId),
-                          quantity: p.quantity,
-                          unit: p.unit,
-                      }))
+                        rawMaterialId: new Types.ObjectId(p.rawMaterialId),
+                        quantity: p.quantity,
+                        unit: p.unit,
+                    }))
                     : recipe.packagingMaterials,
                 laborOverheadCost: input.laborOverheadCost ?? recipe.laborOverheadCost,
                 instructions: input.instructions?.trim() ?? recipe.instructions,
@@ -563,10 +735,13 @@ export class ManufacturingService {
             const neededInBase = normalizeToBaseUnit(item.quantityNeeded, item.unit, rm.unit);
 
             // Fetch active lots sorted FEFO (nearest expiry date first)
+            // NATIVE QUERY GUARD: only allocate lots with status AVAILABLE and expiryDate > mfgDate
             const lots = await RawMaterialLotModel.find({
                 rawMaterialId: rm._id,
+                status: "AVAILABLE",
                 isDepleted: false,
                 availableQuantity: { $gt: 0 },
+                expiryDate: { $gt: mfgDate },
             }).sort({ expiryDate: 1 });
 
             let remainingToAllocate = neededInBase;
@@ -694,12 +869,14 @@ export class ManufacturingService {
             const deductQty = alloc.allocatedQuantity;
 
             // Atomic conditional deduction on the Lot
-            // Only succeeds if availableQuantity is currently >= deductQty and lot is not depleted
+            // Only succeeds if availableQuantity is currently >= deductQty, status is AVAILABLE, and unexpired
             const updatedLot = await RawMaterialLotModel.findOneAndUpdate(
                 {
                     _id: alloc.lotId,
                     availableQuantity: { $gte: deductQty },
+                    status: "AVAILABLE",
                     isDepleted: false,
+                    expiryDate: { $gt: mfgDate },
                 },
                 {
                     $inc: { availableQuantity: -deductQty },
@@ -715,7 +892,7 @@ export class ManufacturingService {
                 for (const rollbackItem of successfullyDeductedLots) {
                     await RawMaterialLotModel.findByIdAndUpdate(rollbackItem.lotId, {
                         $inc: { availableQuantity: rollbackItem.quantity },
-                        $set: { isDepleted: false },
+                        $set: { isDepleted: false, status: "AVAILABLE" },
                     });
                     await RawMaterialModel.findByIdAndUpdate(rollbackItem.rawMaterialId, {
                         $inc: { currentStock: rollbackItem.quantity },
@@ -732,6 +909,7 @@ export class ManufacturingService {
             if (updatedLot.availableQuantity <= 0.0001) {
                 updatedLot.availableQuantity = 0;
                 updatedLot.isDepleted = true;
+                updatedLot.status = "DEPLETED";
                 await updatedLot.save();
             }
 
@@ -969,6 +1147,24 @@ export class ManufacturingService {
         });
         await productionRun.save();
 
+        // 6. Record Outbox Event for Asynchronous Side Effects
+        await outboxService.recordEvent({
+            eventType: "PRODUCTION_BATCH_COMPLETED",
+            aggregateType: "ProductionRun",
+            aggregateId: productionRun._id,
+            deduplicationKey: `PRODUCTION_BATCH_COMPLETED:${productionRun._id.toString()}`,
+            payload: {
+                productionRunId: productionRun._id.toString(),
+                batchNumber: productionRun.batchNumber,
+                productId: productionRun.productId.toString(),
+                productTitle: productionRun.productTitle,
+                actualQuantity: productionRun.actualQuantity,
+                yieldUnit: productionRun.yieldUnit,
+                expiryDate: productionRun.expiryDate.toISOString(),
+            },
+        });
+        outboxDispatcher.triggerImmediate();
+
         return productionRun.toObject();
     }
 
@@ -1019,15 +1215,59 @@ export class ManufacturingService {
             );
         }
 
-        // 2. Decrement Finished Inventory
-        const ratio = targetReverseQty / run.actualQuantity;
-        const prevOnHand = inventory.onHand;
-        const newOnHand = prevOnHand - targetReverseQty;
-        inventory.onHand = newOnHand;
-        if (resolvedActor) {
-            inventory.updatedBy = resolvedActor;
+        // 1b. Atomic conditional claim on unreversed batch units (prevents concurrent double reversals)
+        const lockedRun = await ProductionRunModel.findOneAndUpdate(
+            {
+                _id: run._id,
+                status: { $ne: "REVERSED" },
+                $expr: {
+                    $gte: [
+                        { $subtract: ["$actualQuantity", { $ifNull: ["$reversedQuantity", 0] }] },
+                        targetReverseQty,
+                    ],
+                },
+            },
+            {
+                $inc: { reversedQuantity: targetReverseQty },
+            },
+            { returnDocument: "after" }
+        );
+
+        if (!lockedRun) {
+            throw new AppError(
+                `Production run '${run.batchNumber}' cannot be reversed: already reversed or concurrent reversal in progress.`,
+                409,
+                "CONCURRENCY_CONFLICT"
+            );
         }
-        await inventory.save();
+
+        // 2. Decrement Finished Inventory Atomically
+        const prevOnHand = inventory.onHand;
+        const updatedInventory = await InventoryModel.findOneAndUpdate(
+            {
+                _id: inventory._id,
+                onHand: { $gte: targetReverseQty },
+            },
+            {
+                $inc: { onHand: -targetReverseQty },
+                ...(resolvedActor ? { $set: { updatedBy: resolvedActor } } : {}),
+            },
+            { returnDocument: "after" }
+        );
+
+        if (!updatedInventory) {
+            await ProductionRunModel.findByIdAndUpdate(run._id, {
+                $inc: { reversedQuantity: -targetReverseQty },
+            });
+            throw new AppError(
+                `Cannot reverse production run '${run.batchNumber}': finished inventory was already consumed or reserved.`,
+                400,
+                "CANNOT_REVERSE_SOLD_UNITS"
+            );
+        }
+
+        const newOnHand = updatedInventory.onHand;
+        const ratio = targetReverseQty / run.actualQuantity;
 
         const revIndex = run.status === "PARTIALLY_REVERSED" ? 2 : 1;
         const reversalRef = `${run.batchNumber}-REV-00${revIndex}`;
@@ -1088,22 +1328,39 @@ export class ManufacturingService {
         }
 
         // 4. Update ProductionRun Status
-        const newTotalReversed = (run.reversedQuantity || 0) + targetReverseQty;
-        run.reversedQuantity = newTotalReversed;
-        run.status = newTotalReversed >= run.actualQuantity ? "REVERSED" : "PARTIALLY_REVERSED";
-        run.reversalDetails = {
+        const newTotalReversed = lockedRun.reversedQuantity || 0;
+        lockedRun.status = newTotalReversed >= lockedRun.actualQuantity ? "REVERSED" : "PARTIALLY_REVERSED";
+        lockedRun.reversalDetails = {
             reversedAt: new Date(),
             reversalReference: reversalRef,
             reason: input.reason.trim(),
             reversedBy: resolvedActor,
             reversedQuantity: targetReverseQty,
-            originalQuantity: run.actualQuantity,
+            originalQuantity: lockedRun.actualQuantity,
             soldOrReservedAtReversal: soldOrReserved,
-            isPartial: run.status === "PARTIALLY_REVERSED",
+            isPartial: lockedRun.status === "PARTIALLY_REVERSED",
         };
-        await run.save();
+        await lockedRun.save();
 
-        return run.toObject();
+        // 5. Record Outbox Event for Reversal
+        await outboxService.recordEvent({
+            eventType: "PRODUCTION_BATCH_REVERSED",
+            aggregateType: "ProductionRun",
+            aggregateId: lockedRun._id,
+            deduplicationKey: `PRODUCTION_BATCH_REVERSED:${lockedRun._id.toString()}:${reversalRef}`,
+            payload: {
+                productionRunId: lockedRun._id.toString(),
+                batchNumber: lockedRun.batchNumber,
+                reversedQuantity: targetReverseQty,
+                remainingBatchUnits: lockedRun.actualQuantity - newTotalReversed,
+                reason: input.reason.trim(),
+                isPartial: lockedRun.status === "PARTIALLY_REVERSED",
+                actor: resolvedActor,
+            },
+        });
+        outboxDispatcher.triggerImmediate();
+
+        return lockedRun.toObject();
     }
 
     async listProductionRuns(query?: {
@@ -1117,11 +1374,15 @@ export class ManufacturingService {
         if (query?.recipeId) filter.recipeId = new Types.ObjectId(query.recipeId);
         if (query?.status) filter.status = query.status;
 
-        return ProductionRunModel.find(filter)
+        const runs = await ProductionRunModel.find(filter)
             .populate("warehouseId", "name code")
             .sort({ manufacturingDate: -1 })
             .limit(query?.limit || 50)
             .lean();
+        return runs.map((r: any) => ({
+            ...r,
+            id: r._id?.toString() || r.id,
+        }));
     }
 
     // -------------------------------------------------------------------------
@@ -1131,12 +1392,12 @@ export class ManufacturingService {
     async syncVariantCost(input: SyncVariantCostInput) {
         const product = await ProductModel.findById(input.productId);
         if (!product) {
-            throw new Error(`Product with ID '${input.productId}' not found.`);
+            throw new AppError(`Product with ID '${input.productId}' not found.`, 404, "NOT_FOUND");
         }
 
-        const variant = product.variants.find((v: any) => v.id === input.variantId);
+        const variant = product.variants.find((v: any) => v.id === input.variantId || v._id?.toString() === input.variantId);
         if (!variant) {
-            throw new Error(`Variant with ID '${input.variantId}' not found on product '${product.title}'.`);
+            throw new AppError(`Variant with ID '${input.variantId}' not found on product '${product.title}'.`, 404, "NOT_FOUND");
         }
 
         // Find the matching price tier by currency and locationCode
@@ -1155,10 +1416,13 @@ export class ManufacturingService {
 
         if (targetPrice) {
             targetPrice.costAmount = input.costAmount;
+            if (input.sellingPrice !== undefined && input.sellingPrice >= 0) {
+                targetPrice.amount = input.sellingPrice;
+            }
         } else {
             const newPrice: any = {
                 currency: targetCurrency,
-                amount: 0,
+                amount: input.sellingPrice !== undefined && input.sellingPrice >= 0 ? input.sellingPrice : 0,
                 costAmount: input.costAmount,
             };
             if (input.locationCode) {
@@ -1172,8 +1436,221 @@ export class ManufacturingService {
             productId: product._id.toString(),
             variantId: variant.id,
             updatedCostAmount: input.costAmount,
+            updatedSellingPrice: targetPrice?.amount,
             currency: targetPrice?.currency || targetCurrency,
         };
+    }
+
+    async batchSyncVariantPricing(input: BatchSyncVariantPricingInput) {
+        const product = await ProductModel.findById(input.productId);
+        if (!product) {
+            throw new AppError(`Product with ID '${input.productId}' not found.`, 404, "NOT_FOUND");
+        }
+
+        const results: Array<{
+            variantId: string;
+            costAmount?: number | undefined;
+            sellingPrice?: number | undefined;
+            currency: string;
+        }> = [];
+
+        for (const update of input.updates) {
+            const variant = product.variants.find(
+                (v: any) => v.id === update.variantId || v._id?.toString() === update.variantId
+            );
+            if (!variant) continue;
+
+            const targetCurrency = update.currency || product.baseCurrency || "INR";
+            let targetPrice = variant.prices.find((p: any) => {
+                const currMatch = p.currency?.toUpperCase() === targetCurrency.toUpperCase();
+                if (update.locationCode) {
+                    return currMatch && p.locationCode?.toLowerCase() === update.locationCode.toLowerCase();
+                }
+                return currMatch;
+            });
+
+            if (!targetPrice && variant.prices.length > 0) {
+                targetPrice = variant.prices[0];
+            }
+
+            if (targetPrice) {
+                if (update.costAmount !== undefined && update.costAmount >= 0) {
+                    targetPrice.costAmount = update.costAmount;
+                }
+                if (update.sellingPrice !== undefined && update.sellingPrice >= 0) {
+                    targetPrice.amount = update.sellingPrice;
+                }
+            } else {
+                const newPrice: any = {
+                    currency: targetCurrency,
+                    amount: update.sellingPrice !== undefined && update.sellingPrice >= 0 ? update.sellingPrice : 0,
+                    costAmount: update.costAmount !== undefined && update.costAmount >= 0 ? update.costAmount : 0,
+                };
+                if (update.locationCode) {
+                    newPrice.locationCode = update.locationCode;
+                }
+                variant.prices.push(newPrice);
+            }
+
+            results.push({
+                variantId: (variant.id || (variant as any)._id?.toString()) as string,
+                costAmount: targetPrice?.costAmount ?? update.costAmount,
+                sellingPrice: targetPrice?.amount ?? update.sellingPrice,
+                currency: targetPrice?.currency || targetCurrency,
+            });
+        }
+
+        await product.save();
+        return {
+            productId: product._id.toString(),
+            updatedVariants: results.length,
+            updates: results,
+        };
+    }
+
+    async autoGenerateVariantRecipes(input: AutoGenerateVariantRecipesInput) {
+        const baseRecipe = await RecipeModel.findById(input.baseRecipeId);
+        if (!baseRecipe) {
+            throw new AppError(`Base recipe with ID '${input.baseRecipeId}' not found.`, 404, "NOT_FOUND");
+        }
+
+        const product = await ProductModel.findById(baseRecipe.productId);
+        if (!product) {
+            throw new AppError(`Product with ID '${baseRecipe.productId}' not found.`, 404, "NOT_FOUND");
+        }
+
+        // Helper to extract numeric grams / units
+        const getVariantNumericWeight = (v: any): number => {
+            if (v.weight && v.weight > 0) {
+                const unit = (v.weightUnit || "g").toLowerCase();
+                if (unit === "kg" || unit === "l") return v.weight * 1000;
+                return v.weight;
+            }
+            const match = (v.title || "").match(/(\d+(?:\.\d+)?)\s*(kg|g|gm|gms|l|ltr|litre|litres|ml|pcs|pack|packs|pieces)?/i);
+            if (match) {
+                const val = parseFloat(match[1]);
+                const unit = (match[2] || "g").toLowerCase();
+                if (unit === "kg" || unit === "l" || unit.startsWith("ltr") || unit.startsWith("litre")) {
+                    return val * 1000;
+                }
+                return val;
+            }
+            return 1;
+        };
+
+        const baseVariantId = baseRecipe.variantId?.toString();
+        const baseVariant = baseVariantId
+            ? product.variants.find((v: any) => (v.id || v._id?.toString()) === baseVariantId)
+            : null;
+
+        // When not anchored to a specific variant, calculate base weight from the recipe's batch yield (e.g. 1kg = 1,000g, 100kg = 100,000g)
+        let baseWeight = 1000;
+        if (!baseVariant) {
+            const unit = (baseRecipe.batchYield?.unit || "kg").toLowerCase();
+            const qty = baseRecipe.batchYield?.quantity || 1;
+            if (unit === "kg" || unit === "l" || unit.startsWith("ltr") || unit.startsWith("litre")) {
+                baseWeight = qty * 1000;
+            } else if (unit === "g" || unit === "gm" || unit === "gms" || unit === "ml") {
+                baseWeight = qty;
+            } else {
+                baseWeight = qty * 1000;
+            }
+        } else {
+            baseWeight = getVariantNumericWeight(baseVariant);
+        }
+
+        const isUniversalMaster = !baseVariant;
+
+        const targetVariants = product.variants.filter((v: any) => {
+            const vId = v.id || v._id?.toString();
+            if (!isUniversalMaster && baseVariant && (baseVariant.id || (baseVariant as any)._id?.toString()) === vId) {
+                return false; // Skip base variant itself only if a specific variant was explicitly formulated
+            }
+            if (input.targetVariantIds && input.targetVariantIds.length > 0) {
+                return input.targetVariantIds.includes(vId);
+            }
+            return true;
+        });
+
+        const createdRecipes: RecipeDocument[] = [];
+
+        for (const variant of targetVariants) {
+            const vId = variant.id || (variant as any)._id?.toString();
+            const targetWeight = getVariantNumericWeight(variant);
+            const calculatedRatio = baseWeight > 0 ? targetWeight / baseWeight : 1;
+            const ratio = (input.customRatios && typeof input.customRatios[vId] === "number" && input.customRatios[vId]! > 0)
+                ? input.customRatios[vId]!
+                : calculatedRatio;
+
+            const prefix = input.prefixCode?.trim() || baseRecipe.code.replace(/-\d+(?:G|KG|ML|L)$/i, "");
+            const suffix = variant.sku ? variant.sku.replace(/^.*?-/, "") : variant.title.replace(/\s+/g, "").toUpperCase();
+            const generatedCode = `${prefix}-${suffix}`;
+
+            let existing = await RecipeModel.findOne({
+                productId: product._id,
+                variantId: new Types.ObjectId(vId),
+                status: "ACTIVE",
+            });
+
+            if (existing) {
+                existing.ingredients = baseRecipe.ingredients.map((ing) => ({
+                    rawMaterialId: ing.rawMaterialId,
+                    quantity: Math.round(ing.quantity * ratio * 1000) / 1000,
+                    unit: ing.unit,
+                    wastagePercent: ing.wastagePercent || 0,
+                }));
+                existing.packagingMaterials = baseRecipe.packagingMaterials.map((pkg) => ({
+                    rawMaterialId: pkg.rawMaterialId,
+                    quantity: pkg.quantity,
+                    unit: pkg.unit,
+                }));
+                existing.laborOverheadCost = Math.round((baseRecipe.laborOverheadCost || 0) * ratio * 100) / 100;
+                const costs = await this.calculateRecipeEstimatedCost(existing);
+                existing.estimatedCostWac = costs.estimatedCostWac;
+                existing.estimatedCostHighest = costs.estimatedCostHighest;
+                await existing.save();
+                createdRecipes.push(existing);
+            } else {
+                let finalCode = generatedCode;
+                const codeCollision = await RecipeModel.findOne({ code: finalCode });
+                if (codeCollision) {
+                    finalCode = `${generatedCode}-${Math.floor(100 + Math.random() * 900)}`;
+                }
+
+                const newRecipe = new RecipeModel({
+                    code: finalCode,
+                    name: `${baseRecipe.name} (${variant.title})`,
+                    version: 1,
+                    status: "ACTIVE",
+                    productId: product._id,
+                    variantId: new Types.ObjectId(vId),
+                    shelfLifeDays: baseRecipe.shelfLifeDays,
+                    batchYield: baseRecipe.batchYield,
+                    ingredients: baseRecipe.ingredients.map((ing) => ({
+                        rawMaterialId: ing.rawMaterialId,
+                        quantity: Math.round(ing.quantity * ratio * 1000) / 1000,
+                        unit: ing.unit,
+                        wastagePercent: ing.wastagePercent || 0,
+                    })),
+                    packagingMaterials: baseRecipe.packagingMaterials.map((pkg) => ({
+                        rawMaterialId: pkg.rawMaterialId,
+                        quantity: pkg.quantity,
+                        unit: pkg.unit,
+                    })),
+                    laborOverheadCost: Math.round((baseRecipe.laborOverheadCost || 0) * ratio * 100) / 100,
+                    instructions: baseRecipe.instructions,
+                    changeLog: `Auto-generated from base recipe ${baseRecipe.code} with ${ratio.toFixed(2)}x ratio`,
+                });
+
+                const costs = await this.calculateRecipeEstimatedCost(newRecipe);
+                newRecipe.estimatedCostWac = costs.estimatedCostWac;
+                newRecipe.estimatedCostHighest = costs.estimatedCostHighest;
+                await newRecipe.save();
+                createdRecipes.push(newRecipe);
+            }
+        }
+
+        return createdRecipes.map((r) => r.toObject());
     }
 
     // -------------------------------------------------------------------------
@@ -1196,10 +1673,14 @@ export class ManufacturingService {
             filter.status = query.status;
         }
 
-        return RepackagingRunModel.find(filter)
+        const runs = await RepackagingRunModel.find(filter)
             .populate("warehouseId", "name code")
             .sort({ createdAt: -1 })
             .lean();
+        return runs.map((r: any) => ({
+            ...r,
+            id: r._id?.toString() || r.id,
+        }));
     }
 
     async createRepackagingRun(input: CreateRepackagingRunInput, actor?: any) {
@@ -1454,6 +1935,22 @@ export class ManufacturingService {
         });
 
         await repackagingRun.save();
+
+        // 12. Record Outbox Event for Repackaging Completion
+        await outboxService.recordEvent({
+            eventType: "REPACKAGING_COMPLETED",
+            aggregateType: "RepackagingRun",
+            aggregateId: repackagingRun._id,
+            deduplicationKey: `REPACKAGING_COMPLETED:${repackagingRun._id.toString()}`,
+            payload: {
+                repackagingRunId: repackagingRun._id.toString(),
+                runNumber: repackagingRun.runNumber,
+                packageUnitsProduced: repackagingRun.packageUnitsProduced,
+                targetVariantSku: targetVariant.sku,
+            },
+        });
+        outboxDispatcher.triggerImmediate();
+
         return repackagingRun.toObject();
     }
 
@@ -1498,15 +1995,59 @@ export class ManufacturingService {
             );
         }
 
-        // 2. Deduct from finished goods inventory
-        const ratio = targetReverseQty / run.packageUnitsProduced;
-        const prevOnHand = inventory.onHand;
-        const newOnHand = prevOnHand - targetReverseQty;
-        inventory.onHand = newOnHand;
-        if (resolvedActor) {
-            inventory.updatedBy = resolvedActor;
+        // 1b. Atomic conditional claim on unreversed repackaged units (prevents concurrent double reversals)
+        const lockedRun = await RepackagingRunModel.findOneAndUpdate(
+            {
+                _id: run._id,
+                status: { $ne: "REVERSED" },
+                $expr: {
+                    $gte: [
+                        { $subtract: ["$packageUnitsProduced", { $ifNull: ["$reversedUnits", 0] }] },
+                        targetReverseQty,
+                    ],
+                },
+            },
+            {
+                $inc: { reversedUnits: targetReverseQty },
+            },
+            { returnDocument: "after" }
+        );
+
+        if (!lockedRun) {
+            throw new AppError(
+                `Repackaging run '${run.runNumber}' cannot be reversed: already reversed or concurrent reversal in progress.`,
+                409,
+                "CONCURRENCY_CONFLICT"
+            );
         }
-        await inventory.save();
+
+        // 2. Deduct from finished goods inventory atomically
+        const prevOnHand = inventory.onHand;
+        const updatedInventory = await InventoryModel.findOneAndUpdate(
+            {
+                _id: inventory._id,
+                onHand: { $gte: targetReverseQty },
+            },
+            {
+                $inc: { onHand: -targetReverseQty },
+                ...(resolvedActor ? { $set: { updatedBy: resolvedActor } } : {}),
+            },
+            { returnDocument: "after" }
+        );
+
+        if (!updatedInventory) {
+            await RepackagingRunModel.findByIdAndUpdate(run._id, {
+                $inc: { reversedUnits: -targetReverseQty },
+            });
+            throw new AppError(
+                `Cannot reverse repackaging run '${run.runNumber}': finished inventory was already consumed or reserved.`,
+                400,
+                "CANNOT_REVERSE_SOLD_UNITS"
+            );
+        }
+
+        const newOnHand = updatedInventory.onHand;
+        const ratio = targetReverseQty / run.packageUnitsProduced;
 
         const revIndex = run.status === "PARTIALLY_REVERSED" ? 2 : 1;
         const reversalRef = `${run.runNumber}-REV-00${revIndex}`;
@@ -1593,22 +2134,169 @@ export class ManufacturingService {
         }
 
         // 6. Update RepackagingRun document
-        const newTotalReversed = (run.reversedUnits || 0) + targetReverseQty;
-        run.reversedUnits = newTotalReversed;
-        run.status = newTotalReversed >= run.packageUnitsProduced ? "REVERSED" : "PARTIALLY_REVERSED";
-        run.reversalDetails = {
+        const newTotalReversed = lockedRun.reversedUnits || 0;
+        lockedRun.status = newTotalReversed >= lockedRun.packageUnitsProduced ? "REVERSED" : "PARTIALLY_REVERSED";
+        lockedRun.reversalDetails = {
             reversedAt: new Date(),
             reversalReference: reversalRef,
             reason: input.reason.trim(),
             reversedBy: resolvedActor,
             reversedQuantity: targetReverseQty,
-            originalQuantity: run.packageUnitsProduced,
+            originalQuantity: lockedRun.packageUnitsProduced,
             soldOrReservedAtReversal: soldOrReserved,
-            isPartial: run.status === "PARTIALLY_REVERSED",
+            isPartial: lockedRun.status === "PARTIALLY_REVERSED",
         };
-        await run.save();
+        await lockedRun.save();
 
-        return run.toObject();
+        // 7. Record Outbox Event for Repackaging Reversal
+        await outboxService.recordEvent({
+            eventType: "REPACKAGING_REVERSED",
+            aggregateType: "RepackagingRun",
+            aggregateId: lockedRun._id,
+            deduplicationKey: `REPACKAGING_REVERSED:${lockedRun._id.toString()}:${reversalRef}`,
+            payload: {
+                repackagingRunId: lockedRun._id.toString(),
+                runNumber: lockedRun.runNumber,
+                reversedUnits: targetReverseQty,
+                remainingUnits: lockedRun.packageUnitsProduced - newTotalReversed,
+                reason: input.reason.trim(),
+                isPartial: lockedRun.status === "PARTIALLY_REVERSED",
+                actor: resolvedActor,
+            },
+        });
+        outboxDispatcher.triggerImmediate();
+
+        return lockedRun.toObject();
+    }
+
+    // -------------------------------------------------------------------------
+    // 8. VENDOR MANAGEMENT
+    // -------------------------------------------------------------------------
+
+    async listVendors(query?: { search?: string | undefined; status?: string | undefined }) {
+        const filter: Record<string, any> = {};
+
+        if (query?.status) {
+            filter.status = query.status;
+        }
+
+        if (query?.search?.trim()) {
+            const term = query.search.trim();
+            const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+            filter.$or = [
+                { name: { $regex: regex } },
+                { contactNumber: { $regex: regex } },
+                { email: { $regex: regex } },
+                { gstin: { $regex: regex } },
+            ];
+        }
+
+        const vendors = await VendorModel.find(filter).sort({ name: 1 }).lean();
+        return vendors.map((v: any) => ({
+            ...v,
+            id: v._id?.toString() || (v as any).id,
+        }));
+    }
+
+    async getVendorById(id: string) {
+        if (!Types.ObjectId.isValid(id)) {
+            throw new AppError("Invalid vendor ID.", 400, "INVALID_ID");
+        }
+        const vendor = await VendorModel.findById(id).lean();
+        if (!vendor) {
+            throw new AppError("Vendor not found.", 404, "NOT_FOUND");
+        }
+        return {
+            ...vendor,
+            id: (vendor as any)._id?.toString() || (vendor as any).id,
+        };
+    }
+
+    async createVendor(input: CreateVendorInput) {
+        const cleanName = input.name.trim();
+        const existing = await VendorModel.findOne({
+            name: { $regex: new RegExp(`^${cleanName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") },
+        });
+        if (existing) {
+            throw new AppError(`Vendor with name '${cleanName}' already exists.`, 409, "DUPLICATE_VENDOR");
+        }
+
+        const vendor = new VendorModel({
+            name: cleanName,
+            contactNumber: input.contactNumber?.trim() || "",
+            email: input.email?.trim() || undefined,
+            gstin: input.gstin?.trim()?.toUpperCase() || undefined,
+            address: input.address?.trim() || undefined,
+            status: input.status || "ACTIVE",
+            notes: input.notes?.trim() || undefined,
+            totalIntakes: 0,
+            totalSpend: 0,
+        });
+        await vendor.save();
+        return vendor.toObject();
+    }
+
+    async updateVendor(id: string, input: UpdateVendorInput) {
+        if (!Types.ObjectId.isValid(id)) {
+            throw new AppError("Invalid vendor ID.", 400, "INVALID_ID");
+        }
+        const vendor = await VendorModel.findById(id);
+        if (!vendor) {
+            throw new AppError("Vendor not found.", 404, "NOT_FOUND");
+        }
+
+        if (input.name !== undefined) {
+            const cleanName = input.name.trim();
+            const duplicate = await VendorModel.findOne({
+                _id: { $ne: vendor._id },
+                name: { $regex: new RegExp(`^${cleanName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") },
+            });
+            if (duplicate) {
+                throw new AppError(`Another vendor with name '${cleanName}' already exists.`, 409, "DUPLICATE_VENDOR");
+            }
+            vendor.name = cleanName;
+        }
+
+        if (input.contactNumber !== undefined) vendor.contactNumber = input.contactNumber.trim();
+        if (input.email !== undefined) vendor.email = input.email.trim() || undefined;
+        if (input.gstin !== undefined) vendor.gstin = input.gstin.trim()?.toUpperCase() || undefined;
+        if (input.address !== undefined) vendor.address = input.address.trim() || undefined;
+        if (input.status !== undefined) vendor.status = input.status;
+        if (input.notes !== undefined) vendor.notes = input.notes.trim() || undefined;
+
+        await vendor.save();
+        return vendor.toObject();
+    }
+
+    async getVendorPurchases(vendorId: string) {
+        if (!Types.ObjectId.isValid(vendorId)) {
+            throw new AppError("Invalid vendor ID.", 400, "INVALID_ID");
+        }
+        const vendor = await VendorModel.findById(vendorId);
+        if (!vendor) {
+            throw new AppError("Vendor not found.", 404, "NOT_FOUND");
+        }
+
+        const filter = {
+            $or: [
+                { vendorId: vendor._id },
+                {
+                    "supplier.name": {
+                        $regex: new RegExp(`^${vendor.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
+                    },
+                },
+            ],
+        };
+
+        const lots = await RawMaterialLotModel.find(filter)
+            .populate("rawMaterialId", "code name unit category")
+            .sort({ receivedDate: -1 })
+            .lean();
+
+        return lots.map((l: any) => ({
+            ...l,
+            id: l._id?.toString() || (l as any).id,
+        }));
     }
 }
 

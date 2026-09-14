@@ -155,6 +155,7 @@ const NAV_SECTIONS: NavSection[] = [
                 subItems: [
                     { label: "Material Catalog", href: "/raw-materials", icon: Boxes },
                     { label: "Intake & Purchases", href: "/raw-materials/purchases", icon: Truck },
+                    { label: "Vendors & Suppliers", href: "/raw-materials/vendors", icon: Users },
                     { label: "Active Lots & FEFO", href: "/raw-materials/lots", icon: CalendarCheck },
                     { label: "Raw Stock Ledger", href: "/raw-materials/ledger", icon: Layers },
                 ],
@@ -209,6 +210,12 @@ const NAV_SECTIONS: NavSection[] = [
                 label: "Audit Logs",
                 href: "/audit-logs",
                 icon: ScrollText,
+                allowedRoles: ["SUPER_ADMIN", "ADMIN"],
+            },
+            {
+                label: "Bulk Operations (Jobs)",
+                href: "/jobs",
+                icon: Cpu,
                 allowedRoles: ["SUPER_ADMIN", "ADMIN"],
             },
             {

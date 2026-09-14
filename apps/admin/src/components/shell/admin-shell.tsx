@@ -25,7 +25,7 @@ export function AdminShell({ children }: AdminShellProps) {
                 <Topbar onToggleMobileNav={() => setIsMobileNavOpen((prev) => !prev)} />
 
                 {/* Main Content Area - Strictly constrained to max-w-6xl with equal side gaps and vertical spacing */}
-                <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 min-w-0">
+                <main className="flex-1 w-full max-w-6xl 2xl:max-w-7xl  mx-auto px-4  py-6 min-w-0">
                     {children}
                 </main>
             </div>

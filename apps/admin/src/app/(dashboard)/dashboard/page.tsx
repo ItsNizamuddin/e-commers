@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { api } from "../../../lib/api";
-import type { AdminDashboardMetrics, AdminLowStockItem, AdminRecentOrderItem } from "@ecommers/types";
+import type { AdminDashboardMetrics, AdminLowStockItem, AdminRecentOrderItem, QueueJobItem } from "@ecommers/types";
 import {
     Card,
     Badge,
@@ -24,11 +25,14 @@ import {
     PackageCheck,
     Truck,
     Clock,
+    Cpu,
+    ArrowRight,
 } from "lucide-react";
 import { RequireRole } from "../../../components/auth/require-role";
 
 export default function DashboardOverviewPage() {
     const [data, setData] = useState<AdminDashboardMetrics | null>(null);
+    const [recentJobs, setRecentJobs] = useState<QueueJobItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -36,8 +40,20 @@ export default function DashboardOverviewPage() {
         setLoading(true);
         setError(null);
         try {
-            const metrics = await api.admin.getDashboard();
-            setData(metrics);
+            const [metricsRes, jobsRes] = await Promise.allSettled([
+                api.admin.getDashboard(),
+                api.admin.listJobs({ queueName: "bulkProcessing", limit: 5 }),
+            ]);
+
+            if (metricsRes.status === "fulfilled") {
+                setData(metricsRes.value);
+            } else {
+                throw metricsRes.reason;
+            }
+
+            if (jobsRes.status === "fulfilled" && jobsRes.value?.items) {
+                setRecentJobs(jobsRes.value.items);
+            }
         } catch (err: unknown) {
             if (err instanceof Error) {
                 setError(err.message);
@@ -328,6 +344,107 @@ export default function DashboardOverviewPage() {
                     </Table>
                 </Card>
             </div>
+
+            {/* Bulk Operations & Updaters Table */}
+            <Card className="p-3.5">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2.5">
+                        <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                            <Cpu size={16} />
+                        </div>
+                        <div>
+                            <div className="text-xs font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                                Recent Bulk Operations & Updaters
+                                <Badge variant="primary" size="sm">Bulk Processing</Badge>
+                            </div>
+                            <div className="text-[11px] text-slate-400">
+                                Live tracking for CSV imports, bulk metadata updaters, and batch processing
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <Link
+                            href="/jobs"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                            <span>Open Bulk Jobs Console</span>
+                            <ArrowRight size={13} />
+                        </Link>
+                    </div>
+                </div>
+
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Bulk Job / ID</TableHead>
+                            <TableHead>Operation Queue</TableHead>
+                            <TableHead>Reference #</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Trigger Source</TableHead>
+                            <TableHead>Duration</TableHead>
+                            <TableHead>Time</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {recentJobs.length === 0 ? (
+                            <TableRow noHover>
+                                <TableCell colSpan={7} className="text-center text-slate-400 dark:text-neutral-500 py-6 text-xs">
+                                    No bulk operations tracked yet. Bulk updaters and CSV imports will appear here.
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            recentJobs.map((job) => (
+                                <TableRow key={job.jobId} className="hover:bg-slate-50/70 dark:hover:bg-neutral-900/50">
+                                    <TableCell>
+                                        <div className="font-semibold text-xs text-slate-900 dark:text-white">{job.jobName}</div>
+                                        <div className="font-mono text-[10px] text-slate-400 truncate max-w-[140px]">{job.jobId}</div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <span className="font-mono text-[11px] px-2 py-0.5 rounded border border-slate-200 dark:border-neutral-800 bg-slate-50 dark:bg-neutral-900 text-slate-700 dark:text-neutral-300">
+                                            {job.queueName}
+                                        </span>
+                                    </TableCell>
+                                    <TableCell>
+                                        {job.audit?.referenceNumber ? (
+                                            <span className="font-mono text-xs font-semibold text-blue-600 dark:text-blue-400">
+                                                {job.audit.referenceNumber}
+                                            </span>
+                                        ) : (
+                                            <span className="text-slate-400 text-xs">—</span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge
+                                            variant={
+                                                job.status === "COMPLETED"
+                                                    ? "success"
+                                                    : job.status === "FAILED"
+                                                    ? "danger"
+                                                    : job.status === "PROCESSING"
+                                                    ? "primary"
+                                                    : "warning"
+                                            }
+                                            size="sm"
+                                        >
+                                            {job.status}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-xs text-slate-600 dark:text-neutral-400">
+                                        {job.audit?.triggeredBy?.source || "SYSTEM"}
+                                    </TableCell>
+                                    <TableCell className="text-xs font-semibold text-slate-800 dark:text-neutral-200">
+                                        {job.durationMs !== undefined ? `${job.durationMs}ms` : "—"}
+                                    </TableCell>
+                                    <TableCell className="text-xs text-slate-400">
+                                        {new Date(job.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        )}
+                    </TableBody>
+                </Table>
+            </Card>
         </div>
     </RequireRole>
 );

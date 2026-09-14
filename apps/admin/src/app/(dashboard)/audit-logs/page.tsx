@@ -98,6 +98,13 @@ function getActionBadgeStyle(action: string): { bg: string; text: string; border
             border: "border-sky-200 dark:border-sky-800/40",
         };
     }
+    if (action.startsWith("SEO_")) {
+        return {
+            bg: "bg-fuchsia-500/10 dark:bg-fuchsia-950/40",
+            text: "text-fuchsia-600 dark:text-fuchsia-400",
+            border: "border-fuchsia-200 dark:border-fuchsia-800/40",
+        };
+    }
     return {
         bg: "bg-zinc-500/10 dark:bg-zinc-800/40",
         text: "text-zinc-700 dark:text-zinc-300",
@@ -197,13 +204,14 @@ export default function AuditLogsPage() {
         setTimeout(() => setCopiedJson(false), 2000);
     };
 
-    // Category filter pills
+    // Category filter pills for administrative and individual operations
     const CATEGORIES = [
         { label: "All Activity", value: "ALL" },
         { label: "Authentication", value: "AUTH_LOGIN_SUCCESS" },
         { label: "Staff & RBAC", value: "STAFF_CREATED" },
         { label: "Products", value: "PRODUCT_CREATED" },
         { label: "Categories", value: "CATEGORY_CREATED" },
+        { label: "Single Edits & SEO", value: "SEO_METADATA_UPDATED" },
     ];
 
     const RESOURCES = [
@@ -212,6 +220,7 @@ export default function AuditLogsPage() {
         { label: "Staff", value: "staff" },
         { label: "Product", value: "product" },
         { label: "Category", value: "category" },
+        { label: "SEO (Single Rows)", value: "seo" },
     ];
 
     return (
@@ -235,7 +244,7 @@ export default function AuditLogsPage() {
                                     </span>
                                 </div>
                                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                                    Centralized chronological record of all administrative operations, logins, and entity changes.
+                                    Centralized chronological record of all administrative operations, logins, and individual entity modifications.
                                 </p>
                             </div>
                         </div>

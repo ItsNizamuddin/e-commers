@@ -17,23 +17,38 @@ import type {
     ReverseRepackagingRunInput,
     ProductionFeasibilityCheck,
     SyncVariantCostInput,
+    BatchSyncVariantPricingInput,
+    AutoGenerateVariantRecipesInput,
+    Vendor,
+    CreateVendorInput,
+    UpdateVendorInput,
 } from "@ecommers/types";
 
-function extractData<T>(res: any): T {
-    if (res && typeof res === "object" && !Array.isArray(res) && "data" in res && "success" in res) {
-        return (res as any).data as T;
+function normalizeItem<T>(item: any): T {
+    if (!item || typeof item !== "object") return item;
+    if (item._id && !item.id) {
+        return { ...item, id: item._id.toString() };
     }
-    return res as T;
+    return item as T;
+}
+
+function extractData<T>(res: any): T {
+    let result: any = res;
+    if (res && typeof res === "object" && !Array.isArray(res) && "data" in res && "success" in res) {
+        result = (res as any).data;
+    }
+    return normalizeItem<T>(result);
 }
 
 function extractList<T>(res: any): T[] {
     const data = extractData<any>(res);
-    if (Array.isArray(data)) return data;
-    if (data && typeof data === "object") {
-        if (Array.isArray(data.items)) return data.items;
-        if (Array.isArray(data.data)) return data.data;
+    let items: any[] = [];
+    if (Array.isArray(data)) items = data;
+    else if (data && typeof data === "object") {
+        if (Array.isArray(data.items)) items = data.items;
+        else if (Array.isArray(data.data)) items = data.data;
     }
-    return [];
+    return items.map((item) => normalizeItem<T>(item));
 }
 
 export class ManufacturingClient {
@@ -51,6 +66,34 @@ export class ManufacturingClient {
             { params }
         );
         return extractList<RawMaterial>(res);
+    }
+
+    async checkRawMaterialCode(code: string): Promise<{
+        code: string;
+        isAvailable: boolean;
+        suggestedCode?: string;
+    }> {
+        const res = await this.client.get<any>(
+            "/admin/manufacturing/raw-materials/check-code",
+            { params: { code } }
+        );
+        return extractData<{
+            code: string;
+            isAvailable: boolean;
+            suggestedCode?: string;
+        }>(res);
+    }
+
+    async suggestRawMaterialCode(name: string): Promise<{
+        suggestedCode: string;
+    }> {
+        const res = await this.client.get<any>(
+            "/admin/manufacturing/raw-materials/suggest-code",
+            { params: { name } }
+        );
+        return extractData<{
+            suggestedCode: string;
+        }>(res);
     }
 
     async getRawMaterialById(id: string): Promise<RawMaterial> {
@@ -216,6 +259,33 @@ export class ManufacturingClient {
         }>(res);
     }
 
+    async batchSyncVariantPricing(body: BatchSyncVariantPricingInput): Promise<{
+        productId: string;
+        updates: Array<{
+            variantId: string;
+            costAmount?: number;
+            sellingPrice?: number;
+            currency: string;
+        }>;
+    }> {
+        const res = await this.client.post<any>(
+            "/admin/manufacturing/sync-variant-pricing-batch",
+            body
+        );
+        return extractData<any>(res);
+    }
+
+    async autoGenerateVariantRecipes(
+        baseRecipeId: string,
+        body?: { targetVariantIds?: string[]; prefixCode?: string; customRatios?: Record<string, number> }
+    ): Promise<Recipe[]> {
+        const res = await this.client.post<any>(
+            `/admin/manufacturing/recipes/${baseRecipeId}/auto-generate-variants`,
+            body || {}
+        );
+        return extractList<Recipe>(res);
+    }
+
     // Stock Repackaging (Bulk to Retail)
     async listRepackagingRuns(params?: {
         sourceRawMaterialId?: string;
@@ -243,6 +313,45 @@ export class ManufacturingClient {
             body
         );
         return extractData<RepackagingRun>(res);
+    }
+
+    // Vendors & Suppliers
+    async listVendors(params?: { search?: string; status?: string }): Promise<Vendor[]> {
+        const res = await this.client.get<any>(
+            "/admin/manufacturing/vendors",
+            { params }
+        );
+        return extractList<Vendor>(res);
+    }
+
+    async getVendorById(id: string): Promise<Vendor> {
+        const res = await this.client.get<any>(
+            `/admin/manufacturing/vendors/${id}`
+        );
+        return extractData<Vendor>(res);
+    }
+
+    async createVendor(body: CreateVendorInput): Promise<Vendor> {
+        const res = await this.client.post<any>(
+            "/admin/manufacturing/vendors",
+            body
+        );
+        return extractData<Vendor>(res);
+    }
+
+    async updateVendor(id: string, body: UpdateVendorInput): Promise<Vendor> {
+        const res = await this.client.patch<any>(
+            `/admin/manufacturing/vendors/${id}`,
+            body
+        );
+        return extractData<Vendor>(res);
+    }
+
+    async getVendorPurchases(id: string): Promise<RawMaterialLot[]> {
+        const res = await this.client.get<any>(
+            `/admin/manufacturing/vendors/${id}/purchases`
+        );
+        return extractList<RawMaterialLot>(res);
     }
 }
 

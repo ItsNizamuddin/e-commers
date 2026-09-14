@@ -11,6 +11,8 @@
     "dev:web": "pnpm --filter web dev",
     "dev:admin": "pnpm --filter admin dev",
     "dev:all": "pnpm --parallel dev",
+    "worker": "pnpm --filter api worker",
+    "start:worker": "pnpm --filter api start:worker",
     "build": "pnpm --recursive build",
     "test": "pnpm --recursive test",
     "typecheck": "pnpm --recursive typecheck",

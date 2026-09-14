@@ -161,6 +161,9 @@ export const auditLogService = {
 
         if (query.action) {
             filter.action = query.action;
+        } else {
+            // In audit log only other operations (individual updates, auth, staff, product edits) are shown
+            filter.action = { $nin: ["SEO_BULK_IMPORT", "SEO_AUTO_FILLED"] };
         }
 
         if (query.resource) {

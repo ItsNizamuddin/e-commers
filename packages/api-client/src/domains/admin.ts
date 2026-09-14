@@ -7,6 +7,9 @@ import type {
     UserRole,
     AuditLogQuery,
     AuditLogListResponse,
+    QueueJobItem,
+    QueueJobsListResponse,
+    QueueJobsQuery,
 } from "@ecommers/types";
 
 export interface SalesAnalyticsQuery {
@@ -93,5 +96,28 @@ export class AdminClient {
 
     async getAuditLogs(params?: AuditLogQuery): Promise<AuditLogListResponse> {
         return this.client.get<AuditLogListResponse>("/admin/audit-logs", { params });
+    }
+
+    async listJobs(params?: QueueJobsQuery): Promise<QueueJobsListResponse> {
+        const res = await this.client.get<any>("/admin/jobs", { params });
+        if (res && res.data && res.pagination) {
+            return {
+                items: res.data,
+                pagination: res.pagination,
+            };
+        }
+        if (Array.isArray(res)) {
+            return { items: res, pagination: { page: 1, limit: res.length, total: res.length, totalPages: 1 } };
+        }
+        return {
+            items: res?.items || res?.data || [],
+            pagination: res?.pagination || { page: 1, limit: 20, total: 0, totalPages: 0 },
+        };
+    }
+
+    async getJob(jobId: string): Promise<QueueJobItem> {
+        const res = await this.client.get<any>(`/admin/jobs/${jobId}`);
+        if (res && "data" in res) return res.data;
+        return res;
     }
 }

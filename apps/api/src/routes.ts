@@ -15,6 +15,7 @@ import { searchRoutes } from "./modules/search/index.js";
 import { locationRouter, adminLocationRouter } from "./modules/locations/location.routes.js";
 import { seoRouter, adminSeoRouter } from "./modules/seo/seo.routes.js";
 import { adminManufacturingRouter } from "./modules/manufacturing/manufacturing.routes.js";
+import { adminJobsRouter } from "./modules/queues/queue-job.routes.js";
 
 const router = Router();
 
@@ -24,6 +25,7 @@ router.use("/admin", adminRoutes);
 router.use("/admin/locations", adminLocationRouter);
 router.use("/admin/seo", adminSeoRouter);
 router.use("/admin/manufacturing", adminManufacturingRouter);
+router.use("/admin/jobs", adminJobsRouter);
 router.use("/categories", categoryRoutes);
 router.use("/products", productRoutes);
 router.use("/locations", locationRouter);

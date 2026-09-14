@@ -21,13 +21,16 @@ import {
     Calendar,
     ArrowRight,
     Sparkles,
+    Printer,
 } from "lucide-react";
+import { BatchSheetModal } from "@/components/manufacturing/batch-sheet-modal";
 
 export default function RecipesPage() {
     const [recipes, setRecipes] = useState<Recipe[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [costingStrategy, setCostingStrategy] = useState<"WAC" | "HIGHEST">("WAC");
+    const [batchModalRecipe, setBatchModalRecipe] = useState<Recipe | null>(null);
 
     const fetchRecipes = useCallback(async (isManual = false) => {
         if (isManual) setRefreshing(true);
@@ -235,6 +238,16 @@ export default function RecipesPage() {
                                             </td>
                                             <td className="py-3 px-4 text-right">
                                                 <div className="flex items-center justify-end gap-1.5">
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => setBatchModalRecipe(r)}
+                                                        className="h-7 text-[11px] px-2.5 gap-1 border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-900/60 dark:text-blue-300 font-medium"
+                                                    >
+                                                        <Printer size={12} />
+                                                        <span>Batch Slip</span>
+                                                    </Button>
                                                     <Link href={`/recipes/${r.id}`}>
                                                         <Button variant="outline" size="sm" className="h-7 text-[11px] px-2.5">
                                                             Formula
@@ -256,6 +269,17 @@ export default function RecipesPage() {
                     </div>
                 )}
             </Card>
+
+            {/* Production Batch Slip & Scaled Work Order Modal */}
+            <BatchSheetModal
+                isOpen={!!batchModalRecipe}
+                onClose={() => setBatchModalRecipe(null)}
+                recipe={batchModalRecipe}
+                onBatchCreated={(batchNum) => {
+                    toast.success(`Production batch ${batchNum} scheduled!`);
+                    fetchRecipes(true);
+                }}
+            />
         </div>
     );
 }

@@ -109,12 +109,7 @@ export default function EditRawMaterialPage({ params }: { params: Promise<{ id: 
 
     const handleProductChange = (prodId: string) => {
         setSelectedProductId(prodId);
-        const prod = products.find((p) => p.id === prodId);
-        if (prod && prod.variants && prod.variants.length > 0) {
-            setSelectedVariantId(prod.variants[0].id);
-        } else {
-            setSelectedVariantId("");
-        }
+        setSelectedVariantId("");
     };
 
     const selectedProduct = products.find((p) => p.id === selectedProductId);
@@ -133,8 +128,8 @@ export default function EditRawMaterialPage({ params }: { params: Promise<{ id: 
                 name: name.trim(),
                 category,
                 usage,
-                linkedProductId: (usage === "SELLABLE" || usage === "BOTH") && selectedProductId ? selectedProductId : undefined,
-                linkedVariantId: (usage === "SELLABLE" || usage === "BOTH") && selectedVariantId ? selectedVariantId : undefined,
+                linkedProductId: (usage === "SELLABLE" || usage === "BOTH") && selectedProductId ? selectedProductId : null,
+                linkedVariantId: (usage === "SELLABLE" || usage === "BOTH") && selectedVariantId ? selectedVariantId : null,
                 reorderThreshold: threshold ? parseFloat(threshold) : 5,
                 isActive,
             });
@@ -377,31 +372,60 @@ export default function EditRawMaterialPage({ params }: { params: Promise<{ id: 
                                         disabled={loadingProducts}
                                         className="text-xs h-9"
                                     >
-                                        <option value="">-- None / Select Later --</option>
-                                        {products.map((p) => (
-                                            <option key={p.id} value={p.id}>
-                                                {p.title}
-                                            </option>
-                                        ))}
+                                        <option key="__none_selected__" value="">-- None / Select Later --</option>
+                                        {products.map((p, idx) => {
+                                            const pId = p.id || (p as any)._id || `p-${idx}`;
+                                            return (
+                                                <option key={pId} value={pId}>
+                                                    {p.title}
+                                                </option>
+                                            );
+                                        })}
                                     </Select>
                                 </FormField>
 
-                                <FormField label="Target Product Variant">
+                                <FormField
+                                    label="Target Product Variant"
+                                    helperText="Optional. Select 'All Variants' if this bulk material can be repackaged into multiple SKU sizes (e.g. 250g, 500g, 1kg)."
+                                >
                                     <Select
                                         value={selectedVariantId}
                                         onChange={(e) => setSelectedVariantId(e.target.value)}
                                         disabled={!selectedProduct || !selectedProduct.variants || selectedProduct.variants.length === 0}
                                         className="text-xs h-9"
                                     >
-                                        <option value="">-- Select Variant --</option>
-                                        {selectedProduct?.variants?.map((v: ProductVariant) => (
-                                            <option key={v.id} value={v.id}>
-                                                {v.title} ({v.sku})
-                                            </option>
-                                        ))}
+                                        <option key="__all_variants__" value="">All Variants (Repackage into any variant)</option>
+                                        {selectedProduct?.variants?.map((v: ProductVariant, idx) => {
+                                            const vId = v.id || (v as any)._id || v.sku || `v-${idx}`;
+                                            return (
+                                                <option key={vId} value={vId}>
+                                                    {v.title} ({v.sku})
+                                                </option>
+                                            );
+                                        })}
                                     </Select>
                                 </FormField>
                             </div>
+
+                            {selectedProduct && (
+                                <div className="mt-2.5 p-3 rounded-xl bg-purple-50/70 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/60 text-xs text-slate-700 dark:text-neutral-300 flex items-start gap-2.5">
+                                    {selectedVariantId ? (
+                                        <>
+                                            <Badge variant="primary" size="sm" className="mt-0.5 shrink-0">Single Variant Default</Badge>
+                                            <p className="text-[11px] leading-relaxed">
+                                                Repackaging runs will pre-select this specific variant by default. You can still repackage into any other variant whenever needed.
+                                            </p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Badge variant="success" size="sm" className="mt-0.5 shrink-0">All Variants Supported</Badge>
+                                            <p className="text-[11px] leading-relaxed">
+                                                This raw material is linked to the <strong>{selectedProduct.title}</strong> product family. During repackaging runs, warehouse staff can choose to transform this bulk material into <strong>any of its {selectedProduct.variants?.length || 0} variants</strong> (e.g. 250g, 500g, 750g, 1kg).
+                                            </p>
+                                        </>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
                 </Card>

@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from "express";
 import { seoService } from "./seo.service.js";
 import { bulkSeoImportSchema, autoFillLocationsSchema, upsertEntitySeoSchema } from "./seo.validation.js";
 import { SeoEntityType } from "@ecommers/types";
+import { queueJobService } from "../queues/queue-job.service.js";
+import { auditLogService } from "../audit/audit-log.service.js";
 
 export class SeoController {
     /**
@@ -36,6 +38,21 @@ export class SeoController {
             const validated = upsertEntitySeoSchema.parse(req.body);
 
             const result = await seoService.upsertSeo(entityType, entityId, validated);
+
+            // Record audit log for SEO upsert
+            void auditLogService.recordFromRequest(req, {
+                action: "SEO_METADATA_UPDATED",
+                target: {
+                    resource: "seo",
+                    resourceId: `${entityType}:${entityId}`,
+                    details: {
+                        entityType,
+                        entityId,
+                        locationsUpdated: validated.locations?.length || 0,
+                    },
+                },
+            });
+
             res.status(200).json({ success: true, data: result });
         } catch (error) {
             next(error);
@@ -71,9 +88,44 @@ export class SeoController {
     async importCsv(req: Request, res: Response, next: NextFunction): Promise<void> {
         try {
             const validated = bulkSeoImportSchema.parse(req.body);
-            const result = await seoService.importSeoCsv(validated.csvContent, validated.mode);
+            const user = (req as any).user;
+            const refNumber = `SEO-IMP-${Date.now().toString().slice(-6)}`;
+            const jobId = `bulkProcessing:seo-import:${Date.now()}`;
 
-            res.status(200).json({ success: true, data: result });
+            const trackingPayload = {
+                aggregateType: "SEO",
+                referenceNumber: refNumber,
+                reason: `Bulk SEO CSV Import (${validated.mode || "UPSERT"} mode)`,
+                mode: validated.mode,
+                csvLength: validated.csvContent.length,
+                ipAddress: req.ip,
+                userAgent: req.get("user-agent"),
+                actor: user
+                    ? {
+                          id: user.id,
+                          name: user.name || "Admin User",
+                          email: user.email || "admin@store.com",
+                          role: user.role,
+                      }
+                    : undefined,
+            };
+
+            const result = await queueJobService.executeWithTracking(
+                {
+                    id: jobId,
+                    queueName: "bulkProcessing",
+                    name: "bulk-seo-import",
+                    data: trackingPayload,
+                },
+                async () => {
+                    return seoService.importSeoCsv(validated.csvContent, validated.mode);
+                }
+            );
+
+            // Strip internal idempotentReplay flag before returning client payload
+            const { idempotentReplay: _, ...data } = result;
+
+            res.status(200).json({ success: true, data });
         } catch (error) {
             next(error);
         }
@@ -90,13 +142,47 @@ export class SeoController {
             if (validated.descTemplate) options.descTemplate = validated.descTemplate;
             if (validated.badgeTemplate) options.badgeTemplate = validated.badgeTemplate;
 
-            const result = await seoService.autoFillLocations(
-                validated.entityType,
-                validated.entityId,
-                options
+            const user = (req as any).user;
+            const refNumber = `SEO-GEN-${Date.now().toString().slice(-6)}`;
+            const jobId = `bulkProcessing:seo-autofill:${Date.now()}`;
+
+            const trackingPayload = {
+                aggregateType: validated.entityType === "PRODUCT" ? "Product" : "Category",
+                aggregateId: validated.entityId,
+                referenceNumber: refNumber,
+                reason: `Auto-fill localized SEO for ${validated.entityType} (${validated.entityId})`,
+                options,
+                ipAddress: req.ip,
+                userAgent: req.get("user-agent"),
+                actor: user
+                    ? {
+                          id: user.id,
+                          name: user.name || "Admin User",
+                          email: user.email || "admin@store.com",
+                          role: user.role,
+                      }
+                    : undefined,
+            };
+
+            const result = await queueJobService.executeWithTracking(
+                {
+                    id: jobId,
+                    queueName: "bulkProcessing",
+                    name: "bulk-seo-autofill",
+                    data: trackingPayload,
+                },
+                async () => {
+                    return seoService.autoFillLocations(
+                        validated.entityType,
+                        validated.entityId,
+                        options
+                    );
+                }
             );
 
-            res.status(200).json({ success: true, data: result });
+            const { idempotentReplay: _, ...data } = result;
+
+            res.status(200).json({ success: true, data });
         } catch (error) {
             next(error);
         }
@@ -152,6 +238,22 @@ export class SeoController {
             const locationKey = (rawKey || "global") as string;
 
             const result = await seoService.updateIndividualRow(entityType, entityId, locationKey, req.body);
+
+            // Record audit log entry in audit_logs collection
+            void auditLogService.recordFromRequest(req, {
+                action: "SEO_METADATA_UPDATED",
+                target: {
+                    resource: "seo",
+                    resourceId: `${entityType}:${entityId}:${locationKey}`,
+                    details: {
+                        entityType,
+                        entityId,
+                        locationKey,
+                        updatedFields: Object.keys(req.body || {}),
+                    },
+                },
+            });
+
             res.status(200).json({ success: true, data: result });
         } catch (error) {
             next(error);

@@ -14,7 +14,7 @@ const categoryEnum = z.enum([
 ]);
 
 export const createRawMaterialSchema = z.object({
-    code: z.string().min(2).max(50).trim().toUpperCase(),
+    code: z.string().min(2).max(50).trim().toUpperCase().optional(),
     name: z.string().min(2).max(150).trim(),
     category: categoryEnum,
     usage: usageEnum.optional().default("RAW_MATERIAL"),
@@ -31,15 +31,35 @@ export const updateRawMaterialSchema = z.object({
     name: z.string().min(2).max(150).trim().optional(),
     category: categoryEnum.optional(),
     usage: usageEnum.optional(),
-    linkedProductId: z.string().optional(),
-    linkedVariantId: z.string().optional(),
+    linkedProductId: z.string().nullable().optional(),
+    linkedVariantId: z.string().nullable().optional(),
     reorderThreshold: z.number().min(0).optional(),
     isActive: z.boolean().optional(),
+});
+
+export const createVendorSchema = z.object({
+    name: z.string().min(2, "Vendor name must be at least 2 characters").max(150).trim(),
+    contactNumber: z.string().trim().optional(),
+    email: z.string().email("Invalid email address").trim().toLowerCase().optional().or(z.literal("")),
+    gstin: z.string().trim().toUpperCase().optional(),
+    address: z.string().trim().optional(),
+    notes: z.string().trim().optional(),
+});
+
+export const updateVendorSchema = z.object({
+    name: z.string().min(2).max(150).trim().optional(),
+    contactNumber: z.string().trim().optional(),
+    email: z.string().email("Invalid email address").trim().toLowerCase().optional().or(z.literal("")),
+    gstin: z.string().trim().toUpperCase().optional(),
+    address: z.string().trim().optional(),
+    status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
+    notes: z.string().trim().optional(),
 });
 
 export const recordPurchaseIntakeSchema = z.object({
     rawMaterialId: z.string().min(1),
     sourceType: z.enum(["EXTERNAL_VENDOR", "OWN_FARM"]),
+    vendorId: z.string().optional(),
     supplier: z
         .object({
             name: z.string().min(1).trim(),
@@ -157,8 +177,28 @@ export const syncVariantCostSchema = z.object({
     productId: z.string().min(1),
     variantId: z.string().min(1),
     costAmount: z.number().min(0),
+    sellingPrice: z.number().min(0).optional(),
     currency: z.string().trim().optional(),
     locationCode: z.string().trim().optional(),
+});
+
+export const batchSyncVariantPricingSchema = z.object({
+    productId: z.string().min(1),
+    updates: z.array(
+        z.object({
+            variantId: z.string().min(1),
+            costAmount: z.number().min(0).optional(),
+            sellingPrice: z.number().min(0).optional(),
+            currency: z.string().trim().optional(),
+            locationCode: z.string().trim().optional(),
+        })
+    ).min(1, "At least one variant update must be provided"),
+});
+
+export const autoGenerateVariantRecipesSchema = z.object({
+    targetVariantIds: z.array(z.string().min(1)).optional(),
+    prefixCode: z.string().trim().optional(),
+    customRatios: z.record(z.string(), z.number().positive()).optional(),
 });
 
 export const createRepackagingRunSchema = z.object({

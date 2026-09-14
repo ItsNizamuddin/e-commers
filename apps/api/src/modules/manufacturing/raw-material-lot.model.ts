@@ -1,5 +1,5 @@
 import mongoose, { Schema, model, Model, Document } from "mongoose";
-import { RawMaterialUnit, RawMaterialSourceType } from "@ecommers/types";
+import { RawMaterialUnit, RawMaterialSourceType, RawMaterialLotStatus } from "@ecommers/types";
 
 export interface RawMaterialLotDocument extends Document {
     rawMaterialId: mongoose.Types.ObjectId;
@@ -11,6 +11,7 @@ export interface RawMaterialLotDocument extends Document {
     unit: RawMaterialUnit;
     costPerUnit: number;
     sourceType: RawMaterialSourceType;
+    vendorId?: mongoose.Types.ObjectId | undefined;
     supplier?: {
         name: string;
         contact?: string;
@@ -23,6 +24,7 @@ export interface RawMaterialLotDocument extends Document {
         harvestLotNumber?: string;
         valuationMethod: "OPERATIONAL_COST" | "MARKET_RATE" | "ZERO_COST";
     };
+    status: RawMaterialLotStatus;
     isDepleted: boolean;
     notes?: string;
     createdAt: Date;
@@ -104,6 +106,12 @@ const RawMaterialLotSchema = new Schema<RawMaterialLotDocument>(
             required: true,
             default: "EXTERNAL_VENDOR",
         },
+        vendorId: {
+            type: Schema.Types.ObjectId,
+            ref: "Vendor",
+            default: undefined,
+            index: true,
+        },
         supplier: {
             type: SupplierSubSchema,
             default: undefined,
@@ -111,6 +119,13 @@ const RawMaterialLotSchema = new Schema<RawMaterialLotDocument>(
         farmDetails: {
             type: FarmDetailsSubSchema,
             default: undefined,
+        },
+        status: {
+            type: String,
+            enum: ["AVAILABLE", "EXPIRED", "DEPLETED", "BLOCKED"],
+            default: "AVAILABLE",
+            required: true,
+            index: true,
         },
         isDepleted: {
             type: Boolean,
@@ -144,8 +159,8 @@ const RawMaterialLotSchema = new Schema<RawMaterialLotDocument>(
     }
 );
 
-// Compound index for FEFO (First Expired, First Out) querying
-RawMaterialLotSchema.index({ rawMaterialId: 1, isDepleted: 1, expiryDate: 1 });
+// Compound index for FEFO (First Expired, First Out) querying with status guard
+RawMaterialLotSchema.index({ rawMaterialId: 1, status: 1, isDepleted: 1, expiryDate: 1 });
 
 export const RawMaterialLotModel =
     (mongoose.models.RawMaterialLot as Model<RawMaterialLotDocument>) ||

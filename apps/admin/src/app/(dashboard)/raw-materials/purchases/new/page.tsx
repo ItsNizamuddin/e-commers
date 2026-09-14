@@ -8,6 +8,7 @@ import type {
     RawMaterial,
     RawMaterialUnit,
     RawMaterialSourceType,
+    Vendor,
 } from "@ecommers/types";
 import {
     Card,
@@ -30,6 +31,9 @@ import {
     CheckCircle2,
     AlertCircle,
     DollarSign,
+    Users,
+    Plus,
+    X,
 } from "lucide-react";
 
 const UNITS: Array<{ label: string; value: RawMaterialUnit }> = [
@@ -52,10 +56,19 @@ export default function NewRawMaterialPurchasePage() {
     const [selectedMaterialId, setSelectedMaterialId] = useState("");
     const [sourceType, setSourceType] = useState<RawMaterialSourceType>("EXTERNAL_VENDOR");
 
-    // External Vendor
+    // External Vendor & Vendor Master
+    const [vendors, setVendors] = useState<Vendor[]>([]);
+    const [loadingVendors, setLoadingVendors] = useState(false);
+    const [selectedVendorId, setSelectedVendorId] = useState("");
     const [vendorName, setVendorName] = useState("");
     const [vendorContact, setVendorContact] = useState("");
     const [invoiceNumber, setInvoiceNumber] = useState("");
+
+    // Quick New Vendor modal
+    const [showQuickVendorModal, setShowQuickVendorModal] = useState(false);
+    const [quickVendorName, setQuickVendorName] = useState("");
+    const [quickVendorContact, setQuickVendorContact] = useState("");
+    const [isCreatingVendor, setIsCreatingVendor] = useState(false);
 
     // Own Farm
     const [farmName, setFarmName] = useState("Mandya Farm - Plot 1");
@@ -77,6 +90,19 @@ export default function NewRawMaterialPurchasePage() {
     });
     const [notes, setNotes] = useState("");
 
+    const fetchVendors = () => {
+        setLoadingVendors(true);
+        api.manufacturing
+            .listVendors({ status: "ACTIVE" })
+            .then((data) => setVendors(data || []))
+            .catch((err) => console.error("Failed to load vendors:", err))
+            .finally(() => setLoadingVendors(false));
+    };
+
+    useEffect(() => {
+        fetchVendors();
+    }, []);
+
     useEffect(() => {
         setLoadingMaterials(true);
         api.manufacturing
@@ -84,7 +110,8 @@ export default function NewRawMaterialPurchasePage() {
             .then((data) => {
                 setMaterials(data || []);
                 if (data && data.length > 0) {
-                    setSelectedMaterialId(data[0]!.id);
+                    const firstId = data[0]!.id || (data[0]! as any)._id || "";
+                    setSelectedMaterialId(firstId);
                     setUnit(data[0]!.unit);
                 }
             })
@@ -96,12 +123,62 @@ export default function NewRawMaterialPurchasePage() {
     }, []);
 
     const selectedMaterial = useMemo(() => {
-        return materials.find((m) => m.id === selectedMaterialId);
+        return materials.find((m) => (m.id || (m as any)._id) === selectedMaterialId);
     }, [materials, selectedMaterialId]);
+
+    const selectedVendor = useMemo(() => {
+        return vendors.find((v) => v.id === selectedVendorId);
+    }, [vendors, selectedVendorId]);
+
+    const handleSelectVendor = (vendorId: string) => {
+        setSelectedVendorId(vendorId);
+        if (!vendorId) {
+            return;
+        }
+        const v = vendors.find((vend) => vend.id === vendorId);
+        if (v) {
+            setVendorName(v.name);
+            setVendorContact(v.contactNumber || "");
+        }
+    };
+
+    const handleQuickCreateVendor = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!quickVendorName.trim()) {
+            toast.error("Vendor Name is required.");
+            return;
+        }
+        if (!quickVendorContact.trim()) {
+            toast.error("Vendor Contact / Phone is required.");
+            return;
+        }
+
+        setIsCreatingVendor(true);
+        try {
+            const created = await api.manufacturing.createVendor({
+                name: quickVendorName.trim(),
+                contactNumber: quickVendorContact.trim(),
+            });
+            toast.success(`Vendor '${created.name}' created!`);
+            setVendors((prev) => [created, ...prev]);
+            setSelectedVendorId(created.id);
+            setVendorName(created.name);
+            setVendorContact(created.contactNumber || "");
+            setShowQuickVendorModal(false);
+            setQuickVendorName("");
+            setQuickVendorContact("");
+        } catch (err: any) {
+            console.error("Failed to create vendor:", err);
+            const msg = err instanceof Error ? err.message : "Failed to create vendor.";
+            toast.error(msg);
+        } finally {
+            setIsCreatingVendor(false);
+        }
+    };
 
     const handleMaterialChange = (matId: string) => {
         setSelectedMaterialId(matId);
-        const mat = materials.find((m) => m.id === matId);
+        const mat = materials.find((m) => (m.id || (m as any)._id) === matId);
         if (mat) {
             setUnit(mat.unit);
         }
@@ -177,6 +254,7 @@ export default function NewRawMaterialPurchasePage() {
             await api.manufacturing.recordPurchase({
                 rawMaterialId: selectedMaterialId,
                 sourceType,
+                vendorId: sourceType === "EXTERNAL_VENDOR" && selectedVendorId ? selectedVendorId : undefined,
                 supplier:
                     sourceType === "EXTERNAL_VENDOR"
                         ? {
@@ -297,34 +375,97 @@ export default function NewRawMaterialPurchasePage() {
 
                     {/* Source Specific Fields */}
                     {sourceType === "EXTERNAL_VENDOR" ? (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                            <FormField label="Vendor / Supplier Name" required>
-                                <Input
-                                    value={vendorName}
-                                    onChange={(e) => setVendorName(e.target.value)}
-                                    placeholder="e.g. Royal Ghee Distributors"
-                                    required
-                                    className="text-xs h-10 font-semibold"
-                                />
-                            </FormField>
+                        <div className="space-y-4 pt-2">
+                            {/* Vendor Selector & Quick Add */}
+                            <div className="p-3.5 bg-slate-50 dark:bg-neutral-900/80 rounded-xl border border-slate-200/80 dark:border-neutral-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                                <div className="flex-1">
+                                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-neutral-300 mb-1">
+                                        Select Saved Vendor / Supplier
+                                    </label>
+                                    <Select
+                                        value={selectedVendorId}
+                                        onChange={(e) => handleSelectVendor(e.target.value)}
+                                        className="text-xs h-9 font-medium"
+                                    >
+                                        <option value="">-- Choose Existing Vendor (or enter details below) --</option>
+                                        {vendors.map((v) => (
+                                            <option key={v.id} value={v.id}>
+                                                {v.name} {v.contactNumber ? `(${v.contactNumber})` : ""} — {v.totalIntakes || 0} intakes recorded
+                                            </option>
+                                        ))}
+                                    </Select>
+                                </div>
+                                <div className="flex items-end">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setShowQuickVendorModal(true)}
+                                        className="gap-1.5 text-xs h-9 border-dashed border-emerald-600/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 whitespace-nowrap"
+                                    >
+                                        <Plus size={14} />
+                                        Quick Add Vendor
+                                    </Button>
+                                </div>
+                            </div>
 
-                            <FormField label="Supplier Invoice / PO #">
-                                <Input
-                                    value={invoiceNumber}
-                                    onChange={(e) => setInvoiceNumber(e.target.value)}
-                                    placeholder="INV-2026-901"
-                                    className="font-mono text-xs h-10"
-                                />
-                            </FormField>
+                            {selectedVendor && (
+                                <div className="flex items-center justify-between px-3.5 py-2 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/40 rounded-lg text-xs text-emerald-800 dark:text-emerald-300">
+                                    <div className="flex items-center gap-2">
+                                        <CheckCircle2 size={14} className="text-emerald-600" />
+                                        <span>Linked to Master Vendor: <strong>{selectedVendor.name}</strong></span>
+                                        <span className="text-[11px] text-emerald-600 dark:text-emerald-400">
+                                            ({selectedVendor.totalIntakes || 0} intakes • ₹{(selectedVendor.totalSpend || 0).toLocaleString()} lifetime spend)
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedVendorId("");
+                                            setVendorName("");
+                                            setVendorContact("");
+                                        }}
+                                        className="text-[11px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 underline"
+                                    >
+                                        Clear link
+                                    </button>
+                                </div>
+                            )}
 
-                            <FormField label="Supplier Contact / Phone">
-                                <Input
-                                    value={vendorContact}
-                                    onChange={(e) => setVendorContact(e.target.value)}
-                                    placeholder="+91 98765 43210"
-                                    className="text-xs h-10"
-                                />
-                            </FormField>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <FormField label="Vendor / Supplier Name" required>
+                                    <Input
+                                        value={vendorName}
+                                        onChange={(e) => {
+                                            setVendorName(e.target.value);
+                                            if (selectedVendorId && e.target.value !== selectedVendor?.name) {
+                                                setSelectedVendorId("");
+                                            }
+                                        }}
+                                        placeholder="e.g. Royal Ghee Distributors"
+                                        required
+                                        className="text-xs h-10 font-semibold"
+                                    />
+                                </FormField>
+
+                                <FormField label="Supplier Invoice / PO #">
+                                    <Input
+                                        value={invoiceNumber}
+                                        onChange={(e) => setInvoiceNumber(e.target.value)}
+                                        placeholder="INV-2026-901"
+                                        className="font-mono text-xs h-10"
+                                    />
+                                </FormField>
+
+                                <FormField label="Supplier Contact / Phone">
+                                    <Input
+                                        value={vendorContact}
+                                        onChange={(e) => setVendorContact(e.target.value)}
+                                        placeholder="+91 98765 43210"
+                                        className="text-xs h-10"
+                                    />
+                                </FormField>
+                            </div>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2">
@@ -363,9 +504,9 @@ export default function NewRawMaterialPurchasePage() {
                                     onChange={(e) => setValuationMethod(e.target.value as any)}
                                     className="text-xs h-10"
                                 >
-                                    <option value="OPERATIONAL_COST">Operational Labor/Fuel Cost</option>
-                                    <option value="MARKET_RATE">Wholesale Mandi Market Rate</option>
-                                    <option value="ZERO_COST">Zero Cost (Sunk/Free)</option>
+                                    <option key="OPERATIONAL_COST" value="OPERATIONAL_COST">Operational Labor/Fuel Cost</option>
+                                    <option key="MARKET_RATE" value="MARKET_RATE">Wholesale Mandi Market Rate</option>
+                                    <option key="ZERO_COST" value="ZERO_COST">Zero Cost (Sunk/Free)</option>
                                 </Select>
                             </FormField>
                         </div>
@@ -387,11 +528,15 @@ export default function NewRawMaterialPurchasePage() {
                                 required
                                 className="text-xs h-10 font-semibold"
                             >
-                                {materials.map((m) => (
-                                    <option key={m.id} value={m.id}>
-                                        {m.name} ({m.code}) — Current: {m.currentStock} {m.unit}
-                                    </option>
-                                ))}
+                                {materials.map((m, idx) => {
+                                    const mKey = m.id || (m as any)._id || m.code || `rm-${idx}`;
+                                    const mVal = m.id || (m as any)._id || m.code;
+                                    return (
+                                        <option key={mKey} value={mVal}>
+                                            {m.name} ({m.code}) — Current: {m.currentStock} {m.unit}
+                                        </option>
+                                    );
+                                })}
                             </Select>
                         </FormField>
 
@@ -543,6 +688,76 @@ export default function NewRawMaterialPurchasePage() {
                     </Button>
                 </div>
             </form>
+
+            {/* Quick Create Vendor Modal */}
+            {showQuickVendorModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+                    <div className="w-full max-w-md bg-white dark:bg-[#151515] border border-slate-200 dark:border-neutral-800 rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                        <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-neutral-800">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600">
+                                    <Building2 size={16} />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">Quick Add Vendor</h3>
+                                    <p className="text-[11px] text-slate-500">Create vendor with Name and Phone number only.</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowQuickVendorModal(false)}
+                                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-neutral-800"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleQuickCreateVendor} className="p-5 space-y-4">
+                            <FormField label="Vendor / Supplier Name" required>
+                                <Input
+                                    value={quickVendorName}
+                                    onChange={(e) => setQuickVendorName(e.target.value)}
+                                    placeholder="e.g. Royal Spices & Herbs"
+                                    required
+                                    autoFocus
+                                    className="text-xs h-10 font-semibold"
+                                />
+                            </FormField>
+
+                            <FormField label="Contact Number / Phone" required helperText="Minimum required to identify and contact supplier">
+                                <Input
+                                    value={quickVendorContact}
+                                    onChange={(e) => setQuickVendorContact(e.target.value)}
+                                    placeholder="+91 98765 43210"
+                                    required
+                                    className="text-xs h-10 font-mono"
+                                />
+                            </FormField>
+
+                            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-neutral-800">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setShowQuickVendorModal(false)}
+                                    disabled={isCreatingVendor}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    size="sm"
+                                    disabled={isCreatingVendor || !quickVendorName.trim() || !quickVendorContact.trim()}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                                >
+                                    {isCreatingVendor ? <Spinner size="sm" /> : <CheckCircle2 size={14} />}
+                                    Save & Select
+                                </Button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -19,6 +19,7 @@ import { RawMaterialStockMovementModel } from "../modules/manufacturing/raw-mate
 import { RecipeModel } from "../modules/manufacturing/recipe.model.js";
 import { ProductionRunModel } from "../modules/manufacturing/production-run.model.js";
 import { RepackagingRunModel } from "../modules/manufacturing/repackaging-run.model.js";
+import { VendorModel } from "../modules/manufacturing/vendor.model.js";
 import { DEFAULT_WAREHOUSE_ID } from "../database/schemas/warehouse.schema.js";
 
 describe("Food Manufacturing & Raw Material Inventory Architecture Tests", () => {
@@ -50,6 +51,7 @@ describe("Food Manufacturing & Raw Material Inventory Architecture Tests", () =>
         await RecipeModel.deleteMany({});
         await ProductionRunModel.deleteMany({});
         await RepackagingRunModel.deleteMany({});
+        await VendorModel.deleteMany({});
 
         await seedDefaultSuperAdmin();
 
@@ -121,6 +123,47 @@ describe("Food Manufacturing & Raw Material Inventory Architecture Tests", () =>
         expect(res.body.data.averageCost).toBe(0);
 
         rawMaterialId = res.body.data.id;
+    });
+
+    it("Phase 1b: Auto-generate unique Material Code (SKU) and check availability", async () => {
+        // 1. Check existing code availability (RM-BESAN-01 was created in Phase 1)
+        const checkTaken = await request(app)
+            .get("/api/v1/admin/manufacturing/raw-materials/check-code?code=RM-BESAN-01")
+            .set("Authorization", `Bearer ${superAdminToken}`);
+        expect(checkTaken.status).toBe(200);
+        expect(checkTaken.body.data.isAvailable).toBe(false);
+        expect(checkTaken.body.data.suggestedCode).toMatch(/^RM-BESAN-01-\d{2}$/);
+
+        // 2. Check fresh unused code availability
+        const checkAvailable = await request(app)
+            .get("/api/v1/admin/manufacturing/raw-materials/check-code?code=RM-GHEE-PURE")
+            .set("Authorization", `Bearer ${superAdminToken}`);
+        expect(checkAvailable.status).toBe(200);
+        expect(checkAvailable.body.data.isAvailable).toBe(true);
+
+        // 3. Create raw material without providing code (should auto-generate clean unique code from name)
+        const autoCreate1 = await request(app)
+            .post("/api/v1/admin/manufacturing/raw-materials")
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                name: "Pure Cow Ghee",
+                category: "DAIRY",
+                unit: "kg",
+            });
+        expect(autoCreate1.status).toBe(201);
+        expect(autoCreate1.body.data.code).toBe("RM-PURE-COW-GHEE");
+
+        // 4. Create second raw material with same name (should auto-resolve collision with unique suffix)
+        const autoCreate2 = await request(app)
+            .post("/api/v1/admin/manufacturing/raw-materials")
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({
+                name: "Pure Cow Ghee",
+                category: "DAIRY",
+                unit: "kg",
+            });
+        expect(autoCreate2.status).toBe(201);
+        expect(autoCreate2.body.data.code).toBe("RM-PURE-COW-GHEE-01");
     });
 
     it("Phase 2: Purchase Intake 1 (External Vendor: 1kg @ ₹100/kg)", async () => {
@@ -1057,6 +1100,353 @@ describe("Food Manufacturing & Raw Material Inventory Architecture Tests", () =>
         expect(new Date(data.expiryDate).toISOString().slice(0, 10)).toBe(
             customQAExpiry.slice(0, 10)
         );
+    });
+
+    describe("Vendor Master & Supplier Purchase Ledger", () => {
+        let createdVendorId: string;
+
+        it("should create a new vendor with only Name and Phone number", async () => {
+            const res = await request(app)
+                .post("/api/v1/admin/manufacturing/vendors")
+                .set("Authorization", `Bearer ${superAdminToken}`)
+                .send({
+                    name: "Mysore Spice Merchants",
+                    contactNumber: "+91 99887 76655",
+                });
+
+            expect(res.status).toBe(201);
+            expect(res.body.success).toBe(true);
+            expect(res.body.data.id).toBeDefined();
+            expect(res.body.data.name).toBe("Mysore Spice Merchants");
+            expect(res.body.data.contactNumber).toBe("+91 99887 76655");
+            expect(res.body.data.status).toBe("ACTIVE");
+            expect(res.body.data.totalIntakes).toBe(0);
+            expect(res.body.data.totalSpend).toBe(0);
+            createdVendorId = res.body.data.id;
+        });
+
+        it("should reject duplicate vendor name", async () => {
+            const res = await request(app)
+                .post("/api/v1/admin/manufacturing/vendors")
+                .set("Authorization", `Bearer ${superAdminToken}`)
+                .send({
+                    name: "mysore spice merchants",
+                    contactNumber: "+91 12345 67890",
+                });
+
+            expect(res.status).toBe(409);
+        });
+
+        it("should list vendors with search filtering", async () => {
+            const res = await request(app)
+                .get("/api/v1/admin/manufacturing/vendors?search=mysore")
+                .set("Authorization", `Bearer ${superAdminToken}`);
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(Array.isArray(res.body.data)).toBe(true);
+            expect(res.body.data.length).toBe(1);
+            expect(res.body.data[0].name).toBe("Mysore Spice Merchants");
+        });
+
+        it("should update vendor profile with GSTIN and address", async () => {
+            const res = await request(app)
+                .patch(`/api/v1/admin/manufacturing/vendors/${createdVendorId}`)
+                .set("Authorization", `Bearer ${superAdminToken}`)
+                .send({
+                    gstin: "29AAAAA0000A1Z5",
+                    address: "Devaraja Market, Mysore",
+                    email: "spices@mysoremerchants.com",
+                });
+
+            expect(res.status).toBe(200);
+            expect(res.body.data.gstin).toBe("29AAAAA0000A1Z5");
+            expect(res.body.data.address).toBe("Devaraja Market, Mysore");
+            expect(res.body.data.email).toBe("spices@mysoremerchants.com");
+        });
+
+        it("should record purchase intake linked to vendorId and increment vendor metrics", async () => {
+            const purchaseDate = new Date().toISOString();
+            const expiryDate = new Date(Date.now() + 180 * 86400000).toISOString();
+
+            const intakeRes = await request(app)
+                .post("/api/v1/admin/manufacturing/purchases")
+                .set("Authorization", `Bearer ${superAdminToken}`)
+                .send({
+                    rawMaterialId,
+                    sourceType: "EXTERNAL_VENDOR",
+                    vendorId: createdVendorId,
+                    supplier: {
+                        name: "Mysore Spice Merchants",
+                        contact: "+91 99887 76655",
+                        invoiceNumber: "INV-MY-001",
+                    },
+                    purchaseDate,
+                    expiryDate,
+                    quantity: 50,
+                    unit: "kg",
+                    totalCost: 15000,
+                    notes: "First bulk intake test from Mysore Spice Merchants",
+                });
+
+            expect(intakeRes.status).toBe(201);
+            expect(intakeRes.body.data.lot.vendorId).toBe(createdVendorId);
+
+            // Verify Vendor stats updated
+            const vendorRes = await request(app)
+                .get(`/api/v1/admin/manufacturing/vendors/${createdVendorId}`)
+                .set("Authorization", `Bearer ${superAdminToken}`);
+
+            expect(vendorRes.status).toBe(200);
+            expect(vendorRes.body.data.totalIntakes).toBe(1);
+            expect(vendorRes.body.data.totalSpend).toBe(15000);
+            expect(vendorRes.body.data.lastPurchaseDate).toBeDefined();
+        });
+
+        it("should fetch vendor purchase history ledger", async () => {
+            const res = await request(app)
+                .get(`/api/v1/admin/manufacturing/vendors/${createdVendorId}/purchases`)
+                .set("Authorization", `Bearer ${superAdminToken}`);
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(Array.isArray(res.body.data)).toBe(true);
+            expect(res.body.data.length).toBe(1);
+            expect(res.body.data[0].lotNumber).toBeDefined();
+            expect(res.body.data[0].supplier.invoiceNumber).toBe("INV-MY-001");
+        });
+    });
+
+    describe("Multi-Variety Recipe Scaling & Batch Pricing Sync Tests", () => {
+        let multiProdId: string;
+        let v500Id: string;
+        let v750Id: string;
+        let v1kgId: string;
+        let baseRecipeId: string;
+
+        beforeAll(async () => {
+            // Create a multi-variant product (Jamun 500g, 750g, 1kg)
+            const cat = await CategoryModel.findOne({ slug: "sweets-desserts" });
+            const prodRes = await request(app)
+                .post("/api/v1/products")
+                .set("Authorization", `Bearer ${superAdminToken}`)
+                .send({
+                    title: "Gulab Jamun Heritage Collection",
+                    slug: "gulab-jamun-heritage-collection",
+                    categoryId: cat?._id?.toString(),
+                    baseCurrency: "INR",
+                    variants: [
+                        {
+                            sku: "JAMUN-500G",
+                            title: "500g Tin",
+                            weight: 500,
+                            weightUnit: "g",
+                            prices: [{ currency: "INR", amount: 200, costAmount: 90 }],
+                        },
+                        {
+                            sku: "JAMUN-750G",
+                            title: "750g Tin",
+                            weight: 750,
+                            weightUnit: "g",
+                            prices: [{ currency: "INR", amount: 290, costAmount: 130 }],
+                        },
+                        {
+                            sku: "JAMUN-1KG",
+                            title: "1kg Family Pack",
+                            weight: 1000,
+                            weightUnit: "g",
+                            prices: [{ currency: "INR", amount: 380, costAmount: 170 }],
+                        },
+                    ],
+                });
+
+            multiProdId = prodRes.body.data.id;
+            v500Id = prodRes.body.data.variants[0].id;
+            v750Id = prodRes.body.data.variants[1].id;
+            v1kgId = prodRes.body.data.variants[2].id;
+
+            if (!rawMaterialId) {
+                const rm = await RawMaterialModel.create({
+                    code: "RM-JAMUN-TEST",
+                    name: "Mawa / Khoya",
+                    category: "DAIRY",
+                    usage: "RAW_MATERIAL",
+                    unit: "kg",
+                    averageCost: 100,
+                    lastPurchasePrice: 100,
+                    currentStock: 100,
+                    reorderThreshold: 5,
+                    isActive: true,
+                });
+                rawMaterialId = rm._id.toString();
+            }
+
+            // Formulate base recipe for 500g variety
+            const recRes = await request(app)
+                .post("/api/v1/admin/manufacturing/recipes")
+                .set("Authorization", `Bearer ${superAdminToken}`)
+                .send({
+                    code: "RCP-JAMUN-BASE-500G",
+                    name: "Gulab Jamun Base Recipe",
+                    productId: multiProdId,
+                    variantId: v500Id,
+                    shelfLifeDays: 45,
+                    batchYield: { quantity: 10, unit: "tins" },
+                    ingredients: [
+                        {
+                            rawMaterialId,
+                            quantity: 10,
+                            unit: "kg",
+                            wastagePercent: 5,
+                        },
+                    ],
+                    packagingMaterials: [],
+                    laborOverheadCost: 50,
+                    instructions: "Boil syrup, fry dough gently.",
+                });
+
+            expect(recRes.status).toBe(201);
+            baseRecipeId = recRes.body.data.id;
+        });
+
+        it("should auto-generate scaled recipes for 750g (1.5x) and 1kg (2.0x) varieties", async () => {
+            const res = await request(app)
+                .post(`/api/v1/admin/manufacturing/recipes/${baseRecipeId}/auto-generate-variants`)
+                .set("Authorization", `Bearer ${superAdminToken}`)
+                .send({});
+
+            expect(res.status).toBe(201);
+            expect(res.body.success).toBe(true);
+            expect(res.body.data.length).toBe(2); // 750g and 1kg
+
+            const r750 = res.body.data.find((r: any) => r.variantId === v750Id);
+            const r1kg = res.body.data.find((r: any) => r.variantId === v1kgId);
+
+            expect(r750).toBeDefined();
+            expect(r1kg).toBeDefined();
+
+            // 750g ratio is 750 / 500 = 1.5x: 10kg base * 1.5 = 15kg
+            expect(r750.ingredients[0].quantity).toBe(15);
+            // 750g overhead: 50 * 1.5 = 75
+            expect(r750.laborOverheadCost).toBe(75);
+
+            // 1kg ratio is 1000 / 500 = 2.0x: 10kg base * 2.0 = 20kg
+            expect(r1kg.ingredients[0].quantity).toBe(20);
+            // 1kg overhead: 50 * 2.0 = 100
+            expect(r1kg.laborOverheadCost).toBe(100);
+        });
+
+        it("should support custom scaling ratio overrides during auto-generation", async () => {
+            const res = await request(app)
+                .post(`/api/v1/admin/manufacturing/recipes/${baseRecipeId}/auto-generate-variants`)
+                .set("Authorization", `Bearer ${superAdminToken}`)
+                .send({
+                    targetVariantIds: [v1kgId],
+                    customRatios: {
+                        [v1kgId]: 2.2, // Custom override ratio 2.2x instead of 2.0x
+                    },
+                });
+
+            expect(res.status).toBe(201);
+            expect(res.body.data.length).toBe(1);
+            const r1kg = res.body.data[0];
+            expect(r1kg.ingredients[0].quantity).toBe(22); // 10 * 2.2 = 22kg
+            expect(r1kg.laborOverheadCost).toBe(110); // 50 * 2.2 = 110
+        });
+
+        it("should auto-generate scaled recipes for all varieties when formulated with 1 kg universal master formula", async () => {
+            // Formulate standard 1kg master recipe (no variantId attached, batch yield = 1 kg)
+            const masterRecRes = await request(app)
+                .post("/api/v1/admin/manufacturing/recipes")
+                .set("Authorization", `Bearer ${superAdminToken}`)
+                .send({
+                    code: "RCP-JAMUN-1KG-MASTER",
+                    name: "Gulab Jamun 1kg Universal Base Recipe",
+                    productId: multiProdId,
+                    shelfLifeDays: 60,
+                    batchYield: { quantity: 1, unit: "kg" },
+                    ingredients: [
+                        {
+                            rawMaterialId,
+                            quantity: 1, // 1 kg base formulation
+                            unit: "kg",
+                            wastagePercent: 4,
+                        },
+                    ],
+                    packagingMaterials: [],
+                    laborOverheadCost: 40,
+                    instructions: "Universal 1kg base recipe batch preparation.",
+                });
+
+            expect(masterRecRes.status).toBe(201);
+            const master1kgRecipeId = masterRecRes.body.data.id;
+
+            // Auto-generate variants from 1kg universal master formula
+            const autoGenRes = await request(app)
+                .post(`/api/v1/admin/manufacturing/recipes/${master1kgRecipeId}/auto-generate-variants`)
+                .set("Authorization", `Bearer ${superAdminToken}`)
+                .send({});
+
+            expect(autoGenRes.status).toBe(201);
+            expect(autoGenRes.body.success).toBe(true);
+            // All 3 varieties (500g, 750g, 1000g) should be generated
+            expect(autoGenRes.body.data.length).toBe(3);
+
+            const r500 = autoGenRes.body.data.find((r: any) => r.variantId === v500Id);
+            const r750 = autoGenRes.body.data.find((r: any) => r.variantId === v750Id);
+            const r1kg = autoGenRes.body.data.find((r: any) => r.variantId === v1kgId);
+
+            expect(r500).toBeDefined();
+            expect(r750).toBeDefined();
+            expect(r1kg).toBeDefined();
+
+            // 500g: ratio 500/1000 = 0.5x -> 1kg * 0.5 = 0.5kg
+            expect(r500.ingredients[0].quantity).toBe(0.5);
+            expect(r500.laborOverheadCost).toBe(20); // 40 * 0.5
+
+            // 750g: ratio 750/1000 = 0.75x -> 1kg * 0.75 = 0.75kg
+            expect(r750.ingredients[0].quantity).toBe(0.75);
+            expect(r750.laborOverheadCost).toBe(30); // 40 * 0.75
+
+            // 1kg: ratio 1000/1000 = 1.0x -> 1kg * 1.0 = 1kg
+            expect(r1kg.ingredients[0].quantity).toBe(1);
+            expect(r1kg.laborOverheadCost).toBe(40); // 40 * 1.0
+        });
+
+        it("should batch sync production costs and suggested selling prices across all varieties in catalog", async () => {
+            const batchRes = await request(app)
+                .post("/api/v1/admin/manufacturing/sync-variant-pricing-batch")
+                .set("Authorization", `Bearer ${superAdminToken}`)
+                .send({
+                    productId: multiProdId,
+                    updates: [
+                        { variantId: v500Id, costAmount: 95.5, sellingPrice: 220 },
+                        { variantId: v750Id, costAmount: 142.25, sellingPrice: 320 },
+                        { variantId: v1kgId, costAmount: 190.0, sellingPrice: 420 },
+                    ],
+                });
+
+            expect(batchRes.status).toBe(200);
+            expect(batchRes.body.success).toBe(true);
+            expect(batchRes.body.data.updatedVariants).toBe(3);
+
+            // Fetch the product directly from the database and verify prices & costs
+            const updatedProduct = await ProductModel.findById(multiProdId);
+            expect(updatedProduct).toBeDefined();
+
+            const p500 = updatedProduct?.variants.find((v: any) => v.id === v500Id);
+            const p750 = updatedProduct?.variants.find((v: any) => v.id === v750Id);
+            const p1kg = updatedProduct?.variants.find((v: any) => v.id === v1kgId);
+
+            expect(p500?.prices[0]?.costAmount).toBe(95.5);
+            expect(p500?.prices[0]?.amount).toBe(220);
+
+            expect(p750?.prices[0]?.costAmount).toBe(142.25);
+            expect(p750?.prices[0]?.amount).toBe(320);
+
+            expect(p1kg?.prices[0]?.costAmount).toBe(190.0);
+            expect(p1kg?.prices[0]?.amount).toBe(420);
+        });
     });
 });
 

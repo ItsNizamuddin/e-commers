@@ -10,6 +10,8 @@ import { checkoutRepository, CheckoutRepository } from "../../checkout/repositor
 import { checkoutService, CheckoutService } from "../../checkout/services/checkout.service.js";
 import { cartRepository, CartRepository } from "../../cart/repositories/cart.repository.js";
 import { reservationService, ReservationService } from "../../inventory/services/reservation.service.js";
+import { outboxService } from "../../outbox/outbox.service.js";
+import { outboxDispatcher } from "../../outbox/outbox.dispatcher.js";
 
 export interface PaymentSuccessHandoffParams {
     paymentId: string;
@@ -165,8 +167,29 @@ export class OrderWorkflowService {
                 );
             }
 
+            // 9. Atomic Transactional Outbox Event for Asynchronous Order Processing
+            await outboxService.recordEvent({
+                eventType: "ORDER_CONFIRMED",
+                aggregateType: "Order",
+                aggregateId: newOrder._id,
+                deduplicationKey: `order:confirmed:${newOrder.orderNumber}`,
+                payload: {
+                    orderId: newOrder._id.toString(),
+                    orderNumber: newOrder.orderNumber,
+                    customerEmail: newOrder.customerEmailSnapshot,
+                    invoiceNumber: `INV-${newOrder.orderNumber}`,
+                    grandTotalMinor: newOrder.pricing.grandTotalMinor,
+                    currency: newOrder.pricing.currency,
+                    placedAt: newOrder.placedAt,
+                },
+                session,
+            });
+
             return newOrder;
         });
+
+        // Trigger asynchronous outbox dispatch immediately
+        void outboxDispatcher.triggerImmediate();
 
         return order;
     }

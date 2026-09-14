@@ -28,7 +28,17 @@ app.use(requestLogger);
 
 const allowedOrigins = env.corsOrigin.split(",").map((o) => o.trim());
 
-app.use(helmet());
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:"],
+        },
+    },
+    crossOriginEmbedderPolicy: false,
+}));
 app.use(cors({
     origin: (origin, callback) => {
         if (!origin || allowedOrigins.includes(origin) || env.nodeEnv === "development") {
@@ -56,6 +66,21 @@ app.get("/api/v1/health", (_req, res) => {
     });
 });
 app.use("/api/v1", routes);
+
+// Bull Board UI for queue monitoring (guarded by Super Admin authorization)
+if (env.enableQueues) {
+    try {
+        const { setupBullBoard, bullBoardAuthMiddleware } = await import("./modules/queues/bull-board.js");
+        app.use(
+            "/api/v1/admin/queues",
+            bullBoardAuthMiddleware,
+            setupBullBoard()
+        );
+    } catch (err) {
+        // Bull board initialization error handled gracefully
+    }
+}
+
 // 404 Catch-All Handler
 app.use((req, _res, next) => {
     next(new AppError(`Route ${req.method} ${req.originalUrl} not found`, 404, "RESOURCE_NOT_FOUND"));

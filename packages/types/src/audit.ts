@@ -36,6 +36,10 @@ export const AuditActions = {
 
     ORDER_FULFILLMENT_UPDATED: "ORDER_FULFILLMENT_UPDATED",
     ORDER_CANCELLED: "ORDER_CANCELLED",
+
+    SEO_BULK_IMPORT: "SEO_BULK_IMPORT",
+    SEO_AUTO_FILLED: "SEO_AUTO_FILLED",
+    SEO_METADATA_UPDATED: "SEO_METADATA_UPDATED",
 } as const;
 
 export type AuditAction = (typeof AuditActions)[keyof typeof AuditActions] | (string & {});

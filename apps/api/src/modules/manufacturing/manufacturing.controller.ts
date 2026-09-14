@@ -22,6 +22,18 @@ export class ManufacturingController {
         res.json({ success: true, data: materials });
     }
 
+    async checkCodeAvailability(req: Request, res: Response) {
+        const { code } = req.query as { code?: string };
+        const result = await manufacturingService.checkCodeAvailability(code || "");
+        res.json({ success: true, data: result });
+    }
+
+    async suggestCode(req: Request, res: Response) {
+        const { name, preferredCode } = req.query as { name?: string; preferredCode?: string };
+        const suggestedCode = await manufacturingService.generateUniqueRawMaterialCode(name || "", preferredCode);
+        res.json({ success: true, data: { suggestedCode } });
+    }
+
     async getRawMaterialById(req: Request, res: Response) {
         const { id } = req.params;
         const material = await manufacturingService.getRawMaterialById(id as string);
@@ -161,6 +173,22 @@ export class ManufacturingController {
         res.json({ success: true, data: result });
     }
 
+    async batchSyncVariantPricing(req: Request, res: Response) {
+        const result = await manufacturingService.batchSyncVariantPricing(req.body);
+        res.json({ success: true, data: result });
+    }
+
+    async autoGenerateVariantRecipes(req: Request, res: Response) {
+        const { id } = req.params;
+        const recipes = await manufacturingService.autoGenerateVariantRecipes({
+            baseRecipeId: id as string,
+            targetVariantIds: req.body?.targetVariantIds,
+            prefixCode: req.body?.prefixCode,
+            customRatios: req.body?.customRatios,
+        });
+        res.status(201).json({ success: true, data: recipes });
+    }
+
     // Repackaging Runs (Bulk to Retail)
     async listRepackagingRuns(req: Request, res: Response) {
         const { sourceRawMaterialId, targetProductId, status } = req.query as {
@@ -189,6 +217,36 @@ export class ManufacturingController {
         const actor = await resolveActor((req as any).user?.id);
         const run = await manufacturingService.reverseRepackagingRun(id as string, req.body, actor);
         res.json({ success: true, data: run });
+    }
+
+    // Vendors & Suppliers
+    async listVendors(req: Request, res: Response) {
+        const { search, status } = req.query as { search?: string; status?: string };
+        const vendors = await manufacturingService.listVendors({ search, status });
+        res.json({ success: true, data: vendors });
+    }
+
+    async getVendorById(req: Request, res: Response) {
+        const { id } = req.params;
+        const vendor = await manufacturingService.getVendorById(id as string);
+        res.json({ success: true, data: vendor });
+    }
+
+    async createVendor(req: Request, res: Response) {
+        const vendor = await manufacturingService.createVendor(req.body);
+        res.status(201).json({ success: true, data: vendor });
+    }
+
+    async updateVendor(req: Request, res: Response) {
+        const { id } = req.params;
+        const vendor = await manufacturingService.updateVendor(id as string, req.body);
+        res.json({ success: true, data: vendor });
+    }
+
+    async getVendorPurchases(req: Request, res: Response) {
+        const { id } = req.params;
+        const purchases = await manufacturingService.getVendorPurchases(id as string);
+        res.json({ success: true, data: purchases });
     }
 }
 

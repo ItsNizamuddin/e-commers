@@ -28,6 +28,44 @@ export interface SupplierDetails {
     invoiceNumber?: string | undefined;
 }
 
+export type VendorStatus = "ACTIVE" | "INACTIVE";
+
+export interface Vendor {
+    id: string;
+    name: string;
+    contactNumber?: string | undefined;
+    email?: string | undefined;
+    gstin?: string | undefined;
+    address?: string | undefined;
+    status: VendorStatus;
+    notes?: string | undefined;
+    totalIntakes: number;
+    totalSpend: number;
+    lastPurchaseDate?: string | undefined;
+    createdAt?: string | undefined;
+    updatedAt?: string | undefined;
+}
+
+export interface CreateVendorInput {
+    name: string;
+    contactNumber?: string | undefined;
+    email?: string | undefined;
+    gstin?: string | undefined;
+    address?: string | undefined;
+    status?: VendorStatus | undefined;
+    notes?: string | undefined;
+}
+
+export interface UpdateVendorInput {
+    name?: string | undefined;
+    contactNumber?: string | undefined;
+    email?: string | undefined;
+    gstin?: string | undefined;
+    address?: string | undefined;
+    status?: VendorStatus | undefined;
+    notes?: string | undefined;
+}
+
 export type RawMaterialUsage = "RAW_MATERIAL" | "SELLABLE" | "BOTH";
 
 export interface RawMaterial {
@@ -50,7 +88,7 @@ export interface RawMaterial {
 }
 
 export interface CreateRawMaterialInput {
-    code: string;
+    code?: string | undefined;
     name: string;
     category: RawMaterialCategory;
     usage?: RawMaterialUsage | undefined;
@@ -67,11 +105,13 @@ export interface UpdateRawMaterialInput {
     name?: string | undefined;
     category?: RawMaterialCategory | undefined;
     usage?: RawMaterialUsage | undefined;
-    linkedProductId?: string | undefined;
-    linkedVariantId?: string | undefined;
+    linkedProductId?: string | null | undefined;
+    linkedVariantId?: string | null | undefined;
     reorderThreshold?: number | undefined;
     isActive?: boolean | undefined;
 }
+
+export type RawMaterialLotStatus = "AVAILABLE" | "EXPIRED" | "DEPLETED" | "BLOCKED";
 
 export interface RawMaterialLot {
     id: string;
@@ -85,8 +125,10 @@ export interface RawMaterialLot {
     unit: RawMaterialUnit;
     costPerUnit: number; // Cost per base unit
     sourceType: RawMaterialSourceType;
+    vendorId?: string | undefined;
     supplier?: SupplierDetails | undefined;
     farmDetails?: FarmHarvestDetails | undefined;
+    status: RawMaterialLotStatus;
     isDepleted: boolean;
     notes?: string | undefined;
     createdAt?: string | undefined;
@@ -123,6 +165,7 @@ export interface RawMaterialStockMovement {
 export interface RecordPurchaseIntakeInput {
     rawMaterialId: string;
     sourceType: RawMaterialSourceType;
+    vendorId?: string | undefined;
     supplier?: SupplierDetails | undefined;
     farmDetails?: FarmHarvestDetails | undefined;
     purchaseDate?: string | undefined;
@@ -358,9 +401,31 @@ export interface SyncVariantCostInput {
     productId: string;
     variantId: string;
     costAmount: number;
+    sellingPrice?: number | undefined;
     currency?: string | undefined;
     locationCode?: string | undefined;
 }
+
+export interface BatchSyncVariantPricingItem {
+    variantId: string;
+    costAmount?: number | undefined;
+    sellingPrice?: number | undefined;
+    currency?: string | undefined;
+    locationCode?: string | undefined;
+}
+
+export interface BatchSyncVariantPricingInput {
+    productId: string;
+    updates: BatchSyncVariantPricingItem[];
+}
+
+export interface AutoGenerateVariantRecipesInput {
+    baseRecipeId: string;
+    targetVariantIds?: string[] | undefined;
+    prefixCode?: string | undefined;
+    customRatios?: Record<string, number> | undefined;
+}
+
 
 export interface RepackagingRun {
     id: string;

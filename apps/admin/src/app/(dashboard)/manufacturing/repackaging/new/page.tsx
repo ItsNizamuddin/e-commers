@@ -115,7 +115,7 @@ export default function NewRepackagingRunPage() {
                 // Default material: prioritize materials with usage "SELLABLE" or "BOTH"
                 const defaultMat = mats.find((m) => m.usage === "BOTH" || m.usage === "SELLABLE") || mats[0];
                 if (defaultMat) {
-                    setSelectedMaterialId(defaultMat.id);
+                    setSelectedMaterialId(defaultMat.id || (defaultMat as any)._id || "");
                     setUnitSizeUnit(defaultMat.unit);
                 }
             })
@@ -134,7 +134,7 @@ export default function NewRepackagingRunPage() {
             return;
         }
 
-        const currentMat = materials.find((m) => m.id === selectedMaterialId);
+        const currentMat = materials.find((m) => (m.id || (m as any)._id) === selectedMaterialId);
         if (currentMat) {
             // Pre-select linked product/variant if configured
             if (currentMat.linkedProductId) {
@@ -153,7 +153,7 @@ export default function NewRepackagingRunPage() {
                 );
                 setMaterialLots(activeLots);
                 if (activeLots.length > 0) {
-                    setSelectedLotId(activeLots[0]!.id);
+                    setSelectedLotId(activeLots[0]!.id || (activeLots[0]! as any)._id || "");
                 } else {
                     setSelectedLotId("");
                 }
@@ -167,15 +167,15 @@ export default function NewRepackagingRunPage() {
 
     // Selected entities
     const selectedMaterial = useMemo(() => {
-        return materials.find((m) => m.id === selectedMaterialId);
+        return materials.find((m) => (m.id || (m as any)._id) === selectedMaterialId);
     }, [materials, selectedMaterialId]);
 
     const selectedLot = useMemo(() => {
-        return materialLots.find((l) => l.id === selectedLotId);
+        return materialLots.find((l) => (l.id || (l as any)._id) === selectedLotId);
     }, [materialLots, selectedLotId]);
 
     const selectedProduct = useMemo(() => {
-        return products.find((p) => p.id === selectedProductId);
+        return products.find((p) => (p.id || (p as any)._id) === selectedProductId);
     }, [products, selectedProductId]);
 
     // Variants for selected product
@@ -187,9 +187,9 @@ export default function NewRepackagingRunPage() {
     // Auto-select first variant if selected product changed and variant not valid
     useEffect(() => {
         if (availableVariants.length > 0) {
-            const exists = availableVariants.some((v) => v.id === selectedVariantId);
+            const exists = availableVariants.some((v) => (v.id || (v as any)._id) === selectedVariantId);
             if (!exists) {
-                setSelectedVariantId(availableVariants[0]!.id);
+                setSelectedVariantId(availableVariants[0]!.id || (availableVariants[0]! as any)._id || "");
             }
         } else {
             setSelectedVariantId("");
@@ -197,11 +197,11 @@ export default function NewRepackagingRunPage() {
     }, [availableVariants, selectedVariantId]);
 
     const selectedVariant = useMemo(() => {
-        return availableVariants.find((v) => v.id === selectedVariantId);
+        return availableVariants.find((v) => (v.id || (v as any)._id) === selectedVariantId);
     }, [availableVariants, selectedVariantId]);
 
     const selectedPackagingMaterial = useMemo(() => {
-        return packagingMaterials.find((m) => m.id === selectedPackagingMaterialId);
+        return packagingMaterials.find((m) => (m.id || (m as any)._id) === selectedPackagingMaterialId);
     }, [packagingMaterials, selectedPackagingMaterialId]);
 
     // Conversions and Live Validation
@@ -386,15 +386,18 @@ export default function NewRepackagingRunPage() {
                                     onChange={(e) => setSelectedMaterialId(e.target.value)}
                                     className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                                 >
-                                    <option value="" disabled>
+                                    <option key="__select_bulk_material__" value="" disabled>
                                         -- Select bulk material --
                                     </option>
-                                    {materials.map((m) => (
-                                        <option key={m.id} value={m.id}>
-                                            {m.name} ({m.code}) — {m.currentStock} {m.unit}{" "}
-                                            [{m.usage}]
-                                        </option>
-                                    ))}
+                                    {materials.map((m, idx) => {
+                                        const mId = m.id || (m as any)._id || m.code || `mat-${idx}`;
+                                        return (
+                                            <option key={mId} value={mId}>
+                                                {m.name} ({m.code}) — {m.currentStock} {m.unit}{" "}
+                                                [{m.usage}]
+                                            </option>
+                                        );
+                                    })}
                                 </select>
                             </FormField>
 
@@ -414,20 +417,23 @@ export default function NewRepackagingRunPage() {
                                     className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 >
                                     {materialLots.length === 0 ? (
-                                        <option value="">No active lots with remaining stock</option>
+                                        <option key="__no_active_lots__" value="">No active lots with remaining stock</option>
                                     ) : (
-                                        materialLots.map((lot) => (
-                                            <option key={lot.id} value={lot.id}>
-                                                {lot.lotNumber} | Avail: {lot.availableQuantity}{" "}
-                                                {lot.unit} @ ₹{lot.costPerUnit.toFixed(2)}/
-                                                {lot.unit}
-                                                {lot.expiryDate
-                                                    ? ` (Exp: ${new Date(
-                                                          lot.expiryDate
-                                                      ).toLocaleDateString()})`
-                                                    : ""}
-                                            </option>
-                                        ))
+                                        materialLots.map((lot, idx) => {
+                                            const lId = lot.id || (lot as any)._id || lot.lotNumber || `lot-${idx}`;
+                                            return (
+                                                <option key={lId} value={lId}>
+                                                    {lot.lotNumber} | Avail: {lot.availableQuantity}{" "}
+                                                    {lot.unit} @ ₹{lot.costPerUnit.toFixed(2)}/
+                                                    {lot.unit}
+                                                    {lot.expiryDate
+                                                        ? ` (Exp: ${new Date(
+                                                              lot.expiryDate
+                                                          ).toLocaleDateString()})`
+                                                        : ""}
+                                                </option>
+                                            );
+                                        })
                                     )}
                                 </select>
                             </FormField>
@@ -487,14 +493,17 @@ export default function NewRepackagingRunPage() {
                                     onChange={(e) => setSelectedProductId(e.target.value)}
                                     className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                                 >
-                                    <option value="" disabled>
+                                    <option key="__select_retail_product__" value="" disabled>
                                         -- Select retail product --
                                     </option>
-                                    {products.map((p) => (
-                                        <option key={p.id} value={p.id}>
-                                            {p.title} ({p.variants?.length || 0} variants)
-                                        </option>
-                                    ))}
+                                    {products.map((p, idx) => {
+                                        const pId = p.id || (p as any)._id || `prod-${idx}`;
+                                        return (
+                                            <option key={pId} value={pId}>
+                                                {p.title} ({p.variants?.length || 0} variants)
+                                            </option>
+                                        );
+                                    })}
                                 </select>
                             </FormField>
 
@@ -513,12 +522,15 @@ export default function NewRepackagingRunPage() {
                                     disabled={availableVariants.length === 0}
                                     className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-gray-100"
                                 >
-                                    {availableVariants.map((v) => (
-                                        <option key={v.id} value={v.id}>
-                                            {v.title || v.sku} — SKU: {v.sku}
-                                            {v.prices?.[0]?.amount ? ` (MRP: ₹${v.prices[0].amount})` : ""}
-                                        </option>
-                                    ))}
+                                    {availableVariants.map((v, idx) => {
+                                        const vId = v.id || (v as any)._id || v.sku || `var-${idx}`;
+                                        return (
+                                            <option key={vId} value={vId}>
+                                                {v.title || v.sku} — SKU: {v.sku}
+                                                {v.prices?.[0]?.amount ? ` (MRP: ₹${v.prices[0].amount})` : ""}
+                                            </option>
+                                        );
+                                    })}
                                 </select>
                             </FormField>
                         </div>
@@ -583,12 +595,12 @@ export default function NewRepackagingRunPage() {
                                     }
                                     className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                                 >
-                                    <option value="kg">kg (Kilogram)</option>
-                                    <option value="g">g (Gram)</option>
-                                    <option value="l">l (Liter)</option>
-                                    <option value="ml">ml (Milliliter)</option>
-                                    <option value="pcs">pcs (Pieces)</option>
-                                    <option value="pack">pack (Pack)</option>
+                                    <option key="unit-kg" value="kg">kg (Kilogram)</option>
+                                    <option key="unit-g" value="g">g (Gram)</option>
+                                    <option key="unit-l" value="l">l (Liter)</option>
+                                    <option key="unit-ml" value="ml">ml (Milliliter)</option>
+                                    <option key="unit-pcs" value="pcs">pcs (Pieces)</option>
+                                    <option key="unit-pack" value="pack">pack (Pack)</option>
                                 </select>
                             </FormField>
                         </div>
@@ -604,11 +616,14 @@ export default function NewRepackagingRunPage() {
                                     onChange={(e) => setSelectedWarehouseId(e.target.value)}
                                     className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                                 >
-                                    {locations.map((loc) => (
-                                        <option key={loc.id} value={loc.id}>
-                                            {loc.name}
-                                        </option>
-                                    ))}
+                                    {locations.map((loc, idx) => {
+                                        const locId = loc.id || (loc as any)._id || `loc-${idx}`;
+                                        return (
+                                            <option key={locId} value={locId}>
+                                                {loc.name}
+                                            </option>
+                                        );
+                                    })}
                                 </select>
                             </FormField>
 
@@ -621,13 +636,16 @@ export default function NewRepackagingRunPage() {
                                     onChange={(e) => setSelectedPackagingMaterialId(e.target.value)}
                                     className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                                 >
-                                    <option value="">-- None / Pre-packaged --</option>
-                                    {packagingMaterials.map((pkg) => (
-                                        <option key={pkg.id} value={pkg.id}>
-                                            {pkg.name} (Stock: {pkg.currentStock} {pkg.unit} @ ₹
-                                            {pkg.averageCost.toFixed(2)})
-                                        </option>
-                                    ))}
+                                    <option key="__none_prepackaged__" value="">-- None / Pre-packaged --</option>
+                                    {packagingMaterials.map((pkg, idx) => {
+                                        const pkgId = pkg.id || (pkg as any)._id || pkg.code || `pkg-${idx}`;
+                                        return (
+                                            <option key={pkgId} value={pkgId}>
+                                                {pkg.name} (Stock: {pkg.currentStock} {pkg.unit} @ ₹
+                                                {pkg.averageCost.toFixed(2)})
+                                            </option>
+                                        );
+                                    })}
                                 </select>
                             </FormField>
 

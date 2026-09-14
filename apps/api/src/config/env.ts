@@ -47,6 +47,25 @@ const envSchema = z.object({
     PAYMENT_WEBHOOK_SECRET: z
         .string()
         .default("whsec_mock_local_secret_for_tests"),
+
+    REDIS_HOST: z
+        .string()
+        .default("127.0.0.1"),
+
+    REDIS_PORT: z.coerce
+        .number()
+        .int()
+        .positive()
+        .default(6379),
+
+    REDIS_PASSWORD: z
+        .string()
+        .optional(),
+
+    ENABLE_QUEUES: z
+        .enum(["true", "false"])
+        .default("true")
+        .transform((val) => val === "true"),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
@@ -84,4 +103,8 @@ export const env = {
     jwtAccessExpiresIn: parsedEnv.data.JWT_ACCESS_EXPIRES_IN,
     jwtRefreshExpiresIn: parsedEnv.data.JWT_REFRESH_EXPIRES_IN,
     paymentWebhookSecret: parsedEnv.data.PAYMENT_WEBHOOK_SECRET,
+    redisHost: parsedEnv.data.REDIS_HOST,
+    redisPort: parsedEnv.data.REDIS_PORT,
+    redisPassword: parsedEnv.data.REDIS_PASSWORD,
+    enableQueues: parsedEnv.data.NODE_ENV === "test" ? false : parsedEnv.data.ENABLE_QUEUES,
 } as const;

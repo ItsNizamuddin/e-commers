@@ -30,6 +30,8 @@ import {
     Scale,
     AlertTriangle,
     Tag,
+    AlertCircle,
+    RefreshCw,
 } from "lucide-react";
 
 const CATEGORIES: Array<{ label: string; value: RawMaterialCategory }> = [
@@ -52,6 +54,58 @@ const UNITS: Array<{ label: string; value: RawMaterialUnit }> = [
     { label: "Packs (pack)", value: "pack" },
 ];
 
+function generateMaterialSkuSlug(name: string): string {
+    if (!name || !name.trim()) return "";
+    const cleaned = name
+        .trim()
+        .replace(/[^\w\s-]/g, " ")
+        .replace(/[\s_]+/g, " ")
+        .trim();
+
+    if (!cleaned) return "ITEM";
+
+    const words = cleaned
+        .split(" ")
+        .map((w) => w.toUpperCase().replace(/[^A-Z0-9]/g, ""))
+        .filter(Boolean);
+
+    if (words.length === 0) return "ITEM";
+
+    let slug = "";
+    for (const word of words) {
+        if (!slug) {
+            slug = word.slice(0, 20);
+        } else if ((slug + "-" + word).length <= 26) {
+            slug += "-" + word;
+        } else {
+            break;
+        }
+    }
+    return slug || "ITEM";
+}
+
+function resolveUniqueMaterialSku(name: string, existingCodes: Set<string>): string {
+    if (!name || !name.trim()) return "";
+    const baseSlug = generateMaterialSkuSlug(name);
+    const baseSku = `RM-${baseSlug}`;
+
+    if (!existingCodes.has(baseSku)) {
+        return baseSku;
+    }
+
+    let counter = 1;
+    while (counter <= 999) {
+        const suffix = counter < 10 ? `0${counter}` : `${counter}`;
+        const candidate = `${baseSku}-${suffix}`;
+        if (!existingCodes.has(candidate)) {
+            return candidate;
+        }
+        counter++;
+    }
+
+    return `${baseSku}-${Date.now().toString().slice(-4)}`;
+}
+
 export default function NewRawMaterialPage() {
     const router = useRouter();
 
@@ -64,6 +118,25 @@ export default function NewRawMaterialPage() {
     const [initialStock, setInitialStock] = useState("");
     const [initialCost, setInitialCost] = useState("");
     const [threshold, setThreshold] = useState("5");
+
+    // SKU Auto-generation & Uniqueness state
+    const [existingCodes, setExistingCodes] = useState<Set<string>>(new Set());
+    const [isCodeManuallyEdited, setIsCodeManuallyEdited] = useState(false);
+    const [codeValidationState, setCodeValidationState] = useState<"idle" | "unique" | "duplicate">("idle");
+    const [suggestedAlternativeCode, setSuggestedAlternativeCode] = useState("");
+
+    // Preload existing raw materials to guarantee immediate client-side uniqueness
+    useEffect(() => {
+        api.manufacturing
+            .listRawMaterials()
+            .then((list) => {
+                const codes = new Set(list.map((m) => m.code.toUpperCase()));
+                setExistingCodes(codes);
+            })
+            .catch((err) => {
+                console.error("Failed to load existing raw material codes:", err);
+            });
+    }, []);
 
     // Products & Variants list for linking
     const [products, setProducts] = useState<Product[]>([]);
@@ -81,9 +154,7 @@ export default function NewRawMaterialPage() {
                     setProducts(prods);
                     if (prods.length > 0 && !selectedProductId) {
                         setSelectedProductId(prods[0]!.id);
-                        if (prods[0]!.variants && prods[0]!.variants.length > 0) {
-                            setSelectedVariantId(prods[0]!.variants[0]!.id);
-                        }
+                        setSelectedVariantId("");
                     }
                 })
                 .catch((err: unknown) => {
@@ -93,24 +164,83 @@ export default function NewRawMaterialPage() {
         }
     }, [usage]);
 
-    // Update variant when product changes
+    // Update variant when product changes (default to All Variants)
     const handleProductChange = (prodId: string) => {
         setSelectedProductId(prodId);
-        const prod = products.find((p) => p.id === prodId);
-        if (prod && prod.variants && prod.variants.length > 0) {
-            setSelectedVariantId(prod.variants[0].id);
-        } else {
-            setSelectedVariantId("");
-        }
+        setSelectedVariantId("");
     };
 
     const selectedProduct = products.find((p) => p.id === selectedProductId);
+
+    // Auto-generate code when Material Name changes
+    const handleNameChange = (val: string) => {
+        setName(val);
+        if (!isCodeManuallyEdited || !code.trim()) {
+            if (!val.trim()) {
+                setCode("");
+                setCodeValidationState("idle");
+                return;
+            }
+            const autoSku = resolveUniqueMaterialSku(val, existingCodes);
+            setCode(autoSku);
+            setCodeValidationState("unique");
+        }
+    };
+
+    // User manual edit of Material Code (SKU)
+    const handleCodeChange = (val: string) => {
+        const cleaned = val.toUpperCase().replace(/[^A-Z0-9-]/g, "");
+        setIsCodeManuallyEdited(true);
+        setCode(cleaned);
+
+        if (!cleaned.trim()) {
+            setCodeValidationState("idle");
+            return;
+        }
+
+        if (existingCodes.has(cleaned)) {
+            setCodeValidationState("duplicate");
+            const slugPart = cleaned.replace(/^RM-/, "");
+            const alt = resolveUniqueMaterialSku(slugPart, existingCodes);
+            setSuggestedAlternativeCode(alt);
+        } else {
+            setCodeValidationState("unique");
+        }
+    };
+
+    // Apply suggested unique alternative if duplicate
+    const handleAutoFix = () => {
+        if (suggestedAlternativeCode) {
+            setCode(suggestedAlternativeCode);
+            setCodeValidationState("unique");
+            toast.success(`Updated to unique SKU: ${suggestedAlternativeCode}`);
+        }
+    };
+
+    // Re-sync Material Code from Material Name
+    const handleResyncCode = () => {
+        setIsCodeManuallyEdited(false);
+        if (!name.trim()) {
+            setCode("");
+            setCodeValidationState("idle");
+            return;
+        }
+        const autoSku = resolveUniqueMaterialSku(name, existingCodes);
+        setCode(autoSku);
+        setCodeValidationState("unique");
+        toast.success(`Re-generated unique SKU: ${autoSku}`);
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         if (!code.trim() || !name.trim()) {
-            toast.error("Please provide both Material Code and Name.");
+            toast.error("Please provide both Material Name and Material Code (SKU).");
+            return;
+        }
+
+        if (existingCodes.has(code.trim().toUpperCase())) {
+            toast.error(`Material Code '${code.trim().toUpperCase()}' is already taken. Please click Auto-fix.`);
             return;
         }
 
@@ -174,25 +304,89 @@ export default function NewRawMaterialPage() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField label="Material Code (SKU)" required helperText="Unique identifier e.g. RM-BESAN, RM-GHEE">
-                            <Input
-                                value={code}
-                                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                                placeholder="RM-BESAN"
-                                required
-                                className="font-mono uppercase font-bold text-xs h-10"
-                            />
-                        </FormField>
-
                         <FormField label="Material Name" required helperText="Descriptive name of item e.g. Pure Gram Flour (Besan)">
                             <Input
                                 value={name}
-                                onChange={(e) => setName(e.target.value)}
+                                onChange={(e) => handleNameChange(e.target.value)}
                                 placeholder="Pure Gram Flour (Besan)"
                                 required
                                 className="text-xs h-10 font-semibold"
                             />
                         </FormField>
+
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-semibold text-slate-700 dark:text-neutral-300 flex items-center gap-1.5">
+                                    Material Code (SKU) <span className="text-rose-500">*</span>
+                                </label>
+                                <div className="flex items-center gap-2">
+                                    {!isCodeManuallyEdited && code ? (
+                                        <span className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 border border-blue-200/50 dark:border-blue-900/50 px-1.5 py-0.5 rounded">
+                                            <Sparkles size={10} /> Auto-generated
+                                        </span>
+                                    ) : null}
+                                    {isCodeManuallyEdited ? (
+                                        <button
+                                            type="button"
+                                            onClick={handleResyncCode}
+                                            className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                                            title="Re-generate unique code from Material Name"
+                                        >
+                                            <RefreshCw size={10} /> Re-sync
+                                        </button>
+                                    ) : null}
+                                </div>
+                            </div>
+
+                            <div className="relative">
+                                <Input
+                                    value={code}
+                                    onChange={(e) => handleCodeChange(e.target.value)}
+                                    placeholder="RM-BESAN"
+                                    required
+                                    className="font-mono uppercase font-bold text-xs h-10 pr-9"
+                                />
+                                {codeValidationState === "unique" && (
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500 pointer-events-none">
+                                        <CheckCircle2 size={16} />
+                                    </div>
+                                )}
+                                {codeValidationState === "duplicate" && (
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-rose-500 pointer-events-none">
+                                        <AlertCircle size={16} />
+                                    </div>
+                                )}
+                            </div>
+
+                            {codeValidationState === "unique" && (
+                                <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1 mt-1">
+                                    <CheckCircle2 size={12} /> Unique SKU available
+                                </p>
+                            )}
+
+                            {codeValidationState === "duplicate" && (
+                                <div className="text-[11px] text-rose-600 dark:text-rose-400 font-medium flex items-center justify-between gap-1 mt-1 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 p-2 rounded-lg">
+                                    <span className="flex items-center gap-1">
+                                        <AlertCircle size={12} className="shrink-0" /> Code already in use
+                                    </span>
+                                    {suggestedAlternativeCode && (
+                                        <button
+                                            type="button"
+                                            onClick={handleAutoFix}
+                                            className="px-2 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-[10px] font-bold transition-colors"
+                                        >
+                                            Auto-fix: {suggestedAlternativeCode}
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
+                            {codeValidationState === "idle" && (
+                                <p className="text-[11px] text-slate-400 dark:text-neutral-500 mt-1">
+                                    Unique identifier (e.g. RM-BESAN), auto-generated as you type material name
+                                </p>
+                            )}
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -323,31 +517,60 @@ export default function NewRawMaterialPage() {
                                         disabled={loadingProducts}
                                         className="text-xs h-9"
                                     >
-                                        <option value="">-- None / Select Later --</option>
-                                        {products.map((p) => (
-                                            <option key={p.id} value={p.id}>
-                                                {p.title}
-                                            </option>
-                                        ))}
+                                        <option key="__none_selected__" value="">-- None / Select Later --</option>
+                                        {products.map((p, idx) => {
+                                            const pId = p.id || (p as any)._id || `p-${idx}`;
+                                            return (
+                                                <option key={pId} value={pId}>
+                                                    {p.title}
+                                                </option>
+                                            );
+                                        })}
                                     </Select>
                                 </FormField>
 
-                                <FormField label="Target Product Variant">
+                                <FormField
+                                    label="Target Product Variant"
+                                    helperText="Optional. Select 'All Variants' if this bulk material can be repackaged into multiple SKU sizes (e.g. 250g, 500g, 1kg)."
+                                >
                                     <Select
                                         value={selectedVariantId}
                                         onChange={(e) => setSelectedVariantId(e.target.value)}
                                         disabled={!selectedProduct || !selectedProduct.variants || selectedProduct.variants.length === 0}
                                         className="text-xs h-9"
                                     >
-                                        <option value="">-- Select Variant --</option>
-                                        {selectedProduct?.variants?.map((v: ProductVariant) => (
-                                            <option key={v.id} value={v.id}>
-                                                {v.title} ({v.sku})
-                                            </option>
-                                        ))}
+                                        <option key="__all_variants__" value="">All Variants (Repackage into any variant)</option>
+                                        {selectedProduct?.variants?.map((v: ProductVariant, idx) => {
+                                            const vId = v.id || (v as any)._id || v.sku || `v-${idx}`;
+                                            return (
+                                                <option key={vId} value={vId}>
+                                                    {v.title} ({v.sku})
+                                                </option>
+                                            );
+                                        })}
                                     </Select>
                                 </FormField>
                             </div>
+
+                            {selectedProduct && (
+                                <div className="mt-2.5 p-3 rounded-xl bg-purple-50/70 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/60 text-xs text-slate-700 dark:text-neutral-300 flex items-start gap-2.5">
+                                    {selectedVariantId ? (
+                                        <>
+                                            <Badge variant="primary" size="sm" className="mt-0.5 shrink-0">Single Variant Default</Badge>
+                                            <p className="text-[11px] leading-relaxed">
+                                                Repackaging runs will pre-select this specific variant by default. You can still repackage into any other variant whenever needed.
+                                            </p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Badge variant="success" size="sm" className="mt-0.5 shrink-0">All Variants Supported</Badge>
+                                            <p className="text-[11px] leading-relaxed">
+                                                This raw material is linked to the <strong>{selectedProduct.title}</strong> product family. During repackaging runs, warehouse staff can choose to transform this bulk material into <strong>any of its {selectedProduct.variants?.length || 0} variants</strong> (e.g. 250g, 500g, 750g, 1kg).
+                                            </p>
+                                        </>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
                 </Card>
