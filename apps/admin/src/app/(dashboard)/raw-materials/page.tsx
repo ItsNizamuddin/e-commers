@@ -9,6 +9,7 @@ import {
     Badge,
     Button,
     Input,
+    Select,
     Spinner,
     Pagination,
     toast,
@@ -38,6 +39,13 @@ const CATEGORIES: Array<{ label: string; value: string }> = [
     { label: "Grains & Flours", value: "GRAIN" },
     { label: "Packaging", value: "PACKAGING" },
     { label: "Other", value: "OTHER" },
+];
+
+const USAGE_OPTIONS = [
+    { label: "All Usages", value: "ALL" },
+    { label: "Raw Material", value: "RAW_MATERIAL" },
+    { label: "Sellable Retail", value: "SELLABLE" },
+    { label: "Dual Use (Both)", value: "BOTH" },
 ];
 
 export default function RawMaterialsPage() {
@@ -206,42 +214,35 @@ export default function RawMaterialsPage() {
                     />
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2.5">
+                <div className="flex flex-wrap items-center gap-3">
                     {/* Category Dropdown */}
-                    <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-medium text-slate-500 dark:text-neutral-400">Category:</span>
-                        <select
-                            value={selectedCategory}
-                            onChange={(e) => {
-                                setSelectedCategory(e.target.value);
-                                setPage(1);
-                            }}
-                            className="h-9 px-3 text-xs font-medium rounded-xl border border-slate-200 dark:border-neutral-800 bg-slate-50 dark:bg-[#161616] text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer"
-                        >
-                            {CATEGORIES.map((c) => (
-                                <option key={c.value} value={c.value}>
-                                    {c.label}
-                                </option>
-                            ))}
-                        </select>
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-500 dark:text-neutral-400 shrink-0">Category:</span>
+                        <div className="w-44">
+                            <Select
+                                value={selectedCategory}
+                                onChange={(e) => {
+                                    setSelectedCategory(e.target.value);
+                                    setPage(1);
+                                }}
+                                options={CATEGORIES}
+                            />
+                        </div>
                     </div>
 
                     {/* Usage Dropdown */}
-                    <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-medium text-slate-500 dark:text-neutral-400">Usage:</span>
-                        <select
-                            value={selectedUsage}
-                            onChange={(e) => {
-                                setSelectedUsage(e.target.value as any);
-                                setPage(1);
-                            }}
-                            className="h-9 px-3 text-xs font-medium rounded-xl border border-slate-200 dark:border-neutral-800 bg-slate-50 dark:bg-[#161616] text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer"
-                        >
-                            <option value="ALL">All Usages</option>
-                            <option value="RAW_MATERIAL">Raw Material</option>
-                            <option value="SELLABLE">Sellable Retail</option>
-                            <option value="BOTH">Dual Use (Both)</option>
-                        </select>
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-500 dark:text-neutral-400 shrink-0">Usage:</span>
+                        <div className="w-40">
+                            <Select
+                                value={selectedUsage}
+                                onChange={(e) => {
+                                    setSelectedUsage(e.target.value as any);
+                                    setPage(1);
+                                }}
+                                options={USAGE_OPTIONS}
+                            />
+                        </div>
                     </div>
 
                     {/* Reset Button */}
@@ -255,7 +256,7 @@ export default function RawMaterialsPage() {
                                 setSearchQuery("");
                                 setPage(1);
                             }}
-                            className="text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 h-9 px-2"
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 h-8 px-2"
                         >
                             Reset
                         </Button>
@@ -265,20 +266,22 @@ export default function RawMaterialsPage() {
 
                     <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400 shrink-0">
                         <span>Show</span>
-                        <select
-                            value={pageSize}
-                            onChange={(e) => {
-                                setPageSize(Number(e.target.value));
-                                setPage(1);
-                            }}
-                            className="h-9 text-xs font-medium rounded-xl border border-slate-200 dark:border-neutral-800 bg-slate-50 dark:bg-[#161616] px-2.5 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                        >
-                            <option value={10}>10</option>
-                            <option value={15}>15</option>
-                            <option value={25}>25</option>
-                            <option value={50}>50</option>
-                            <option value={100}>100</option>
-                        </select>
+                        <div className="w-20">
+                            <Select
+                                value={String(pageSize)}
+                                onChange={(e) => {
+                                    setPageSize(Number(e.target.value));
+                                    setPage(1);
+                                }}
+                                options={[
+                                    { label: "10", value: "10" },
+                                    { label: "15", value: "15" },
+                                    { label: "25", value: "25" },
+                                    { label: "50", value: "50" },
+                                    { label: "100", value: "100" },
+                                ]}
+                            />
+                        </div>
                         <span>entries</span>
                     </div>
                 </div>
