@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
     useGetProductsQuery,
     useGetProductReviewsQuery,
@@ -21,6 +21,7 @@ import {
     Button,
     ConfirmDialog,
     Select,
+    SearchableSelect,
     TableAction,
     TableActionGroup,
     Pagination,
@@ -45,6 +46,15 @@ export default function ReviewsPage() {
     // Products query
     const { data: productsData } = useGetProductsQuery({ limit: 50 });
     const products: ProductResponse[] = productsData?.items || [];
+
+    const productOptions = useMemo(() => {
+        return products.map((p) => ({
+            value: p.id,
+            label: p.title,
+            subText: p.slug,
+            badge: `${p.reviewCount || 0} reviews • ★${p.averageRating?.toFixed(1) || "5.0"}`,
+        }));
+    }, [products]);
     const activeProductId = selectedProductId || products[0]?.id || "";
 
     // Reviews query
@@ -131,23 +141,18 @@ export default function ReviewsPage() {
                         Select Product:
                     </span>
                     <div className="flex-1 min-w-[280px]">
-                        <Select
+                        <SearchableSelect
                             value={selectedProductId}
-                            onChange={(e) => {
-                                setSelectedProductId(e.target.value);
+                            onChange={(val) => {
+                                setSelectedProductId(val);
                                 setPage(1);
                             }}
-                        >
-                            {products.length === 0 ? (
-                                <option value="">No products available</option>
-                            ) : (
-                                products.map((p) => (
-                                    <option key={p.id} value={p.id}>
-                                        {p.title} ({p.reviewCount || 0} reviews • ★{p.averageRating?.toFixed(1) || "5.0"})
-                                    </option>
-                                ))
-                            )}
-                        </Select>
+                            options={productOptions}
+                            placeholder="Select a product to view reviews..."
+                            searchPlaceholder="Search product by title, slug..."
+                            size="sm"
+                            pageSize={15}
+                        />
                     </div>
 
                     <div className="flex items-center gap-3 ml-auto">

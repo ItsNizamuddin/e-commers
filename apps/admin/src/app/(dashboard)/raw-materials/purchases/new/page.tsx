@@ -21,6 +21,7 @@ import {
     Spinner,
     FormField,
     Select,
+    SearchableSelect,
     toast,
 } from "@ecommers/ui";
 import {
@@ -107,6 +108,28 @@ export default function NewRawMaterialPurchasePage() {
     const selectedVendor = useMemo(() => {
         return vendors.find((v) => v.id === selectedVendorId);
     }, [vendors, selectedVendorId]);
+
+    const materialOptions = useMemo(() => {
+        return materials.map((m, idx) => {
+            const mVal = m.id || (m as any)._id || m.code || `rm-${idx}`;
+            return {
+                value: mVal,
+                label: m.name,
+                subText: m.code,
+                badge: `${m.currentStock ?? 0} ${m.unit}`,
+                description: m.category ? `Category: ${m.category} • Usage: ${m.usage || "Raw Material"}` : undefined,
+            };
+        });
+    }, [materials]);
+
+    const vendorOptions = useMemo(() => {
+        return vendors.map((v) => ({
+            value: v.id,
+            label: v.name,
+            subText: v.contactNumber,
+            badge: `${v.totalIntakes || 0} intakes recorded`,
+        }));
+    }, [vendors]);
 
     const handleSelectVendor = (vendorId: string) => {
         setSelectedVendorId(vendorId);
@@ -354,18 +377,16 @@ export default function NewRawMaterialPurchasePage() {
                                     <label className="block text-[11px] font-semibold text-slate-700 dark:text-neutral-300 mb-1">
                                         Select Saved Vendor / Supplier
                                     </label>
-                                    <Select
+                                    <SearchableSelect
                                         value={selectedVendorId}
-                                        onChange={(e) => handleSelectVendor(e.target.value)}
-                                        className="text-xs h-9 font-medium"
-                                    >
-                                        <option value="">-- Choose Existing Vendor (or enter details below) --</option>
-                                        {vendors.map((v) => (
-                                            <option key={v.id} value={v.id}>
-                                                {v.name} {v.contactNumber ? `(${v.contactNumber})` : ""} — {v.totalIntakes || 0} intakes recorded
-                                            </option>
-                                        ))}
-                                    </Select>
+                                        onChange={handleSelectVendor}
+                                        options={vendorOptions}
+                                        placeholder="-- Choose Existing Vendor (or enter details below) --"
+                                        searchPlaceholder="Search vendor by name, phone..."
+                                        size="sm"
+                                        pageSize={15}
+                                        clearable
+                                    />
                                 </div>
                                 <div className="flex items-end">
                                     <Button
@@ -494,22 +515,15 @@ export default function NewRawMaterialPurchasePage() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormField label="Raw Material" required helperText="Select the item receiving this stock">
-                            <Select
+                            <SearchableSelect
                                 value={selectedMaterialId}
-                                onChange={(e) => handleMaterialChange(e.target.value)}
-                                required
-                                className="text-xs h-10 font-semibold"
-                            >
-                                {materials.map((m, idx) => {
-                                    const mKey = m.id || (m as any)._id || m.code || `rm-${idx}`;
-                                    const mVal = m.id || (m as any)._id || m.code;
-                                    return (
-                                        <option key={mKey} value={mVal}>
-                                            {m.name} ({m.code}) — Current: {m.currentStock} {m.unit}
-                                        </option>
-                                    );
-                                })}
-                            </Select>
+                                onChange={handleMaterialChange}
+                                options={materialOptions}
+                                placeholder="-- Search or select raw material --"
+                                searchPlaceholder="Search by material name, RM-code, category..."
+                                pageSize={15}
+                                size="md"
+                            />
                         </FormField>
 
                         <FormField label="Batch / Lot Number" helperText="Supplier lot or harvest lot (blank for auto-generated)">

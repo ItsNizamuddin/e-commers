@@ -20,6 +20,7 @@ import {
     Input,
     Spinner,
     FormField,
+    SearchableSelect,
     toast,
 } from "@ecommers/ui";
 import {
@@ -154,9 +155,48 @@ export default function NewRepackagingRunPage() {
         return materials.find((m) => (m.id || (m as any)._id) === selectedMaterialId);
     }, [materials, selectedMaterialId]);
 
+    const materialOptions = useMemo(() => {
+        return materials.map((m, idx) => {
+            const mId = m.id || (m as any)._id || m.code || `mat-${idx}`;
+            return {
+                value: mId,
+                label: m.name,
+                subText: m.code,
+                badge: `${m.currentStock} ${m.unit}`,
+                description: m.usage ? `Usage: ${m.usage}` : undefined,
+            };
+        });
+    }, [materials]);
+
     const selectedLot = useMemo(() => {
         return materialLots.find((l) => (l.id || (l as any)._id) === selectedLotId);
     }, [materialLots, selectedLotId]);
+
+    const lotOptions = useMemo(() => {
+        return materialLots.map((lot, idx) => {
+            const lId = lot.id || (lot as any)._id || lot.lotNumber || `lot-${idx}`;
+            const expStr = lot.expiryDate ? ` • Exp: ${new Date(lot.expiryDate).toLocaleDateString()}` : "";
+            return {
+                value: lId,
+                label: `Lot: ${lot.lotNumber}`,
+                subText: `${lot.availableQuantity} ${lot.unit} avail`,
+                badge: `₹${lot.costPerUnit.toFixed(2)}/${lot.unit}`,
+                description: expStr ? `Expiry: ${new Date(lot.expiryDate!).toLocaleDateString()}` : "No expiry recorded",
+            };
+        });
+    }, [materialLots]);
+
+    const productOptions = useMemo(() => {
+        return products.map((p, idx) => {
+            const pId = p.id || (p as any)._id || `prod-${idx}`;
+            return {
+                value: pId,
+                label: p.title,
+                subText: p.slug,
+                badge: `${p.variants?.length || 0} variants`,
+            };
+        });
+    }, [products]);
 
     const selectedProduct = useMemo(() => {
         return products.find((p) => (p.id || (p as any)._id) === selectedProductId);
@@ -167,6 +207,19 @@ export default function NewRepackagingRunPage() {
         if (!selectedProduct || !selectedProduct.variants) return [];
         return selectedProduct.variants;
     }, [selectedProduct]);
+
+    const variantOptions = useMemo(() => {
+        return availableVariants.map((v, idx) => {
+            const vId = v.id || (v as any)._id || v.sku || `var-${idx}`;
+            const price = v.prices?.[0]?.amount;
+            return {
+                value: vId,
+                label: v.title || v.sku,
+                subText: v.sku,
+                badge: price ? `₹${price}` : undefined,
+            };
+        });
+    }, [availableVariants]);
 
     // Auto-select first variant if selected product changed and variant not valid
     useEffect(() => {
@@ -362,24 +415,14 @@ export default function NewRepackagingRunPage() {
 
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <FormField label="Bulk Raw Material" required>
-                                <select
+                                <SearchableSelect
                                     value={selectedMaterialId}
-                                    onChange={(e) => setSelectedMaterialId(e.target.value)}
-                                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                                >
-                                    <option key="__select_bulk_material__" value="" disabled>
-                                        -- Select bulk material --
-                                    </option>
-                                    {materials.map((m, idx) => {
-                                        const mId = m.id || (m as any)._id || m.code || `mat-${idx}`;
-                                        return (
-                                            <option key={mId} value={mId}>
-                                                {m.name} ({m.code}) — {m.currentStock} {m.unit}{" "}
-                                                [{m.usage}]
-                                            </option>
-                                        );
-                                    })}
-                                </select>
+                                    onChange={setSelectedMaterialId}
+                                    options={materialOptions}
+                                    placeholder="-- Search or select bulk material --"
+                                    searchPlaceholder="Search by material name, code..."
+                                    pageSize={15}
+                                />
                             </FormField>
 
                             <FormField
@@ -391,32 +434,15 @@ export default function NewRepackagingRunPage() {
                                         : `${materialLots.length} active lots with stock`
                                 }
                             >
-                                <select
+                                <SearchableSelect
                                     value={selectedLotId}
-                                    onChange={(e) => setSelectedLotId(e.target.value)}
+                                    onChange={setSelectedLotId}
+                                    options={lotOptions}
                                     disabled={loadingLots || materialLots.length === 0}
-                                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                >
-                                    {materialLots.length === 0 ? (
-                                        <option key="__no_active_lots__" value="">No active lots with remaining stock</option>
-                                    ) : (
-                                        materialLots.map((lot, idx) => {
-                                            const lId = lot.id || (lot as any)._id || lot.lotNumber || `lot-${idx}`;
-                                            return (
-                                                <option key={lId} value={lId}>
-                                                    {lot.lotNumber} | Avail: {lot.availableQuantity}{" "}
-                                                    {lot.unit} @ ₹{lot.costPerUnit.toFixed(2)}/
-                                                    {lot.unit}
-                                                    {lot.expiryDate
-                                                        ? ` (Exp: ${new Date(
-                                                              lot.expiryDate
-                                                          ).toLocaleDateString()})`
-                                                        : ""}
-                                                </option>
-                                            );
-                                        })
-                                    )}
-                                </select>
+                                    placeholder={materialLots.length === 0 ? "No active lots with remaining stock" : "-- Select active lot --"}
+                                    searchPlaceholder="Search lot number..."
+                                    pageSize={15}
+                                />
                             </FormField>
                         </div>
 
@@ -469,23 +495,14 @@ export default function NewRepackagingRunPage() {
 
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <FormField label="Target Retail Product" required>
-                                <select
+                                <SearchableSelect
                                     value={selectedProductId}
-                                    onChange={(e) => setSelectedProductId(e.target.value)}
-                                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                                >
-                                    <option key="__select_retail_product__" value="" disabled>
-                                        -- Select retail product --
-                                    </option>
-                                    {products.map((p, idx) => {
-                                        const pId = p.id || (p as any)._id || `prod-${idx}`;
-                                        return (
-                                            <option key={pId} value={pId}>
-                                                {p.title} ({p.variants?.length || 0} variants)
-                                            </option>
-                                        );
-                                    })}
-                                </select>
+                                    onChange={setSelectedProductId}
+                                    options={productOptions}
+                                    placeholder="-- Select retail product --"
+                                    searchPlaceholder="Search retail product title, slug..."
+                                    pageSize={15}
+                                />
                             </FormField>
 
                             <FormField
@@ -497,22 +514,15 @@ export default function NewRepackagingRunPage() {
                                         : `${availableVariants.length} packaging variants`
                                 }
                             >
-                                <select
+                                <SearchableSelect
                                     value={selectedVariantId}
-                                    onChange={(e) => setSelectedVariantId(e.target.value)}
+                                    onChange={setSelectedVariantId}
+                                    options={variantOptions}
                                     disabled={availableVariants.length === 0}
-                                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-gray-100"
-                                >
-                                    {availableVariants.map((v, idx) => {
-                                        const vId = v.id || (v as any)._id || v.sku || `var-${idx}`;
-                                        return (
-                                            <option key={vId} value={vId}>
-                                                {v.title || v.sku} — SKU: {v.sku}
-                                                {v.prices?.[0]?.amount ? ` (MRP: ₹${v.prices[0].amount})` : ""}
-                                            </option>
-                                        );
-                                    })}
-                                </select>
+                                    placeholder="-- Select packaging variant --"
+                                    searchPlaceholder="Search variant name, SKU..."
+                                    pageSize={15}
+                                />
                             </FormField>
                         </div>
 

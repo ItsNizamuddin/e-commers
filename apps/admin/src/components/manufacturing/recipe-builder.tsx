@@ -17,6 +17,7 @@ import {
     Spinner,
     FormField,
     Select,
+    SearchableSelect,
     Textarea,
     Modal,
     toast,
@@ -59,6 +60,17 @@ const UNITS: Array<{ label: string; value: RawMaterialUnit }> = [
     { label: "pcs", value: "pcs" },
     { label: "pack", value: "pack" },
 ];
+
+export function toBaseMultiplier(qty: number, fromUnit: RawMaterialUnit, baseUnit: RawMaterialUnit): number {
+    const f = fromUnit.toLowerCase();
+    const b = baseUnit.toLowerCase();
+    if (f === b) return qty;
+    if (f === "g" && b === "kg") return qty / 1000;
+    if (f === "kg" && b === "g") return qty * 1000;
+    if (f === "ml" && b === "l") return qty / 1000;
+    if (f === "l" && b === "ml") return qty * 1000;
+    return qty;
+}
 
 interface IngredientRow {
     rawMaterialId: string;
@@ -390,8 +402,10 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
                 return [{ label: "No ingredients found", value: "" }];
             }
             return list.map((m) => ({
-                label: `${m.name} (${m.unit})`,
+                label: m.name,
+                subText: m.code,
                 value: extractId(m),
+                badge: `${m.currentStock ?? 0} ${m.unit}`,
             }));
         },
         [ingredientMaterials, materials]
@@ -408,12 +422,23 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
                 return [{ label: "No packaging materials found (set category to PACKAGING)", value: "" }];
             }
             return list.map((m) => ({
-                label: `${m.name} (${m.unit})`,
+                label: m.name,
+                subText: m.code,
                 value: extractId(m),
+                badge: `${m.currentStock ?? 0} ${m.unit}`,
             }));
         },
         [packagingMaterials, materials]
     );
+
+    const productOptions = useMemo(() => {
+        return products.map((p) => ({
+            label: p.title,
+            subText: p.slug,
+            value: extractId(p),
+            badge: `${p.variants?.length || 0} variants`,
+        }));
+    }, [products]);
 
     // Add / Remove rows
     const addIngredientRow = () => {
@@ -455,18 +480,6 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
         let totalIngredientsHighest = 0;
         let totalPackagingWac = 0;
         let totalPackagingHighest = 0;
-
-        // Helper for unit conversion multiplier
-        const toBaseMultiplier = (qty: number, fromUnit: RawMaterialUnit, baseUnit: RawMaterialUnit) => {
-            const f = fromUnit.toLowerCase();
-            const b = baseUnit.toLowerCase();
-            if (f === b) return qty;
-            if (f === "g" && b === "kg") return qty / 1000;
-            if (f === "kg" && b === "g") return qty * 1000;
-            if (f === "ml" && b === "l") return qty / 1000;
-            if (f === "l" && b === "ml") return qty * 1000;
-            return qty;
-        };
 
         for (const ing of ingredients) {
             const qty = parseFloat(ing.quantity) || 0;
@@ -799,13 +812,14 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
                         {/* First Row: Target Finished Product & Formula Reference Base */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <FormField label="Target Finished Product" required>
-                                <Select
+                                <SearchableSelect
                                     value={productId}
-                                    onChange={(e) => handleProductChange(e.target.value)}
-                                    options={products.map((p) => ({
-                                        label: `${p.title} (${p.slug})`,
-                                        value: extractId(p),
-                                    }))}
+                                    onChange={handleProductChange}
+                                    options={productOptions}
+                                    placeholder="-- Select finished product --"
+                                    searchPlaceholder="Search product by title, slug..."
+                                    size="sm"
+                                    pageSize={15}
                                 />
                             </FormField>
 
@@ -937,20 +951,24 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
                                 const rowRmId = extractId(row.rawMaterialId);
                                 const rm = materials.find((m) => extractId(m) === rowRmId) || (row as any).rawMaterial;
                                 const unitRate = costingStrategy === "WAC" ? (rm?.averageCost || 0) : (rm?.lastPurchasePrice || rm?.averageCost || 0);
+                                const qty = parseFloat(row.quantity) || 0;
+                                const waste = (parseFloat(row.wastagePercent) || 0) / 100;
+                                const effectiveQty = qty * (1 + waste);
+                                const baseQty = rm ? toBaseMultiplier(effectiveQty, row.unit, rm.unit) : 0;
+                                const lineAmount = baseQty * unitRate;
 
                                 return (
                                     <div
                                         key={idx}
-                                        className="p-3 bg-slate-50/80 dark:bg-neutral-900/60 rounded-xl border border-slate-200 dark:border-neutral-800 flex flex-col sm:flex-row items-stretch sm:items-center gap-3"
+                                        className="p-3 bg-slate-50/80 dark:bg-neutral-900/60 rounded-xl border border-slate-200 dark:border-neutral-800 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5"
                                     >
-                                        <div className="flex-1">
+                                        <div className="flex-1 min-w-0">
                                             <label className="text-[10px] font-bold text-slate-400 block mb-1">
                                                 Raw Material
                                             </label>
-                                            <Select
+                                            <SearchableSelect
                                                 value={rowRmId}
-                                                onChange={(e) => {
-                                                    const val = e.target.value;
+                                                onChange={(val) => {
                                                     const found = materials.find((m) => extractId(m) === val);
                                                     setIngredients((prev) =>
                                                         prev.map((r, i) =>
@@ -961,10 +979,14 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
                                                     );
                                                 }}
                                                 options={getIngredientOptions(rowRmId)}
+                                                placeholder="-- Select ingredient --"
+                                                searchPlaceholder="Search ingredient name, code..."
+                                                size="sm"
+                                                pageSize={15}
                                             />
                                         </div>
 
-                                        <div className="w-28">
+                                        <div className="w-20 shrink-0">
                                             <label className="text-[10px] font-bold text-slate-400 block mb-1">
                                                 Quantity
                                             </label>
@@ -984,7 +1006,7 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
                                             />
                                         </div>
 
-                                        <div className="w-24">
+                                        <div className="w-20 shrink-0">
                                             <label className="text-[10px] font-bold text-slate-400 block mb-1">
                                                 Unit
                                             </label>
@@ -997,10 +1019,11 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
                                                     );
                                                 }}
                                                 options={UNITS}
+                                                className="text-xs"
                                             />
                                         </div>
 
-                                        <div className="w-24">
+                                        <div className="w-20 shrink-0">
                                             <label className="text-[10px] font-bold text-slate-400 block mb-1" title="Cooking / moisture evaporation loss percentage">
                                                 Wastage %
                                             </label>
@@ -1021,24 +1044,31 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
                                             />
                                         </div>
 
-                                        <div className="w-24 text-right">
+                                        <div className="w-28 shrink-0 text-right">
                                             <label className="text-[10px] font-bold text-slate-400 block mb-1">
-                                                Unit Rate
+                                                Amount / Rate
                                             </label>
-                                            <span className="text-xs font-mono font-bold text-slate-700 dark:text-neutral-300">
-                                                ₹{unitRate.toFixed(2)}
-                                            </span>
+                                            <div className="h-8 flex flex-col justify-center">
+                                                <span className="text-xs font-mono font-bold text-slate-900 dark:text-white">
+                                                    ₹{lineAmount.toFixed(2)}
+                                                </span>
+                                                <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 block -mt-0.5">
+                                                    @ ₹{unitRate.toFixed(2)}/{rm?.unit || "unit"}{waste > 0 ? ` (+${(waste * 100).toFixed(0)}%)` : ""}
+                                                </span>
+                                            </div>
                                         </div>
 
-                                        {ingredients.length > 1 && (
+                                        {ingredients.length > 1 ? (
                                             <button
                                                 type="button"
                                                 onClick={() => removeIngredientRow(idx)}
-                                                className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors mt-auto mb-1"
+                                                className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors shrink-0 mt-5"
                                                 title="Remove ingredient"
                                             >
                                                 <Trash2 size={14} />
                                             </button>
+                                        ) : (
+                                            <div className="w-7 shrink-0" />
                                         )}
                                     </div>
                                 );
@@ -1088,20 +1118,22 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
                                     const rowRmId = extractId(row.rawMaterialId);
                                     const rm = materials.find((m) => extractId(m) === rowRmId) || (row as any).rawMaterial;
                                     const unitRate = costingStrategy === "WAC" ? (rm?.averageCost || 0) : (rm?.lastPurchasePrice || rm?.averageCost || 0);
+                                    const qty = parseFloat(row.quantity) || 0;
+                                    const baseQty = rm ? toBaseMultiplier(qty, row.unit, rm.unit) : 0;
+                                    const pkgAmount = baseQty * unitRate;
 
                                     return (
                                         <div
                                             key={idx}
-                                            className="p-3 bg-slate-50/80 dark:bg-neutral-900/60 rounded-xl border border-slate-200 dark:border-neutral-800 flex items-center gap-3"
+                                            className="p-3 bg-slate-50/80 dark:bg-neutral-900/60 rounded-xl border border-slate-200 dark:border-neutral-800 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5"
                                         >
-                                            <div className="flex-1">
+                                            <div className="flex-1 min-w-0">
                                                 <label className="text-[10px] font-bold text-slate-400 block mb-1">
                                                     Packaging Item
                                                 </label>
-                                                <Select
+                                                <SearchableSelect
                                                     value={rowRmId}
-                                                    onChange={(e) => {
-                                                        const val = e.target.value;
+                                                    onChange={(val) => {
                                                         const found = materials.find((m) => extractId(m) === val);
                                                         setPackaging((prev) =>
                                                             prev.map((r, i) =>
@@ -1112,10 +1144,14 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
                                                         );
                                                     }}
                                                     options={getPackagingOptions(rowRmId)}
+                                                    placeholder="-- Select packaging item --"
+                                                    searchPlaceholder="Search packaging item, code..."
+                                                    size="sm"
+                                                    pageSize={15}
                                                 />
                                             </div>
 
-                                            <div className="w-28">
+                                            <div className="w-24 shrink-0">
                                                 <label className="text-[10px] font-bold text-slate-400 block mb-1">
                                                     Quantity
                                                 </label>
@@ -1135,7 +1171,7 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
                                                 />
                                             </div>
 
-                                            <div className="w-24">
+                                            <div className="w-20 shrink-0">
                                                 <label className="text-[10px] font-bold text-slate-400 block mb-1">
                                                     Unit
                                                 </label>
@@ -1148,22 +1184,28 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
                                                         );
                                                     }}
                                                     options={UNITS}
+                                                    className="text-xs"
                                                 />
                                             </div>
 
-                                            <div className="w-24 text-right">
+                                            <div className="w-28 shrink-0 text-right">
                                                 <label className="text-[10px] font-bold text-slate-400 block mb-1">
-                                                    Rate
+                                                    Amount / Rate
                                                 </label>
-                                                <span className="text-xs font-mono font-bold text-slate-700 dark:text-neutral-300">
-                                                    ₹{unitRate.toFixed(2)}
-                                                </span>
+                                                <div className="h-8 flex flex-col justify-center">
+                                                    <span className="text-xs font-mono font-bold text-slate-900 dark:text-white">
+                                                        ₹{pkgAmount.toFixed(2)}
+                                                    </span>
+                                                    <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 block -mt-0.5">
+                                                        @ ₹{unitRate.toFixed(2)}/{rm?.unit || "unit"}
+                                                    </span>
+                                                </div>
                                             </div>
 
                                             <button
                                                 type="button"
                                                 onClick={() => removePackagingRow(idx)}
-                                                className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors mt-auto mb-1"
+                                                className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors shrink-0 mt-5"
                                                 title="Remove packaging item"
                                             >
                                                 <Trash2 size={14} />

@@ -22,6 +22,7 @@ import {
     Input,
     FormField,
     Select,
+    SearchableSelect,
     toast,
 } from "@ecommers/ui";
 import {
@@ -155,6 +156,42 @@ export default function NewRawMaterialPage() {
     };
 
     const selectedProduct = products.find((p) => p.id === selectedProductId);
+
+    const productOptions = useMemo(() => {
+        return [
+            { value: "", label: "-- None / Select Later --" },
+            ...products.map((p, idx) => {
+                const pId = p.id || (p as any)._id || `p-${idx}`;
+                const variantCount = p.variants?.length || 0;
+                return {
+                    value: pId,
+                    label: p.title,
+                    subText: p.slug,
+                    badge: `${variantCount} variant${variantCount === 1 ? "" : "s"}`,
+                    description: p.description ? p.description.slice(0, 60) : undefined,
+                };
+            }),
+        ];
+    }, [products]);
+
+    const variantOptions = useMemo(() => {
+        if (!selectedProduct?.variants || selectedProduct.variants.length === 0) {
+            return [{ value: "", label: "All Variants (Repackage into any variant)" }];
+        }
+        return [
+            { value: "", label: "All Variants (Repackage into any variant)" },
+            ...selectedProduct.variants.map((v: ProductVariant, idx: number) => {
+                const vId = v.id || (v as any)._id || v.sku || `v-${idx}`;
+                const price = v.prices?.[0]?.amount;
+                return {
+                    value: vId,
+                    label: v.title,
+                    subText: v.sku || "No SKU",
+                    badge: price ? `₹${price}` : undefined,
+                };
+            }),
+        ];
+    }, [selectedProduct]);
 
     // Auto-generate code when Material Name changes
     const handleNameChange = (val: string) => {
@@ -492,44 +529,32 @@ export default function NewRawMaterialPage() {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
                                 <FormField label="Retail Product">
-                                    <Select
+                                    <SearchableSelect
                                         value={selectedProductId}
-                                        onChange={(e) => handleProductChange(e.target.value)}
+                                        onChange={handleProductChange}
+                                        options={productOptions}
                                         disabled={loadingProducts}
-                                        className="text-xs h-9"
-                                    >
-                                        <option key="__none_selected__" value="">-- None / Select Later --</option>
-                                        {products.map((p, idx) => {
-                                            const pId = p.id || (p as any)._id || `p-${idx}`;
-                                            return (
-                                                <option key={pId} value={pId}>
-                                                    {p.title}
-                                                </option>
-                                            );
-                                        })}
-                                    </Select>
+                                        placeholder="-- None / Select Later --"
+                                        searchPlaceholder="Search product by title, slug..."
+                                        size="sm"
+                                        pageSize={15}
+                                    />
                                 </FormField>
 
                                 <FormField
                                     label="Target Product Variant"
                                     helperText="Optional. Select 'All Variants' if this bulk material can be repackaged into multiple SKU sizes (e.g. 250g, 500g, 1kg)."
                                 >
-                                    <Select
+                                    <SearchableSelect
                                         value={selectedVariantId}
-                                        onChange={(e) => setSelectedVariantId(e.target.value)}
+                                        onChange={setSelectedVariantId}
+                                        options={variantOptions}
                                         disabled={!selectedProduct || !selectedProduct.variants || selectedProduct.variants.length === 0}
-                                        className="text-xs h-9"
-                                    >
-                                        <option key="__all_variants__" value="">All Variants (Repackage into any variant)</option>
-                                        {selectedProduct?.variants?.map((v: ProductVariant, idx) => {
-                                            const vId = v.id || (v as any)._id || v.sku || `v-${idx}`;
-                                            return (
-                                                <option key={vId} value={vId}>
-                                                    {v.title} ({v.sku})
-                                                </option>
-                                            );
-                                        })}
-                                    </Select>
+                                        placeholder="All Variants (Repackage into any variant)"
+                                        searchPlaceholder="Search variant name, SKU..."
+                                        size="sm"
+                                        pageSize={15}
+                                    />
                                 </FormField>
                             </div>
 

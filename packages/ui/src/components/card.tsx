@@ -8,7 +8,7 @@ export function Card({
 }: React.HTMLAttributes<HTMLDivElement>) {
     return (
         <div
-            className={`rounded-xl border border-slate-200/80 dark:border-neutral-800 bg-white dark:bg-[#111111] text-slate-900 dark:text-neutral-100 shadow-xs overflow-hidden box-border ${className}`}
+            className={`rounded-xl border border-slate-200/80 dark:border-neutral-800 bg-white dark:bg-[#111111] text-slate-900 dark:text-neutral-100 shadow-xs box-border relative has-[[aria-expanded="true"]]:z-30 ${className}`}
             style={style}
             {...props}
         >

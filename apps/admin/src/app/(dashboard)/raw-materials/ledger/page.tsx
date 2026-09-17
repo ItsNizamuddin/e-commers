@@ -14,6 +14,7 @@ import {
     Button,
     Spinner,
     Select,
+    SearchableSelect,
     Pagination,
 } from "@ecommers/ui";
 import {
@@ -141,16 +142,21 @@ function RawMaterialLedgerContent() {
                 <div className="flex items-center gap-3">
                     <span className="text-xs font-bold text-slate-700 dark:text-neutral-300">Filter Material:</span>
                     <div className="w-64">
-                        <Select
+                        <SearchableSelect
                             value={selectedMaterialId}
-                            onChange={(e) => handleMaterialChange(e.target.value)}
+                            onChange={handleMaterialChange}
                             options={[
                                 { label: "All Materials", value: "" },
                                 ...materials.map((m) => ({
-                                    label: `${m.name} (${m.code})`,
+                                    label: m.name,
+                                    subText: m.code,
                                     value: m.id,
                                 })),
                             ]}
+                            placeholder="All Materials"
+                            searchPlaceholder="Search material..."
+                            size="sm"
+                            pageSize={15}
                         />
                     </div>
                 </div>

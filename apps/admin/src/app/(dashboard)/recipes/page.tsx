@@ -23,6 +23,7 @@ import {
     ArrowRight,
     Sparkles,
     Printer,
+    Edit2,
 } from "lucide-react";
 import { BatchSheetModal } from "@/components/manufacturing/batch-sheet-modal";
 
@@ -198,21 +199,19 @@ export default function RecipesPage() {
                                     return (
                                         <tr key={r.id} className="hover:bg-slate-50/60 dark:hover:bg-neutral-800/30 transition-colors">
                                             <td className="py-3 px-4">
-                                                <div className="flex items-center gap-2">
-                                                    <div>
-                                                        <span className="font-bold text-slate-900 dark:text-white block">
-                                                            {r.name}
+                                                <Link href={`/recipes/${r.id}`} className="group block">
+                                                    <span className="font-bold text-slate-900 dark:text-white block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                                        {r.name}
+                                                    </span>
+                                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                                        <span className="font-mono text-[11px] text-blue-600 dark:text-blue-400 font-semibold">
+                                                            {r.code}
                                                         </span>
-                                                        <div className="flex items-center gap-1.5 mt-0.5">
-                                                            <span className="font-mono text-[11px] text-blue-600 dark:text-blue-400 font-semibold">
-                                                                {r.code}
-                                                            </span>
-                                                            <Badge variant="neutral" size="sm">
-                                                                v{r.version}
-                                                            </Badge>
-                                                        </div>
+                                                        <Badge variant="neutral" size="sm">
+                                                            v{r.version}
+                                                        </Badge>
                                                     </div>
-                                                </div>
+                                                </Link>
                                             </td>
                                             <td className="py-3 px-3">
                                                 <span className="font-semibold text-slate-800 dark:text-slate-200 block">
@@ -265,8 +264,14 @@ export default function RecipesPage() {
                                                         <span>Batch Slip</span>
                                                     </Button>
                                                     <Link href={`/recipes/${r.id}`}>
-                                                        <Button variant="outline" size="sm" className="h-7 text-[11px] px-2.5">
-                                                            Formula
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-7 text-[11px] px-2.5 gap-1 border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-neutral-800 dark:text-neutral-300 font-medium"
+                                                            title="Edit Recipe BOM Formula"
+                                                        >
+                                                            <Edit2 size={12} />
+                                                            <span>Edit Recipe</span>
                                                         </Button>
                                                     </Link>
                                                     <Link href={`/manufacturing?recipeId=${r.id}`}>

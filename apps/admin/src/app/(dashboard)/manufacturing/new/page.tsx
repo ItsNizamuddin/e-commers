@@ -22,6 +22,7 @@ import {
     Spinner,
     FormField,
     Select,
+    SearchableSelect,
     toast,
 } from "@ecommers/ui";
 import {
@@ -83,6 +84,24 @@ export default function NewProductionRunPage() {
     const selectedRecipe = useMemo(() => {
         return recipes.find((r) => r.id === selectedRecipeId);
     }, [recipes, selectedRecipeId]);
+
+    const recipeOptions = useMemo(() => {
+        return recipes.map((r) => ({
+            value: r.id,
+            label: r.name,
+            subText: `v${r.version}`,
+            badge: `Yield: ${r.batchYield.quantity} ${r.batchYield.unit}`,
+        }));
+    }, [recipes]);
+
+    const locationOptions = useMemo(() => {
+        return locations.map((loc) => ({
+            value: loc.id,
+            label: loc.name,
+            subText: loc.code,
+            badge: loc.type,
+        }));
+    }, [locations]);
 
     // Update yield quantity when recipe changes
     const handleRecipeChange = (recipeId: string) => {
@@ -179,33 +198,27 @@ export default function NewProductionRunPage() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormField label="Target Recipe (Bill of Materials)" required>
-                            <Select
+                            <SearchableSelect
                                 value={selectedRecipeId}
-                                onChange={(e) => handleRecipeChange(e.target.value)}
-                                required
-                                className="text-xs h-10 font-semibold"
-                            >
-                                {recipes.map((r) => (
-                                    <option key={r.id} value={r.id}>
-                                        {r.name} (v{r.version}) — Yield: {r.batchYield.quantity} {r.batchYield.unit}
-                                    </option>
-                                ))}
-                            </Select>
+                                onChange={handleRecipeChange}
+                                options={recipeOptions}
+                                placeholder="-- Select formula / recipe --"
+                                searchPlaceholder="Search recipe name, version..."
+                                size="md"
+                                pageSize={15}
+                            />
                         </FormField>
 
                         <FormField label="Deposit Warehouse" required helperText="Location where finished product stock is credited">
-                            <Select
+                            <SearchableSelect
                                 value={selectedWarehouseId}
-                                onChange={(e) => setSelectedWarehouseId(e.target.value)}
-                                required
-                                className="text-xs h-10"
-                            >
-                                {locations.map((loc) => (
-                                    <option key={loc.id} value={loc.id}>
-                                        {loc.name} ({loc.code})
-                                    </option>
-                                ))}
-                            </Select>
+                                onChange={setSelectedWarehouseId}
+                                options={locationOptions}
+                                placeholder="-- Select warehouse location --"
+                                searchPlaceholder="Search warehouse name, code..."
+                                size="md"
+                                pageSize={15}
+                            />
                         </FormField>
                     </div>
 
