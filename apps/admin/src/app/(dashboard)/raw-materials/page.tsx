@@ -141,73 +141,6 @@ export default function RawMaterialsPage() {
                 </div>
             </div>
 
-            {/* Top Quick Links to Sub-Modules */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <Link
-                    href="/raw-materials"
-                    className="p-3.5 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/60 rounded-xl flex items-center justify-between hover:shadow-xs transition-all"
-                >
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center">
-                            <Boxes size={16} />
-                        </div>
-                        <div>
-                            <p className="text-xs font-bold text-slate-900 dark:text-white">Catalog</p>
-                            <p className="text-[11px] text-slate-500">Stock & WAC</p>
-                        </div>
-                    </div>
-                    <Badge variant="primary" size="sm">{metrics.total}</Badge>
-                </Link>
-
-                <Link
-                    href="/raw-materials/purchases"
-                    className="p-3.5 bg-white dark:bg-[#111111] border border-slate-200 dark:border-neutral-800 rounded-xl flex items-center justify-between hover:border-blue-500 transition-all shadow-xs"
-                >
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center">
-                            <Truck size={16} />
-                        </div>
-                        <div>
-                            <p className="text-xs font-bold text-slate-900 dark:text-white">Intakes</p>
-                            <p className="text-[11px] text-slate-500">Vendor & Farm</p>
-                        </div>
-                    </div>
-                    <ExternalLink size={13} className="text-slate-400" />
-                </Link>
-
-                <Link
-                    href="/raw-materials/lots"
-                    className="p-3.5 bg-white dark:bg-[#111111] border border-slate-200 dark:border-neutral-800 rounded-xl flex items-center justify-between hover:border-blue-500 transition-all shadow-xs"
-                >
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600 flex items-center justify-center">
-                            <CalendarCheck size={16} />
-                        </div>
-                        <div>
-                            <p className="text-xs font-bold text-slate-900 dark:text-white">Active Lots</p>
-                            <p className="text-[11px] text-slate-500">FEFO & Expiry</p>
-                        </div>
-                    </div>
-                    <ExternalLink size={13} className="text-slate-400" />
-                </Link>
-
-                <Link
-                    href="/manufacturing/repackaging"
-                    className="p-3.5 bg-white dark:bg-[#111111] border border-slate-200 dark:border-neutral-800 rounded-xl flex items-center justify-between hover:border-blue-500 transition-all shadow-xs"
-                >
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-950/60 text-purple-600 flex items-center justify-center">
-                            <Layers size={16} />
-                        </div>
-                        <div>
-                            <p className="text-xs font-bold text-slate-900 dark:text-white">Repackaging</p>
-                            <p className="text-[11px] text-slate-500">Bulk to Retail</p>
-                        </div>
-                    </div>
-                    <ExternalLink size={13} className="text-slate-400" />
-                </Link>
-            </div>
-
             {/* KPI Summary Banner */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <Card className="p-4 bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl shadow-xs">
@@ -280,11 +213,10 @@ export default function RawMaterialsPage() {
                             key={u}
                             type="button"
                             onClick={() => setSelectedUsage(u)}
-                            className={`px-2 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-                                selectedUsage === u
+                            className={`px-2 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${selectedUsage === u
                                     ? "bg-purple-600 text-white"
                                     : "text-slate-600 dark:text-neutral-400 hover:bg-slate-100 dark:hover:bg-neutral-800"
-                            }`}
+                                }`}
                         >
                             {u === "ALL" ? "All" : u === "RAW_MATERIAL" ? "Raw" : u === "SELLABLE" ? "Sellable" : "Both (Dual)"}
                         </button>
@@ -298,11 +230,10 @@ export default function RawMaterialsPage() {
                                 setSelectedCategory(c.value);
                                 setPage(1);
                             }}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-                                selectedCategory === c.value
+                            className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${selectedCategory === c.value
                                     ? "bg-slate-900 text-white dark:bg-white dark:text-neutral-900"
                                     : "text-slate-600 dark:text-neutral-400 hover:bg-slate-100 dark:hover:bg-neutral-800"
-                            }`}
+                                }`}
                         >
                             {c.label}
                         </button>
@@ -363,126 +294,126 @@ export default function RawMaterialsPage() {
                                 <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs border-b border-slate-200 dark:border-neutral-800 shadow-xs">
                                     <tr className="text-slate-500 dark:text-neutral-400 font-semibold">
                                         <th className="py-3 px-4">Material Code & Name</th>
-                                        <th className="py-3 px-3">Usage</th>
                                         <th className="py-3 px-3">Category</th>
+                                        <th className="py-3 px-3">Usage</th>
                                         <th className="py-3 px-3 text-right">Current Stock</th>
-                                        <th className="py-3 px-3 text-right">Avg Cost (WAC)</th>
-                                        <th className="py-3 px-3 text-right">Latest Price</th>
-                                        <th className="py-3 px-3 text-right">Stock Valuation</th>
                                         <th className="py-3 px-3 text-center">Reorder Level</th>
+                                        <th className="py-3 px-3 text-center">Stock Status</th>
                                         <th className="py-3 px-4 text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-neutral-800/80">
                                     {paginatedMaterials.map((m) => {
-                                    const isLow = m.currentStock <= m.reorderThreshold;
-                                    const valuation = (m.currentStock || 0) * (m.averageCost || 0);
+                                        const isOutOfStock = (m.currentStock ?? 0) <= 0;
+                                        const isLow = !isOutOfStock && (m.currentStock ?? 0) <= m.reorderThreshold;
 
-                                    return (
-                                        <tr key={m.id} className="hover:bg-slate-50/60 dark:hover:bg-neutral-800/30 transition-colors">
-                                            <td className="py-3 px-4">
-                                                <div className="flex items-center gap-2.5">
-                                                    <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center shrink-0">
-                                                        <Scale size={14} />
+                                        return (
+                                            <tr key={m.id} className="hover:bg-slate-50/60 dark:hover:bg-neutral-800/30 transition-colors">
+                                                <td className="py-3 px-4">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center shrink-0">
+                                                            <Scale size={14} />
+                                                        </div>
+                                                        <div>
+                                                            <span className="font-bold text-slate-900 dark:text-white block">
+                                                                {m.name}
+                                                            </span>
+                                                            <span className="font-mono text-[11px] text-blue-600 dark:text-blue-400">
+                                                                {m.code}
+                                                            </span>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <span className="font-bold text-slate-900 dark:text-white block">
-                                                            {m.name}
+                                                </td>
+                                                <td className="py-3 px-3">
+                                                    <Badge variant="neutral" size="sm">
+                                                        {m.category}
+                                                    </Badge>
+                                                </td>
+                                                <td className="py-3 px-3">
+                                                    {m.usage === "BOTH" ? (
+                                                        <span className="px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 font-bold text-[10px] inline-flex items-center gap-1">
+                                                            <Sparkles size={11} />
+                                                            <span>Dual Use (Both)</span>
                                                         </span>
-                                                        <span className="font-mono text-[11px] text-blue-600 dark:text-blue-400">
-                                                            {m.code}
+                                                    ) : m.usage === "SELLABLE" ? (
+                                                        <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 font-semibold text-[10px]">
+                                                            Sellable Retail
                                                         </span>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="py-3 px-3">
-                                                {m.usage === "BOTH" ? (
-                                                    <span className="px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 font-bold text-[10px] inline-flex items-center gap-1">
-                                                        <Sparkles size={11} />
-                                                        <span>Dual Use (Both)</span>
-                                                    </span>
-                                                ) : m.usage === "SELLABLE" ? (
-                                                    <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 font-semibold text-[10px]">
-                                                        Sellable Retail
-                                                    </span>
-                                                ) : (
-                                                    <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-neutral-800 text-slate-600 dark:text-neutral-300 text-[10px]">
-                                                        Raw Material
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="py-3 px-3">
-                                                <Badge variant="neutral" size="sm">
-                                                    {m.category}
-                                                </Badge>
-                                            </td>
-                                            <td className="py-3 px-3 text-right">
-                                                <div className="flex items-center justify-end gap-1.5">
-                                                    {isLow && (
-                                                        <span title="Low stock alert">
-                                                            <AlertTriangle size={13} className="text-amber-500 shrink-0" />
+                                                    ) : (
+                                                        <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-neutral-800 text-slate-600 dark:text-neutral-300 text-[10px]">
+                                                            Raw Material
                                                         </span>
                                                     )}
-                                                    <span className={`font-mono font-bold ${isLow ? "text-amber-600" : "text-slate-800 dark:text-slate-200"}`}>
+                                                </td>
+                                                <td className="py-3 px-3 text-right">
+                                                    <span className={`font-mono font-bold ${isOutOfStock ? "text-rose-600 dark:text-rose-400" : isLow ? "text-amber-600 dark:text-amber-400" : "text-slate-800 dark:text-slate-200"}`}>
                                                         {m.currentStock} {m.unit}
                                                     </span>
-                                                </div>
-                                            </td>
-                                            <td className="py-3 px-3 text-right font-mono font-semibold text-emerald-600 dark:text-emerald-400">
-                                                ₹{m.averageCost.toFixed(2)} / {m.unit}
-                                            </td>
-                                            <td className="py-3 px-3 text-right font-mono text-slate-600 dark:neutral-400">
-                                                ₹{m.lastPurchasePrice.toFixed(2)} / {m.unit}
-                                            </td>
-                                            <td className="py-3 px-3 text-right font-mono font-bold text-slate-900 dark:text-white">
-                                                ₹{valuation.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                            </td>
-                                            <td className="py-3 px-3 text-center">
-                                                <span className="text-slate-500 font-mono text-[11px]">
-                                                    {m.reorderThreshold} {m.unit}
-                                                </span>
-                                            </td>
-                                            <td className="py-3 px-4 text-right">
-                                                <div className="flex items-center justify-end gap-1.5">
-                                                    <Link href={`/raw-materials/${m.id}`}>
-                                                        <Button variant="outline" size="sm" className="h-7 text-[11px] px-2 text-blue-600 hover:bg-blue-50" title="Edit material details">
-                                                            <Edit3 size={11} className="mr-1" />
-                                                            <span>Edit</span>
-                                                        </Button>
-                                                    </Link>
-                                                    <Link href={`/raw-materials/lots?rawMaterialId=${m.id}`}>
-                                                        <Button variant="outline" size="sm" className="h-7 text-[11px] px-2" title="View active lots">
-                                                            Lots
-                                                        </Button>
-                                                    </Link>
-                                                    <Link href={`/raw-materials/ledger?rawMaterialId=${m.id}`}>
-                                                        <Button variant="outline" size="sm" className="h-7 text-[11px] px-2" title="View movement ledger">
-                                                            Ledger
-                                                        </Button>
-                                                    </Link>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    {totalItems > 0 && (
-                        <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
-                            <Pagination
-                                page={page}
-                                totalPages={totalPages}
-                                totalItems={totalItems}
-                                pageSize={pageSize}
-                                onPageChange={setPage}
-                            />
+                                                </td>
+                                                <td className="py-3 px-3 text-center">
+                                                    <span className="text-slate-500 font-mono text-[11px]">
+                                                        {m.reorderThreshold} {m.unit}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-3 text-center">
+                                                    {isOutOfStock ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200/60 dark:border-rose-900/60">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                                            <span>Out of Stock</span>
+                                                        </span>
+                                                    ) : isLow ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/60">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                                            <span>Low Stock</span>
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/60">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                                            <span>Healthy</span>
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="py-3 px-4 text-right">
+                                                    <div className="flex items-center justify-end gap-1.5">
+                                                        <Link href={`/raw-materials/${m.id}`}>
+                                                            <Button variant="outline" size="sm" className="h-7 text-[11px] px-2 text-blue-600 hover:bg-blue-50" title="Edit material details">
+                                                                <Edit3 size={11} className="mr-1" />
+                                                                <span>Edit</span>
+                                                            </Button>
+                                                        </Link>
+                                                        <Link href={`/raw-materials/lots?rawMaterialId=${m.id}`}>
+                                                            <Button variant="outline" size="sm" className="h-7 text-[11px] px-2" title="View active lots">
+                                                                Lots
+                                                            </Button>
+                                                        </Link>
+                                                        <Link href={`/raw-materials/ledger?rawMaterialId=${m.id}`}>
+                                                            <Button variant="outline" size="sm" className="h-7 text-[11px] px-2" title="View movement ledger">
+                                                                Ledger
+                                                            </Button>
+                                                        </Link>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         </div>
-                    )}
-                </>
-            )}
-        </Card>
+
+                        {totalItems > 0 && (
+                            <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
+                                <Pagination
+                                    page={page}
+                                    totalPages={totalPages}
+                                    totalItems={totalItems}
+                                    pageSize={pageSize}
+                                    onPageChange={setPage}
+                                />
+                            </div>
+                        )}
+                    </>
+                )}
+            </Card>
         </div>
     );
 }
