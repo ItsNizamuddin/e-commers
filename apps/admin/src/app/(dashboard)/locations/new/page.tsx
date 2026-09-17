@@ -2,7 +2,10 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { api } from "../../../../lib/api";
+import {
+    useCreateLocationMutation,
+    useBulkUploadLocationsMutation,
+} from "../../../../store/api";
 import type {
     CreateLocationInput,
     LocationType,
@@ -38,6 +41,9 @@ export default function NewLocationPage() {
     const searchParams = useSearchParams();
     const initialTab = searchParams.get("tab") === "bulk" ? "bulk" : "single";
 
+    const [createLocationMutation, { isLoading: isSubmittingSingle }] = useCreateLocationMutation();
+    const [bulkUploadLocationsMutation, { isLoading: isUploadingBulk }] = useBulkUploadLocationsMutation();
+
     // Active Tab: "single" or "bulk"
     const [activeTab, setActiveTab] = useState<"single" | "bulk">(initialTab);
 
@@ -55,7 +61,6 @@ export default function NewLocationPage() {
     const [postalCodePrefixesStr, setPostalCodePrefixesStr] = useState("");
     const [isActive, setIsActive] = useState(true);
 
-    const [isSubmittingSingle, setIsSubmittingSingle] = useState(false);
     const [singleError, setSingleError] = useState<string | null>(null);
     const [singleSuccess, setSingleSuccess] = useState<string | null>(null);
 
@@ -68,7 +73,6 @@ export default function NewLocationPage() {
     const [fileName, setFileName] = useState<string | null>(null);
     const [parsedPreview, setParsedPreview] = useState<Array<Record<string, string>>>([]);
 
-    const [isUploadingBulk, setIsUploadingBulk] = useState(false);
     const [bulkError, setBulkError] = useState<string | null>(null);
     const [bulkResult, setBulkResult] = useState<BulkLocationUploadResult | null>(null);
 
@@ -107,7 +111,6 @@ export default function NewLocationPage() {
             .map((p) => p.trim())
             .filter(Boolean);
 
-        setIsSubmittingSingle(true);
         try {
             const payload: CreateLocationInput = {
                 code: code.trim().toUpperCase(),
@@ -122,7 +125,7 @@ export default function NewLocationPage() {
                 isActive,
             };
 
-            await api.locations.create(payload);
+            await createLocationMutation(payload).unwrap();
             setSingleSuccess(`Location "${payload.name}" (${payload.code}) created successfully!`);
             setTimeout(() => {
                 router.push("/locations");
@@ -133,8 +136,6 @@ export default function NewLocationPage() {
             } else {
                 setSingleError("Failed to create location.");
             }
-        } finally {
-            setIsSubmittingSingle(false);
         }
     };
 
@@ -215,12 +216,11 @@ export default function NewLocationPage() {
             return;
         }
 
-        setIsUploadingBulk(true);
         setBulkError(null);
         setBulkResult(null);
 
         try {
-            const res = await api.locations.bulkUpload(csvContent.trim(), bulkMode);
+            const res = await bulkUploadLocationsMutation({ csvContent: csvContent.trim(), mode: bulkMode }).unwrap();
             setBulkResult(res);
         } catch (err: unknown) {
             if (err instanceof Error) {
@@ -228,8 +228,6 @@ export default function NewLocationPage() {
             } else {
                 setBulkError("Failed to upload locations.");
             }
-        } finally {
-            setIsUploadingBulk(false);
         }
     };
 

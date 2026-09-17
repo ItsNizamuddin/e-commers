@@ -1,71 +1,64 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "../../../../lib/api";
-import type { CategoryResponse, LocationResponse, CreateProductInput } from "@ecommers/types";
+import {
+    useGetCategoriesQuery,
+    useGetAdminLocationsQuery,
+    useCreateProductMutation,
+} from "../../../../store/api";
+import type { CreateProductInput } from "@ecommers/types";
 import { Spinner, Button } from "@ecommers/ui";
 import { ProductForm } from "../../../../components/products/product-form";
 import { PlusCircle, FolderPlus } from "lucide-react";
 
 export default function NewProductPage() {
     const router = useRouter();
-    const [categories, setCategories] = useState<CategoryResponse[]>([]);
-    const [locations, setLocations] = useState<LocationResponse[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const {
+        data: categories = [],
+        isLoading: categoriesLoading,
+    } = useGetCategoriesQuery();
+
+    const {
+        data: locations = [],
+        isLoading: locationsLoading,
+    } = useGetAdminLocationsQuery();
+
+    const [createProduct, { isLoading: isSubmitting }] = useCreateProductMutation();
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        setLoading(true);
-        Promise.all([
-            api.categories.list().catch(() => []),
-            api.locations.adminList().catch(() => []),
-        ])
-            .then(([cats, locs]) => {
-                setCategories(cats || []);
-                setLocations(locs || []);
-            })
-            .catch((err) => {
-                console.error("Failed to load initial form data", err);
-            })
-            .finally(() => setLoading(false));
-    }, []);
+    const loading = categoriesLoading || locationsLoading;
 
     const handleSubmit = async (payload: CreateProductInput) => {
-        setIsSubmitting(true);
         setError(null);
         try {
-            await api.products.create(payload);
+            await createProduct(payload).unwrap();
             router.push("/products");
-        } catch (err: unknown) {
+        } catch (err: any) {
             let message = "Failed to create product.";
-            if (err && typeof err === "object") {
-                const apiErr = err as { message?: string; details?: unknown };
-                if (apiErr.details && typeof apiErr.details === "object") {
-                    const issues: string[] = [];
-                    for (const [field, msgs] of Object.entries(apiErr.details as Record<string, unknown>)) {
-                        if (Array.isArray(msgs)) {
-                            issues.push(`${field}: ${msgs.join(", ")}`);
-                        } else if (typeof msgs === "string") {
-                            issues.push(`${field}: ${msgs}`);
-                        }
+            const apiErr = err?.data || err;
+            if (apiErr?.details && typeof apiErr.details === "object") {
+                const issues: string[] = [];
+                for (const [field, msgs] of Object.entries(apiErr.details as Record<string, unknown>)) {
+                    if (Array.isArray(msgs)) {
+                        issues.push(`${field}: ${msgs.join(", ")}`);
+                    } else if (typeof msgs === "string") {
+                        issues.push(`${field}: ${msgs}`);
                     }
-                    if (issues.length > 0) {
-                        message = `Validation Error: ${issues.join(" | ")}`;
-                    } else if (apiErr.message) {
-                        message = apiErr.message;
-                    }
+                }
+                if (issues.length > 0) {
+                    message = `Validation Error: ${issues.join(" | ")}`;
                 } else if (apiErr.message) {
                     message = apiErr.message;
                 }
+            } else if (apiErr?.message) {
+                message = apiErr.message;
             } else if (err instanceof Error) {
                 message = err.message;
             }
             setError(message);
             throw err;
-        } finally {
-            setIsSubmitting(false);
         }
     };
 

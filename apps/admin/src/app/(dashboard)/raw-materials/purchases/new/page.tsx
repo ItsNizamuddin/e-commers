@@ -3,12 +3,15 @@
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api } from "../../../../../lib/api";
+import {
+    useGetRawMaterialsQuery,
+    useGetVendorsQuery,
+    useCreateVendorMutation,
+    useCreatePurchaseMutation,
+} from "../../../../../store/api";
 import type {
-    RawMaterial,
     RawMaterialUnit,
     RawMaterialSourceType,
-    Vendor,
 } from "@ecommers/types";
 import {
     Card,
@@ -48,17 +51,16 @@ const UNITS: Array<{ label: string; value: RawMaterialUnit }> = [
 export default function NewRawMaterialPurchasePage() {
     const router = useRouter();
 
-    const [materials, setMaterials] = useState<RawMaterial[]>([]);
-    const [loadingMaterials, setLoadingMaterials] = useState(true);
-    const [isSaving, setIsSaving] = useState(false);
+    const { data: materials = [], isLoading: loadingMaterials } = useGetRawMaterialsQuery({ isActive: true });
+    const { data: vendors = [], isLoading: loadingVendors } = useGetVendorsQuery({ status: "ACTIVE" });
+    const [createVendor, { isLoading: isCreatingVendor }] = useCreateVendorMutation();
+    const [recordPurchase, { isLoading: isSaving }] = useCreatePurchaseMutation();
 
     // Form states
     const [selectedMaterialId, setSelectedMaterialId] = useState("");
     const [sourceType, setSourceType] = useState<RawMaterialSourceType>("EXTERNAL_VENDOR");
 
     // External Vendor & Vendor Master
-    const [vendors, setVendors] = useState<Vendor[]>([]);
-    const [loadingVendors, setLoadingVendors] = useState(false);
     const [selectedVendorId, setSelectedVendorId] = useState("");
     const [vendorName, setVendorName] = useState("");
     const [vendorContact, setVendorContact] = useState("");
@@ -68,7 +70,6 @@ export default function NewRawMaterialPurchasePage() {
     const [showQuickVendorModal, setShowQuickVendorModal] = useState(false);
     const [quickVendorName, setQuickVendorName] = useState("");
     const [quickVendorContact, setQuickVendorContact] = useState("");
-    const [isCreatingVendor, setIsCreatingVendor] = useState(false);
 
     // Own Farm
     const [farmName, setFarmName] = useState("Mandya Farm - Plot 1");
@@ -90,37 +91,14 @@ export default function NewRawMaterialPurchasePage() {
     });
     const [notes, setNotes] = useState("");
 
-    const fetchVendors = () => {
-        setLoadingVendors(true);
-        api.manufacturing
-            .listVendors({ status: "ACTIVE" })
-            .then((data) => setVendors(data || []))
-            .catch((err) => console.error("Failed to load vendors:", err))
-            .finally(() => setLoadingVendors(false));
-    };
-
     useEffect(() => {
-        fetchVendors();
-    }, []);
-
-    useEffect(() => {
-        setLoadingMaterials(true);
-        api.manufacturing
-            .listRawMaterials({ isActive: true })
-            .then((data) => {
-                setMaterials(data || []);
-                if (data && data.length > 0) {
-                    const firstId = data[0]!.id || (data[0]! as any)._id || "";
-                    setSelectedMaterialId(firstId);
-                    setUnit(data[0]!.unit);
-                }
-            })
-            .catch((err) => {
-                console.error("Failed to load materials:", err);
-                toast.error("Failed to load raw materials list.");
-            })
-            .finally(() => setLoadingMaterials(false));
-    }, []);
+        if (!selectedMaterialId && materials.length > 0) {
+            const first = materials[0]!;
+            const firstId = first.id || (first as any)._id || "";
+            setSelectedMaterialId(firstId);
+            setUnit(first.unit);
+        }
+    }, [materials, selectedMaterialId]);
 
     const selectedMaterial = useMemo(() => {
         return materials.find((m) => (m.id || (m as any)._id) === selectedMaterialId);
@@ -153,14 +131,12 @@ export default function NewRawMaterialPurchasePage() {
             return;
         }
 
-        setIsCreatingVendor(true);
         try {
-            const created = await api.manufacturing.createVendor({
+            const created = await createVendor({
                 name: quickVendorName.trim(),
                 contactNumber: quickVendorContact.trim(),
-            });
+            }).unwrap();
             toast.success(`Vendor '${created.name}' created!`);
-            setVendors((prev) => [created, ...prev]);
             setSelectedVendorId(created.id);
             setVendorName(created.name);
             setVendorContact(created.contactNumber || "");
@@ -169,10 +145,8 @@ export default function NewRawMaterialPurchasePage() {
             setQuickVendorContact("");
         } catch (err: any) {
             console.error("Failed to create vendor:", err);
-            const msg = err instanceof Error ? err.message : "Failed to create vendor.";
+            const msg = err?.data?.message || err?.message || "Failed to create vendor.";
             toast.error(msg);
-        } finally {
-            setIsCreatingVendor(false);
         }
     };
 
@@ -249,9 +223,8 @@ export default function NewRawMaterialPurchasePage() {
 
         const totalCostNum = totalCost ? parseFloat(totalCost) : 0;
 
-        setIsSaving(true);
         try {
-            await api.manufacturing.recordPurchase({
+            await recordPurchase({
                 rawMaterialId: selectedMaterialId,
                 sourceType,
                 vendorId: sourceType === "EXTERNAL_VENDOR" && selectedVendorId ? selectedVendorId : undefined,
@@ -277,19 +250,18 @@ export default function NewRawMaterialPurchasePage() {
                 quantity: qtyNum,
                 unit,
                 totalCost: totalCostNum,
+                costPerUnit: totalCostNum > 0 ? totalCostNum / qtyNum : 0,
                 lotNumber: lotNumber.trim() || undefined,
                 expiryDate: new Date(expiryDate).toISOString(),
                 notes: notes.trim() || undefined,
-            });
+            }).unwrap();
 
             toast.success("Inward purchase/harvest lot recorded successfully!");
             router.push("/raw-materials/purchases");
-        } catch (err: unknown) {
+        } catch (err: any) {
             console.error("Failed to record intake:", err);
-            const msg = err instanceof Error ? err.message : "Failed to record intake.";
+            const msg = err?.data?.message || err?.message || "Failed to record intake.";
             toast.error(msg);
-        } finally {
-            setIsSaving(false);
         }
     };
 

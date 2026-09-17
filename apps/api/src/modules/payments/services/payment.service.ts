@@ -107,6 +107,7 @@ export class PaymentService {
                     currency: existingPayment.currency,
                     provider: existingPayment.provider,
                     status: existingPayment.status,
+                    isExisting: true,
                 };
             }
         }
@@ -141,12 +142,13 @@ export class PaymentService {
 
         return {
             paymentId: payment._id.toString(),
-            paymentIntentId,
+            paymentIntentId: payment.paymentIntentId,
             clientSecret,
             amountMinor: payment.amountMinor,
             currency: payment.currency,
-            provider,
-            status: "PENDING",
+            provider: payment.provider,
+            status: payment.status,
+            isExisting: false,
         };
     }
 
@@ -154,10 +156,10 @@ export class PaymentService {
         provider: PaymentProvider,
         rawBody: Buffer,
         signatureHeader: string
-    ): Promise<{ status: "PROCESSED" | "DUPLICATE"; eventId: string }> {
+    ): Promise<{ status: "PROCESSED" | "ALREADY_PROCESSED"; eventId: string }> {
         const gateway = this.getGateway(provider);
 
-        // 1. Cryptographic Signature Verification (throws 401 if invalid)
+        // 1. Cryptographic Signature Verification (throws 400 if invalid)
         const event = gateway.verifyWebhookSignature(rawBody, signatureHeader);
 
         // 2. Four-State Event Deduplication
@@ -173,7 +175,7 @@ export class PaymentService {
         );
 
         if (alreadyProcessed) {
-            return { status: "DUPLICATE", eventId: event.eventId };
+            return { status: "ALREADY_PROCESSED", eventId: event.eventId };
         }
 
         if (!acquired) {
@@ -204,11 +206,18 @@ export class PaymentService {
                 event.eventType === "payment.failed" ||
                 event.eventType === "payment_intent.payment_failed"
             ) {
+                const payloadObj = event.payload as any;
+                const failureReason =
+                    payloadObj?.payload?.reason ||
+                    payloadObj?.reason ||
+                    payloadObj?.data?.object?.last_payment_error?.message ||
+                    "Payment declined";
+
                 await this.workflowSvc.handlePaymentFailed({
                     paymentId: payment ? payment._id.toString() : undefined,
                     paymentIntentId: event.paymentIntentId,
                     checkoutId: targetCheckoutId,
-                    reason: (event.payload as any)?.reason || "Payment declined",
+                    reason: failureReason,
                 });
             }
 

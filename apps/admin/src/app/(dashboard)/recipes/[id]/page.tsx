@@ -1,31 +1,21 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { useParams } from "next/navigation";
-import { api } from "../../../../lib/api";
-import type { Recipe } from "@ecommers/types";
+import { useGetRecipeByIdQuery } from "../../../../store/api";
 import { RecipeBuilder } from "../../../../components/manufacturing/recipe-builder";
-import { Spinner } from "@ecommers/ui";
+import { Spinner, ErrorState } from "@ecommers/ui";
 
 export default function EditRecipePage() {
     const params = useParams();
     const id = params?.id as string;
-    const [recipe, setRecipe] = useState<Recipe | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (!id) return;
-        setLoading(true);
-        api.manufacturing
-            .getRecipeById(id)
-            .then((data) => setRecipe(data))
-            .catch((err) => {
-                console.error("Failed to load recipe:", err);
-                setError(err instanceof Error ? err.message : "Failed to load recipe.");
-            })
-            .finally(() => setLoading(false));
-    }, [id]);
+    const {
+        data: recipe,
+        isLoading: loading,
+        error: recipeError,
+        refetch,
+    } = useGetRecipeByIdQuery(id, { skip: !id });
 
     if (loading) {
         return (
@@ -36,10 +26,20 @@ export default function EditRecipePage() {
         );
     }
 
-    if (error || !recipe) {
+    if (recipeError || !recipe) {
         return (
             <div className="py-20 text-center">
-                <p className="text-rose-600 text-sm font-bold">{error || "Recipe not found."}</p>
+                <ErrorState
+                    title="Recipe Not Found"
+                    message={
+                        recipeError
+                            ? typeof recipeError === "string"
+                                ? recipeError
+                                : "Failed to load recipe."
+                            : "Recipe not found."
+                    }
+                    onRetry={() => refetch()}
+                />
             </div>
         );
     }

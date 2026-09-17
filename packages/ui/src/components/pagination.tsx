@@ -20,7 +20,7 @@ export function Pagination({
     onPageChange,
     className = "",
 }: PaginationProps) {
-    if (totalPages <= 1) return null;
+    if (totalPages <= 1 && (totalItems === undefined || totalItems === 0)) return null;
 
     const startItem = totalItems !== undefined && pageSize !== undefined ? (page - 1) * pageSize + 1 : undefined;
     const endItem =

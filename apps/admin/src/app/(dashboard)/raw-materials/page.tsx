@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
-import { api } from "../../../lib/api";
+import { useGetRawMaterialsQuery } from "../../../store/api";
 import type { RawMaterial, RawMaterialCategory } from "@ecommers/types";
 import {
     Card,
@@ -10,6 +10,7 @@ import {
     Button,
     Input,
     Spinner,
+    Pagination,
     toast,
 } from "@ecommers/ui";
 import {
@@ -40,35 +41,30 @@ const CATEGORIES: Array<{ label: string; value: string }> = [
 ];
 
 export default function RawMaterialsPage() {
-    const [materials, setMaterials] = useState<RawMaterial[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("ALL");
     const [selectedUsage, setSelectedUsage] = useState<"ALL" | "RAW_MATERIAL" | "SELLABLE" | "BOTH">("ALL");
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(15);
 
-    const fetchMaterials = useCallback(async (isManual = false) => {
-        if (isManual) setRefreshing(true);
-        else setLoading(true);
-        try {
-            const data = await api.manufacturing.listRawMaterials({
-                category: selectedCategory !== "ALL" ? selectedCategory : undefined,
-                usage: selectedUsage !== "ALL" ? selectedUsage : undefined,
-                search: searchQuery.trim() || undefined,
-            });
-            setMaterials(data || []);
-        } catch (err: unknown) {
-            console.error("Failed to load raw materials:", err);
-            toast.error("Failed to load raw materials.");
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, [selectedCategory, selectedUsage, searchQuery]);
+    const {
+        data: materials = [],
+        isLoading: loading,
+        isFetching: refreshing,
+        refetch,
+    } = useGetRawMaterialsQuery({
+        category: selectedCategory !== "ALL" ? selectedCategory : undefined,
+        usage: selectedUsage !== "ALL" ? selectedUsage : undefined,
+        search: searchQuery.trim() || undefined,
+    });
 
-    useEffect(() => {
-        fetchMaterials();
-    }, [fetchMaterials]);
+    const totalItems = materials.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+    const paginatedMaterials = useMemo(() => {
+        const start = (page - 1) * pageSize;
+        return materials.slice(start, start + pageSize);
+    }, [materials, page, pageSize]);
 
     // KPI Metrics
     const metrics = useMemo(() => {
@@ -119,7 +115,7 @@ export default function RawMaterialsPage() {
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => fetchMaterials(true)}
+                        onClick={() => refetch()}
                         disabled={refreshing}
                         className="gap-1.5 text-xs"
                     >
@@ -298,7 +294,10 @@ export default function RawMaterialsPage() {
                         <button
                             key={c.value}
                             type="button"
-                            onClick={() => setSelectedCategory(c.value)}
+                            onClick={() => {
+                                setSelectedCategory(c.value);
+                                setPage(1);
+                            }}
                             className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
                                 selectedCategory === c.value
                                     ? "bg-slate-900 text-white dark:bg-white dark:text-neutral-900"
@@ -309,10 +308,29 @@ export default function RawMaterialsPage() {
                         </button>
                     ))}
                 </div>
+
+                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400 shrink-0">
+                    <span>Show</span>
+                    <select
+                        value={pageSize}
+                        onChange={(e) => {
+                            setPageSize(Number(e.target.value));
+                            setPage(1);
+                        }}
+                        className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value={10}>10</option>
+                        <option value={15}>15</option>
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                    </select>
+                    <span>entries</span>
+                </div>
             </div>
 
             {/* Main Catalog Table */}
-            <Card className="bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl overflow-hidden shadow-xs">
+            <Card className="bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl overflow-hidden shadow-xs flex flex-col">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-20">
                         <Spinner size="lg" />
@@ -339,23 +357,24 @@ export default function RawMaterialsPage() {
                         </Link>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse text-xs">
-                            <thead>
-                                <tr className="bg-slate-50/80 dark:bg-neutral-900/60 border-b border-slate-200 dark:border-neutral-800 text-slate-500 dark:text-neutral-400 font-semibold">
-                                    <th className="py-3 px-4">Material Code & Name</th>
-                                    <th className="py-3 px-3">Usage</th>
-                                    <th className="py-3 px-3">Category</th>
-                                    <th className="py-3 px-3 text-right">Current Stock</th>
-                                    <th className="py-3 px-3 text-right">Avg Cost (WAC)</th>
-                                    <th className="py-3 px-3 text-right">Latest Price</th>
-                                    <th className="py-3 px-3 text-right">Stock Valuation</th>
-                                    <th className="py-3 px-3 text-center">Reorder Level</th>
-                                    <th className="py-3 px-4 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-neutral-800/80">
-                                {materials.map((m) => {
+                    <>
+                        <div className="overflow-auto max-h-[calc(100vh-320px)] min-h-[300px]">
+                            <table className="w-full text-left border-collapse text-xs">
+                                <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs border-b border-slate-200 dark:border-neutral-800 shadow-xs">
+                                    <tr className="text-slate-500 dark:text-neutral-400 font-semibold">
+                                        <th className="py-3 px-4">Material Code & Name</th>
+                                        <th className="py-3 px-3">Usage</th>
+                                        <th className="py-3 px-3">Category</th>
+                                        <th className="py-3 px-3 text-right">Current Stock</th>
+                                        <th className="py-3 px-3 text-right">Avg Cost (WAC)</th>
+                                        <th className="py-3 px-3 text-right">Latest Price</th>
+                                        <th className="py-3 px-3 text-right">Stock Valuation</th>
+                                        <th className="py-3 px-3 text-center">Reorder Level</th>
+                                        <th className="py-3 px-4 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-neutral-800/80">
+                                    {paginatedMaterials.map((m) => {
                                     const isLow = m.currentStock <= m.reorderThreshold;
                                     const valuation = (m.currentStock || 0) * (m.averageCost || 0);
 
@@ -449,8 +468,21 @@ export default function RawMaterialsPage() {
                             </tbody>
                         </table>
                     </div>
-                )}
-            </Card>
+
+                    {totalItems > 0 && (
+                        <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
+                            <Pagination
+                                page={page}
+                                totalPages={totalPages}
+                                totalItems={totalItems}
+                                pageSize={pageSize}
+                                onPageChange={setPage}
+                            />
+                        </div>
+                    )}
+                </>
+            )}
+        </Card>
         </div>
     );
 }

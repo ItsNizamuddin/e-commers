@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "../../../lib/api";
-import type { OrderResponse } from "@ecommers/types";
+import { useGetAdminOrdersQuery } from "../../../store/api";
+import type { OrderStatus, OrderFulfillmentStatus } from "@ecommers/types";
 import {
     Card,
     Badge,
@@ -32,52 +32,36 @@ import { RequireRole } from "../../../components/auth/require-role";
 
 export default function OrdersPage() {
     const router = useRouter();
-    const [orders, setOrders] = useState<OrderResponse[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [error, setError] = useState<string | null>(null);
 
     // Filters & Pagination
     const [search, setSearch] = useState("");
     const [orderStatus, setOrderStatus] = useState<string>("");
     const [fulfillmentStatus, setFulfillmentStatus] = useState<string>("");
     const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const [totalItems, setTotalItems] = useState(0);
+    const [pageSize, setPageSize] = useState(15);
 
-    const fetchOrders = useCallback(async (isManualRefresh = false) => {
-        if (isManualRefresh) {
-            setRefreshing(true);
-        } else {
-            setLoading(true);
-        }
-        setError(null);
+    const {
+        data: ordersData,
+        isLoading: loading,
+        isFetching: refreshing,
+        error: ordersError,
+        refetch,
+    } = useGetAdminOrdersQuery({
+        page,
+        limit: pageSize,
+        ...(orderStatus ? { orderStatus: orderStatus as OrderStatus } : {}),
+        ...(fulfillmentStatus ? { fulfillmentStatus: fulfillmentStatus as OrderFulfillmentStatus } : {}),
+    });
 
-        try {
-            const res = await api.orders.adminList({
-                page,
-                limit: 10,
-                ...(orderStatus ? { orderStatus: orderStatus as any } : {}),
-                ...(fulfillmentStatus ? { fulfillmentStatus: fulfillmentStatus as any } : {}),
-            });
-            setOrders(res.items || []);
-            setTotalPages(res.pagination?.totalPages || 1);
-            setTotalItems(res.pagination?.total || 0);
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError("Failed to retrieve order records.");
-            }
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, [page, orderStatus, fulfillmentStatus]);
+    const orders = ordersData?.items || [];
+    const totalPages = ordersData?.pagination?.totalPages || 1;
+    const totalItems = ordersData?.pagination?.total || 0;
 
-    useEffect(() => {
-        fetchOrders();
-    }, [fetchOrders]);
+    const error = ordersError
+        ? typeof ordersError === "string"
+            ? ordersError
+            : "Failed to retrieve order records."
+        : null;
 
     const getFulfillmentBadge = (status: string) => {
         switch (status) {
@@ -147,7 +131,7 @@ export default function OrdersPage() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => fetchOrders(true)}
+                        onClick={() => refetch()}
                         isLoading={refreshing}
                     >
                         <RefreshCw size={13} className="mr-1.5" />
@@ -223,26 +207,47 @@ export default function OrdersPage() {
                             Reset filters
                         </Button>
                     )}
+
+                    <div className="ml-auto flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400 shrink-0">
+                        <span>Show</span>
+                        <select
+                            value={pageSize}
+                            onChange={(e) => {
+                                setPageSize(Number(e.target.value));
+                                setPage(1);
+                            }}
+                            className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value={10}>10</option>
+                            <option value={15}>15</option>
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                        </select>
+                        <span>entries</span>
+                    </div>
                 </div>
             </Card>
 
             {/* Content Table Card */}
-            <Card className="p-3.5">
+            <Card className="p-0 overflow-hidden flex flex-col border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl shadow-xs">
                 {loading ? (
-                    <div className="flex flex-col items-center justify-center py-12 gap-2.5">
+                    <div className="flex flex-col items-center justify-center py-20 gap-2.5">
                         <Spinner size="md" />
                         <p className="text-xs text-slate-500 dark:text-neutral-400">Loading order records...</p>
                     </div>
                 ) : error ? (
-                    <ErrorState
-                        title="Failed to load orders"
-                        message={error}
-                        onRetry={() => fetchOrders()}
-                    />
+                    <div className="p-6">
+                        <ErrorState
+                            title="Failed to load orders"
+                            message={error}
+                            onRetry={() => refetch()}
+                        />
+                    </div>
                 ) : (
                     <>
-                        <Table>
-                            <TableHeader>
+                        <Table className="overflow-auto max-h-[calc(100vh-280px)] min-h-[300px] border-none rounded-none">
+                            <TableHeader className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs shadow-xs">
                                 <TableRow>
                                     <TableHead>Order #</TableHead>
                                     <TableHead>Customer</TableHead>
@@ -321,15 +326,14 @@ export default function OrdersPage() {
                         </Table>
 
                         {/* Pagination Bar */}
-                        {totalPages > 1 && (
-                            <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
-                                <span>
-                                    Showing page {page} of {totalPages} ({totalItems} orders)
-                                </span>
+                        {totalItems > 0 && (
+                            <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
                                 <Pagination
                                     page={page}
                                     totalPages={totalPages}
-                                    onPageChange={(p) => setPage(p)}
+                                    totalItems={totalItems}
+                                    pageSize={pageSize}
+                                    onPageChange={setPage}
                                 />
                             </div>
                         )}

@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "../../../lib/api";
-import type { ProductResponse } from "@ecommers/types";
+import type { ProductStatus } from "@ecommers/types";
+import { useGetProductsQuery, useDeleteProductMutation } from "../../../store/api/admin-api";
 import {
     Card,
     Badge,
@@ -36,68 +36,51 @@ import {
 
 export default function ProductsPage() {
     const router = useRouter();
-    const [products, setProducts] = useState<ProductResponse[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [error, setError] = useState<string | null>(null);
 
     // Filters & Pagination
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState<string>("");
     const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const [totalItems, setTotalItems] = useState(0);
+    const [pageSize, setPageSize] = useState(15);
+
+    // RTK Query hooks
+    const {
+        data,
+        isLoading: loading,
+        isFetching: refreshing,
+        error: queryError,
+        refetch,
+    } = useGetProductsQuery({
+        page,
+        limit: pageSize,
+        ...(statusFilter ? { status: statusFilter as ProductStatus } : {}),
+    });
+
+    const [deleteProduct, { isLoading: isDeleting }] = useDeleteProductMutation();
+
+    const products = data?.items || [];
+    const totalPages = data?.totalPages || 1;
+    const totalItems = data?.total || 0;
+    const error = queryError
+        ? "message" in queryError
+            ? (queryError.message as string)
+            : "Failed to load catalog products."
+        : null;
 
     // Delete dialog
     const [productToDelete, setProductToDelete] = useState<string | null>(null);
-    const [isDeleting, setIsDeleting] = useState(false);
-
-    const fetchProducts = useCallback(async (isManual = false) => {
-        if (isManual) setRefreshing(true);
-        else setLoading(true);
-        setError(null);
-
-        try {
-            const res = await api.products.list({
-                page,
-                limit: 10,
-                ...(statusFilter ? { status: statusFilter as any } : {}),
-            });
-            const items: ProductResponse[] = Array.isArray(res) ? res : (res?.items || []);
-            setProducts(items);
-            const total = (res as any)?.pagination?.total ?? (res as any)?.meta?.total ?? items.length;
-            const totalPages = (res as any)?.pagination?.totalPages ?? (res as any)?.meta?.totalPages ?? Math.ceil(total / 10) ?? 1;
-            setTotalPages(totalPages || 1);
-            setTotalItems(total || 0);
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError("Failed to load catalog products.");
-            }
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, [page, statusFilter]);
-
-    useEffect(() => {
-        fetchProducts();
-    }, [fetchProducts]);
 
     const handleDeleteProduct = async () => {
         if (!productToDelete) return;
-        setIsDeleting(true);
         try {
-            await api.products.delete(productToDelete);
+            await deleteProduct(productToDelete).unwrap();
             setProductToDelete(null);
-            fetchProducts(true);
         } catch (err: unknown) {
-            if (err instanceof Error) {
-                alert(`Failed to delete product: ${err.message}`);
+            if (err && typeof err === "object" && "message" in err) {
+                alert(`Failed to delete product: ${(err as any).message}`);
+            } else {
+                alert("Failed to delete product.");
             }
-        } finally {
-            setIsDeleting(false);
         }
     };
 
@@ -155,7 +138,7 @@ export default function ProductsPage() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => fetchProducts(true)}
+                        onClick={() => refetch()}
                         isLoading={refreshing}
                     >
                         <RefreshCw size={13} className="mr-1.5" />
@@ -217,26 +200,47 @@ export default function ProductsPage() {
                             Reset
                         </Button>
                     )}
+
+                    <div className="ml-auto flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400 shrink-0">
+                        <span>Show</span>
+                        <select
+                            value={pageSize}
+                            onChange={(e) => {
+                                setPageSize(Number(e.target.value));
+                                setPage(1);
+                            }}
+                            className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value={10}>10</option>
+                            <option value={15}>15</option>
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                        </select>
+                        <span>entries</span>
+                    </div>
                 </div>
             </Card>
 
             {/* Products Table Card */}
-            <Card className="p-3.5">
+            <Card className="p-0 overflow-hidden flex flex-col border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl shadow-xs">
                 {loading ? (
-                    <div className="flex flex-col items-center justify-center py-12 gap-2.5">
+                    <div className="flex flex-col items-center justify-center py-20 gap-2.5">
                         <Spinner size="md" />
                         <p className="text-xs text-slate-500 dark:text-neutral-400">Loading catalog...</p>
                     </div>
                 ) : error ? (
-                    <ErrorState
-                        title="Failed to load products"
-                        message={error}
-                        onRetry={() => fetchProducts()}
-                    />
+                    <div className="p-6">
+                        <ErrorState
+                            title="Failed to load products"
+                            message={error}
+                            onRetry={() => refetch()}
+                        />
+                    </div>
                 ) : (
                     <>
-                        <Table>
-                            <TableHeader>
+                        <Table className="overflow-auto max-h-[calc(100vh-280px)] min-h-[300px] border-none rounded-none">
+                            <TableHeader className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs shadow-xs">
                                 <TableRow>
                                     <TableHead>Product</TableHead>
                                     <TableHead>Status</TableHead>
@@ -319,15 +323,14 @@ export default function ProductsPage() {
                             </TableBody>
                         </Table>
 
-                        {totalPages > 1 && (
-                            <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
-                                <span>
-                                    Showing page {page} of {totalPages} ({totalItems} items)
-                                </span>
+                        {totalItems > 0 && (
+                            <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
                                 <Pagination
                                     page={page}
                                     totalPages={totalPages}
-                                    onPageChange={(p) => setPage(p)}
+                                    totalItems={totalItems}
+                                    pageSize={pageSize}
+                                    onPageChange={setPage}
                                 />
                             </div>
                         )}

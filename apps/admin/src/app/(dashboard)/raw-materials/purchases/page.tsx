@@ -1,38 +1,26 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
-import { api } from "../../../../lib/api";
+import { useGetRawMaterialLotsQuery } from "../../../../store/api";
 import type {
-    RawMaterial,
     RawMaterialLot,
     RawMaterialUnit,
-    RawMaterialSourceType,
 } from "@ecommers/types";
 import {
     Card,
     Badge,
     Button,
-    Input,
     Spinner,
-    Modal,
-    FormField,
-    Select,
-    toast,
+    Pagination,
 } from "@ecommers/ui";
 import {
     Truck,
     Plus,
-    Calendar,
-    CheckCircle2,
     RefreshCw,
     Building2,
     Tractor,
-    Boxes,
-    Search,
-    AlertCircle,
     ArrowLeft,
-    TrendingUp,
 } from "lucide-react";
 
 const UNITS: Array<{ label: string; value: RawMaterialUnit }> = [
@@ -45,39 +33,28 @@ const UNITS: Array<{ label: string; value: RawMaterialUnit }> = [
 ];
 
 export default function RawMaterialPurchasesPage() {
-    const [lots, setLots] = useState<RawMaterialLot[]>([]);
-    const [materials, setMaterials] = useState<RawMaterial[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
+    const {
+        data: lots = [],
+        isLoading: loading,
+        isFetching: refreshing,
+        refetch,
+    } = useGetRawMaterialLotsQuery();
     const [sourceFilter, setSourceFilter] = useState<"ALL" | "EXTERNAL_VENDOR" | "OWN_FARM">("ALL");
-
-    const fetchData = useCallback(async (isManual = false) => {
-        if (isManual) setRefreshing(true);
-        else setLoading(true);
-        try {
-            const [lotsData, matsData] = await Promise.all([
-                api.manufacturing.listLots(),
-                api.manufacturing.listRawMaterials(),
-            ]);
-            setLots(lotsData || []);
-            setMaterials(matsData || []);
-        } catch (err: unknown) {
-            console.error("Failed to load purchases:", err);
-            toast.error("Failed to load intake history.");
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(15);
 
     const filteredLots = useMemo(() => {
         if (sourceFilter === "ALL") return lots;
         return lots.filter((l) => l.sourceType === sourceFilter);
     }, [lots, sourceFilter]);
+
+    const totalItems = filteredLots.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+    const paginatedLots = useMemo(() => {
+        const start = (page - 1) * pageSize;
+        return filteredLots.slice(start, start + pageSize);
+    }, [filteredLots, page, pageSize]);
 
     return (
         <div className="space-y-6 pb-20 max-w-7xl mx-auto">
@@ -107,7 +84,7 @@ export default function RawMaterialPurchasesPage() {
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => fetchData(true)}
+                        onClick={() => refetch()}
                         disabled={refreshing}
                         className="gap-1.5 text-xs"
                     >
@@ -127,47 +104,77 @@ export default function RawMaterialPurchasesPage() {
                 </div>
             </div>
 
-            {/* Source Filter Tabs */}
-            <div className="flex items-center gap-2 border-b border-slate-200 dark:border-neutral-800 pb-2">
-                <button
-                    type="button"
-                    onClick={() => setSourceFilter("ALL")}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                        sourceFilter === "ALL"
-                            ? "bg-slate-900 text-white dark:bg-white dark:text-neutral-900"
-                            : "text-slate-600 dark:text-neutral-400 hover:bg-slate-100 dark:hover:bg-neutral-800"
-                    }`}
-                >
-                    All Intakes ({lots.length})
-                </button>
-                <button
-                    type="button"
-                    onClick={() => setSourceFilter("EXTERNAL_VENDOR")}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                        sourceFilter === "EXTERNAL_VENDOR"
-                            ? "bg-blue-600 text-white"
-                            : "text-slate-600 dark:text-neutral-400 hover:bg-slate-100 dark:hover:bg-neutral-800"
-                    }`}
-                >
-                    <Building2 size={13} />
-                    <span>Vendor Purchases ({lots.filter((l) => l.sourceType === "EXTERNAL_VENDOR").length})</span>
-                </button>
-                <button
-                    type="button"
-                    onClick={() => setSourceFilter("OWN_FARM")}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                        sourceFilter === "OWN_FARM"
-                            ? "bg-emerald-600 text-white"
-                            : "text-slate-600 dark:text-neutral-400 hover:bg-slate-100 dark:hover:bg-neutral-800"
-                    }`}
-                >
-                    <Tractor size={13} />
-                    <span>Own Farm Harvests ({lots.filter((l) => l.sourceType === "OWN_FARM").length})</span>
-                </button>
+            {/* Source Filter Tabs & Page Size */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-neutral-800 pb-2">
+                <div className="flex items-center gap-2 overflow-x-auto">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setSourceFilter("ALL");
+                            setPage(1);
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                            sourceFilter === "ALL"
+                                ? "bg-slate-900 text-white dark:bg-white dark:text-neutral-900"
+                                : "text-slate-600 dark:text-neutral-400 hover:bg-slate-100 dark:hover:bg-neutral-800"
+                        }`}
+                    >
+                        All Intakes ({lots.length})
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setSourceFilter("EXTERNAL_VENDOR");
+                            setPage(1);
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                            sourceFilter === "EXTERNAL_VENDOR"
+                                ? "bg-blue-600 text-white"
+                                : "text-slate-600 dark:text-neutral-400 hover:bg-slate-100 dark:hover:bg-neutral-800"
+                        }`}
+                    >
+                        <Building2 size={13} />
+                        <span>Vendor Purchases ({lots.filter((l) => l.sourceType === "EXTERNAL_VENDOR").length})</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setSourceFilter("OWN_FARM");
+                            setPage(1);
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                            sourceFilter === "OWN_FARM"
+                                ? "bg-emerald-600 text-white"
+                                : "text-slate-600 dark:text-neutral-400 hover:bg-slate-100 dark:hover:bg-neutral-800"
+                        }`}
+                    >
+                        <Tractor size={13} />
+                        <span>Own Farm Harvests ({lots.filter((l) => l.sourceType === "OWN_FARM").length})</span>
+                    </button>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400 shrink-0">
+                    <span>Show</span>
+                    <select
+                        value={pageSize}
+                        onChange={(e) => {
+                            setPageSize(Number(e.target.value));
+                            setPage(1);
+                        }}
+                        className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value={10}>10</option>
+                        <option value={15}>15</option>
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                    </select>
+                    <span>entries</span>
+                </div>
             </div>
 
             {/* Intake History Table */}
-            <Card className="bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl overflow-hidden shadow-xs">
+            <Card className="bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl overflow-hidden shadow-xs flex flex-col">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-20">
                         <Spinner size="lg" />
@@ -194,22 +201,23 @@ export default function RawMaterialPurchasesPage() {
                         </Link>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse text-xs">
-                            <thead>
-                                <tr className="bg-slate-50/80 dark:bg-neutral-900/60 border-b border-slate-200 dark:border-neutral-800 text-slate-500 font-semibold">
-                                    <th className="py-3 px-4">Date & Lot Number</th>
-                                    <th className="py-3 px-3">Raw Material</th>
-                                    <th className="py-3 px-3">Source & Origin</th>
-                                    <th className="py-3 px-3 text-right">Intake Qty</th>
-                                    <th className="py-3 px-3 text-right">Remaining</th>
-                                    <th className="py-3 px-3 text-right">Unit Rate</th>
-                                    <th className="py-3 px-3">Best Before / Expiry</th>
-                                    <th className="py-3 px-4 text-center">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-neutral-800/80">
-                                {filteredLots.map((lot) => {
+                    <>
+                        <div className="overflow-auto max-h-[calc(100vh-270px)] min-h-[300px]">
+                            <table className="w-full text-left border-collapse text-xs">
+                                <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs border-b border-slate-200 dark:border-neutral-800 shadow-xs">
+                                    <tr className="text-slate-500 font-semibold">
+                                        <th className="py-3 px-4">Date & Lot Number</th>
+                                        <th className="py-3 px-3">Raw Material</th>
+                                        <th className="py-3 px-3">Source & Origin</th>
+                                        <th className="py-3 px-3 text-right">Intake Qty</th>
+                                        <th className="py-3 px-3 text-right">Remaining</th>
+                                        <th className="py-3 px-3 text-right">Unit Rate</th>
+                                        <th className="py-3 px-3">Best Before / Expiry</th>
+                                        <th className="py-3 px-4 text-center">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-neutral-800/80">
+                                    {paginatedLots.map((lot) => {
                                     const isFarm = lot.sourceType === "OWN_FARM";
                                     const isExpired = new Date(lot.expiryDate) < new Date();
 
@@ -282,8 +290,21 @@ export default function RawMaterialPurchasesPage() {
                             </tbody>
                         </table>
                     </div>
-                )}
-            </Card>
+
+                    {totalItems > 0 && (
+                        <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
+                            <Pagination
+                                page={page}
+                                totalPages={totalPages}
+                                totalItems={totalItems}
+                                pageSize={pageSize}
+                                onPageChange={setPage}
+                            />
+                        </div>
+                    )}
+                </>
+            )}
+        </Card>
         </div>
     );
 }

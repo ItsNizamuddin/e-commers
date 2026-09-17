@@ -704,36 +704,44 @@ export class ManufacturingService {
         let perishableWarningMessage: string | undefined = undefined;
 
         // Combine ingredients and packaging into required material checklist
-        const itemsToCheck: Array<{
-            rawMaterialId: Types.ObjectId;
-            quantityNeeded: number;
-            unit: RawMaterialUnit;
-            wastagePercent?: number;
-        }> = [];
+        // Consolidate demand by rawMaterialId in base units so duplicates or multi-phase uses do not double-allocate the same lot!
+        const consolidatedMap = new Map<string, {
+            rm: any;
+            neededInBase: number;
+        }>();
 
         for (const ing of recipe.ingredients) {
             const wastageFactor = 1 + (ing.wastagePercent || 0) / 100;
-            itemsToCheck.push({
-                rawMaterialId: ing.rawMaterialId,
-                quantityNeeded: ing.quantity * multiplier * wastageFactor,
-                unit: ing.unit,
-            });
+            const rmId = (ing.rawMaterialId as any)?._id || ing.rawMaterialId;
+            const rm = await RawMaterialModel.findById(rmId);
+            if (!rm) continue;
+
+            const neededInBase = normalizeToBaseUnit(ing.quantity * multiplier * wastageFactor, ing.unit, rm.unit);
+            const key = rm._id.toString();
+            const existing = consolidatedMap.get(key);
+            if (existing) {
+                existing.neededInBase += neededInBase;
+            } else {
+                consolidatedMap.set(key, { rm, neededInBase });
+            }
         }
 
         for (const pkg of recipe.packagingMaterials || []) {
-            itemsToCheck.push({
-                rawMaterialId: pkg.rawMaterialId,
-                quantityNeeded: pkg.quantity * multiplier,
-                unit: pkg.unit,
-            });
-        }
-
-        for (const item of itemsToCheck) {
-            const rm = await RawMaterialModel.findById(item.rawMaterialId);
+            const rmId = (pkg.rawMaterialId as any)?._id || pkg.rawMaterialId;
+            const rm = await RawMaterialModel.findById(rmId);
             if (!rm) continue;
 
-            const neededInBase = normalizeToBaseUnit(item.quantityNeeded, item.unit, rm.unit);
+            const neededInBase = normalizeToBaseUnit(pkg.quantity * multiplier, pkg.unit, rm.unit);
+            const key = rm._id.toString();
+            const existing = consolidatedMap.get(key);
+            if (existing) {
+                existing.neededInBase += neededInBase;
+            } else {
+                consolidatedMap.set(key, { rm, neededInBase });
+            }
+        }
 
+        for (const { rm, neededInBase } of consolidatedMap.values()) {
             // Fetch active lots sorted FEFO (nearest expiry date first)
             // NATIVE QUERY GUARD: only allocate lots with status AVAILABLE and expiryDate > mfgDate
             const lots = await RawMaterialLotModel.find({
@@ -873,7 +881,7 @@ export class ManufacturingService {
             const updatedLot = await RawMaterialLotModel.findOneAndUpdate(
                 {
                     _id: alloc.lotId,
-                    availableQuantity: { $gte: deductQty },
+                    availableQuantity: { $gte: deductQty - 0.0001 },
                     status: "AVAILABLE",
                     isDepleted: false,
                     expiryDate: { $gt: mfgDate },

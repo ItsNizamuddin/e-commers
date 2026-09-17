@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { api } from "../../../lib/api";
+import React, { useState, useMemo } from "react";
+import { useGetAuditLogsQuery } from "../../../store/api";
 import type { AuditLogEntry, AuditLogListResponse } from "@ecommers/types";
 import {
     Card,
@@ -19,6 +19,7 @@ import {
     Select,
     TableAction,
     TableActionGroup,
+    Pagination,
 } from "@ecommers/ui";
 import {
     ScrollText,
@@ -113,10 +114,6 @@ function getActionBadgeStyle(action: string): { bg: string; text: string; border
 }
 
 export default function AuditLogsPage() {
-    const [logs, setLogs] = useState<AuditLogEntry[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [error, setError] = useState<string | null>(null);
 
     // Filter controls
     const [search, setSearch] = useState("");
@@ -125,71 +122,38 @@ export default function AuditLogsPage() {
 
     // Pagination
     const [page, setPage] = useState(1);
-    const [limit] = useState(20);
-    const [totalPages, setTotalPages] = useState(1);
-    const [totalItems, setTotalItems] = useState(0);
+    const [limit, setLimit] = useState(15);
+
+    // RTK Query hook
+    const queryParams = useMemo(() => {
+        const p: Record<string, any> = { page, limit };
+        if (search.trim()) p.search = search.trim();
+        if (selectedResource !== "ALL") p.resource = selectedResource.toLowerCase();
+        if (selectedCategory !== "ALL") p.action = selectedCategory;
+        return p;
+    }, [page, limit, search, selectedResource, selectedCategory]);
+
+    const {
+        data,
+        isLoading: loading,
+        isFetching: refreshing,
+        error: queryError,
+        refetch,
+    } = useGetAuditLogsQuery(queryParams);
+
+    const logs = data?.items || [];
+    const totalPages = data?.pagination?.totalPages || 1;
+    const totalItems = data?.pagination?.total || logs.length;
+    const error = queryError
+        ? "message" in queryError
+            ? (queryError.message as string)
+            : "Failed to load audit logs."
+        : null;
 
     // Inspector Modal
     const [inspectLog, setInspectLog] = useState<AuditLogEntry | null>(null);
     const [copiedJson, setCopiedJson] = useState(false);
     const [copiedId, setCopiedId] = useState<string | null>(null);
-
-    const fetchLogs = useCallback(async (isManual = false) => {
-        if (isManual) setRefreshing(true);
-        else setLoading(true);
-        setError(null);
-
-        try {
-            const queryParams: Record<string, any> = {
-                page,
-                limit,
-            };
-
-            if (search.trim()) {
-                queryParams.search = search.trim();
-            }
-
-            if (selectedResource !== "ALL") {
-                queryParams.resource = selectedResource.toLowerCase();
-            }
-
-            if (selectedCategory !== "ALL") {
-                queryParams.action = selectedCategory;
-            }
-
-            const res = (await api.admin.getAuditLogs(queryParams)) as unknown as
-                | AuditLogListResponse
-                | { items?: AuditLogEntry[]; data?: AuditLogEntry[]; pagination?: any };
-
-            const items = Array.isArray(res)
-                ? res
-                : (res as any)?.items || (res as any)?.data || [];
-
-            const pagination = (res as any)?.pagination;
-
-            setLogs(items);
-            if (pagination) {
-                setTotalPages(pagination.totalPages || 1);
-                setTotalItems(pagination.total || items.length);
-            } else {
-                setTotalPages(1);
-                setTotalItems(items.length);
-            }
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError("Failed to load audit logs.");
-            }
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, [page, limit, search, selectedCategory, selectedResource]);
-
-    useEffect(() => {
-        fetchLogs();
-    }, [fetchLogs]);
 
     const handleCopy = (text: string, id: string) => {
         navigator.clipboard.writeText(text);
@@ -254,7 +218,7 @@ export default function AuditLogsPage() {
                         <Button
                             variant="secondary"
                             size="sm"
-                            onClick={() => fetchLogs(true)}
+                            onClick={() => refetch()}
                             disabled={loading || refreshing}
                             className="flex items-center gap-1.5"
                         >
@@ -280,26 +244,47 @@ export default function AuditLogsPage() {
                             />
                         </div>
 
-                        {/* Resource Selector Dropdown */}
-                        <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
-                                <SlidersHorizontal className="h-3.5 w-3.5" />
-                                <span>Resource:</span>
+                        {/* Resource Selector Dropdown & Page Size */}
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
+                                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                                    <span>Resource:</span>
+                                </div>
+                                <div className="w-36">
+                                    <Select
+                                        value={selectedResource}
+                                        onChange={(e) => {
+                                            setSelectedResource(e.target.value);
+                                            setPage(1);
+                                        }}
+                                    >
+                                        {RESOURCES.map((r) => (
+                                            <option key={r.value} value={r.value}>
+                                                {r.label}
+                                            </option>
+                                        ))}
+                                    </Select>
+                                </div>
                             </div>
-                            <div className="w-36">
-                                <Select
-                                    value={selectedResource}
+
+                            <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-neutral-400 shrink-0">
+                                <span>Show</span>
+                                <select
+                                    value={limit}
                                     onChange={(e) => {
-                                        setSelectedResource(e.target.value);
+                                        setLimit(Number(e.target.value));
                                         setPage(1);
                                     }}
+                                    className="text-xs font-medium rounded-md border border-zinc-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-zinc-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 >
-                                    {RESOURCES.map((r) => (
-                                        <option key={r.value} value={r.value}>
-                                            {r.label}
-                                        </option>
-                                    ))}
-                                </Select>
+                                    <option value={10}>10</option>
+                                    <option value={15}>15</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100</option>
+                                </select>
+                                <span>entries</span>
                             </div>
                         </div>
                     </div>
@@ -316,8 +301,8 @@ export default function AuditLogsPage() {
                                         setPage(1);
                                     }}
                                     className={`px-3 py-1 text-xs font-medium rounded-full transition-all whitespace-nowrap ${active
-                                            ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-sm"
-                                            : "bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                                        ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-sm"
+                                        : "bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
                                         }`}
                                 >
                                     {cat.label}
@@ -334,14 +319,14 @@ export default function AuditLogsPage() {
                             <AlertCircle className="h-5 w-5 shrink-0" />
                             <p className="text-sm font-medium">{error}</p>
                         </div>
-                        <Button variant="secondary" size="sm" onClick={() => fetchLogs(true)}>
+                        <Button variant="secondary" size="sm" onClick={() => refetch()}>
                             Retry
                         </Button>
                     </div>
                 )}
 
                 {/* Audit Table Card */}
-                <Card className="overflow-hidden">
+                <Card className="p-0 overflow-hidden flex flex-col border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl shadow-xs">
                     {loading ? (
                         <div className="flex flex-col items-center justify-center py-20 gap-3">
                             <Spinner size="lg" />
@@ -379,10 +364,10 @@ export default function AuditLogsPage() {
                             )}
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 text-xs text-zinc-500 dark:text-zinc-400">
+                        <div className="overflow-auto max-h-[calc(100vh-280px)] min-h-[300px]">
+                            <Table className="border-none rounded-none">
+                                <TableHeader className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs shadow-xs">
+                                    <TableRow className="border-b border-zinc-200 dark:border-zinc-800 text-xs text-zinc-500 dark:text-zinc-400">
                                         <TableHead className="w-[110px]">Status</TableHead>
                                         <TableHead className="w-[180px]">Timestamp</TableHead>
                                         <TableHead className="w-[220px]">Actor</TableHead>
@@ -543,42 +528,16 @@ export default function AuditLogsPage() {
                         </div>
                     )}
 
-                    {/* Pagination Bar */}
+                    {/* Pinned Pagination Footer */}
                     {totalItems > 0 && (
-                        <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 gap-3 text-xs text-zinc-500 dark:text-zinc-400">
-                            <div>
-                                Showing <span className="font-medium text-zinc-900 dark:text-zinc-100">{(page - 1) * limit + 1}</span> to{" "}
-                                <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                                    {Math.min(page * limit, totalItems)}
-                                </span>{" "}
-                                of <span className="font-medium text-zinc-900 dark:text-zinc-100">{totalItems}</span> events
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                                    disabled={page <= 1}
-                                    className="h-8 px-2.5"
-                                >
-                                    <ChevronLeft className="h-3.5 w-3.5 mr-1" />
-                                    <span>Previous</span>
-                                </Button>
-                                <span className="px-2 font-medium text-zinc-700 dark:text-zinc-300">
-                                    Page {page} of {totalPages}
-                                </span>
-                                <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                                    disabled={page >= totalPages}
-                                    className="h-8 px-2.5"
-                                >
-                                    <span>Next</span>
-                                    <ChevronRight className="h-3.5 w-3.5 ml-1" />
-                                </Button>
-                            </div>
+                        <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
+                            <Pagination
+                                page={page}
+                                totalPages={totalPages}
+                                totalItems={totalItems}
+                                pageSize={limit}
+                                onPageChange={setPage}
+                            />
                         </div>
                     )}
                 </Card>

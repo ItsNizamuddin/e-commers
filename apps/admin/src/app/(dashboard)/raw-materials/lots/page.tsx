@@ -1,9 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo, Suspense } from "react";
+import React, { useState, useMemo, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { api } from "../../../../lib/api";
+import {
+    useGetRawMaterialLotsQuery,
+    useGetRawMaterialsQuery,
+} from "../../../../store/api";
 import type { RawMaterialLot, RawMaterial } from "@ecommers/types";
 import {
     Card,
@@ -11,7 +14,7 @@ import {
     Button,
     Spinner,
     Select,
-    toast,
+    Pagination,
 } from "@ecommers/ui";
 import {
     CalendarCheck,
@@ -30,38 +33,42 @@ function RawMaterialLotsContent() {
     const searchParams = useSearchParams();
     const initialRawMaterialId = searchParams.get("rawMaterialId") || "";
 
-    const [lots, setLots] = useState<RawMaterialLot[]>([]);
-    const [materials, setMaterials] = useState<RawMaterial[]>([]);
     const [selectedMaterialId, setSelectedMaterialId] = useState(initialRawMaterialId);
     const [hideDepleted, setHideDepleted] = useState(false);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(15);
 
-    const fetchData = useCallback(async (isManual = false) => {
-        if (isManual) setRefreshing(true);
-        else setLoading(true);
-        try {
-            const [lotsData, matsData] = await Promise.all([
-                api.manufacturing.listLots({
-                    rawMaterialId: selectedMaterialId || undefined,
-                    isDepleted: hideDepleted ? false : undefined,
-                }),
-                api.manufacturing.listRawMaterials(),
-            ]);
-            setLots(lotsData || []);
-            setMaterials(matsData || []);
-        } catch (err: unknown) {
-            console.error("Failed to load lots:", err);
-            toast.error("Failed to load active lots.");
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, [selectedMaterialId, hideDepleted]);
+    const {
+        data: lots = [],
+        isLoading: lotsLoading,
+        isFetching: lotsFetching,
+        refetch: refetchLots,
+    } = useGetRawMaterialLotsQuery({
+        rawMaterialId: selectedMaterialId || undefined,
+        isDepleted: hideDepleted ? false : undefined,
+    });
 
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+    const totalItems = lots.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+    const paginatedLots = useMemo(() => {
+        const start = (page - 1) * pageSize;
+        return lots.slice(start, start + pageSize);
+    }, [lots, page, pageSize]);
+
+    const {
+        data: materials = [],
+        isLoading: matsLoading,
+        refetch: refetchMats,
+    } = useGetRawMaterialsQuery();
+
+    const loading = lotsLoading || matsLoading;
+    const refreshing = lotsFetching;
+
+    const handleRefresh = () => {
+        refetchLots();
+        refetchMats();
+    };
 
     const metrics = useMemo(() => {
         const now = new Date().getTime();
@@ -112,7 +119,7 @@ function RawMaterialLotsContent() {
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => fetchData(true)}
+                        onClick={handleRefresh}
                         disabled={refreshing}
                         className="gap-1.5 text-xs"
                     >
@@ -179,21 +186,43 @@ function RawMaterialLotsContent() {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-4">
                     <label className="flex items-center gap-2 text-xs font-medium text-slate-600 dark:text-neutral-300 cursor-pointer">
                         <input
                             type="checkbox"
                             checked={hideDepleted}
-                            onChange={(e) => setHideDepleted(e.target.checked)}
+                            onChange={(e) => {
+                                setHideDepleted(e.target.checked);
+                                setPage(1);
+                            }}
                             className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                         />
                         <span>Hide Depleted (0 balance)</span>
                     </label>
+
+                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400">
+                        <span>Show</span>
+                        <select
+                            value={pageSize}
+                            onChange={(e) => {
+                                setPageSize(Number(e.target.value));
+                                setPage(1);
+                            }}
+                            className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value={10}>10</option>
+                            <option value={15}>15</option>
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                        </select>
+                        <span>entries</span>
+                    </div>
                 </div>
             </div>
 
             {/* Table */}
-            <Card className="bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl overflow-hidden shadow-xs">
+            <Card className="bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl overflow-hidden shadow-xs flex flex-col">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-20">
                         <Spinner size="lg" />
@@ -206,22 +235,23 @@ function RawMaterialLotsContent() {
                         <p className="text-xs text-slate-400 mt-1">No active lots match the selected filters.</p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse text-xs">
-                            <thead>
-                                <tr className="bg-slate-50/80 dark:bg-neutral-900/60 border-b border-slate-200 dark:border-neutral-800 text-slate-500 font-semibold">
-                                    <th className="py-3 px-4">FEFO Order & Lot #</th>
-                                    <th className="py-3 px-3">Raw Material</th>
-                                    <th className="py-3 px-3">Source Origin</th>
-                                    <th className="py-3 px-3 text-right">Available Qty</th>
-                                    <th className="py-3 px-3 text-right">Cost Rate</th>
-                                    <th className="py-3 px-3">Expiration Date</th>
-                                    <th className="py-3 px-3 text-center">Days Remaining</th>
-                                    <th className="py-3 px-4 text-center">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-neutral-800/80">
-                                {lots.map((lot, idx) => {
+                    <>
+                        <div className="overflow-auto max-h-[calc(100vh-270px)] min-h-[300px]">
+                            <table className="w-full text-left border-collapse text-xs">
+                                <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs border-b border-slate-200 dark:border-neutral-800 shadow-xs">
+                                    <tr className="text-slate-500 font-semibold">
+                                        <th className="py-3 px-4">FEFO Order & Lot #</th>
+                                        <th className="py-3 px-3">Raw Material</th>
+                                        <th className="py-3 px-3">Source Origin</th>
+                                        <th className="py-3 px-3 text-right">Available Qty</th>
+                                        <th className="py-3 px-3 text-right">Cost Rate</th>
+                                        <th className="py-3 px-3">Expiration Date</th>
+                                        <th className="py-3 px-3 text-center">Days Remaining</th>
+                                        <th className="py-3 px-4 text-center">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-neutral-800/80">
+                                    {paginatedLots.map((lot, idx) => {
                                     const now = new Date().getTime();
                                     const expTime = new Date(lot.expiryDate).getTime();
                                     const diffDays = Math.ceil((expTime - now) / (1000 * 60 * 60 * 24));
@@ -300,8 +330,21 @@ function RawMaterialLotsContent() {
                             </tbody>
                         </table>
                     </div>
-                )}
-            </Card>
+
+                    {totalItems > 0 && (
+                        <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
+                            <Pagination
+                                page={page}
+                                totalPages={totalPages}
+                                totalItems={totalItems}
+                                pageSize={pageSize}
+                                onPageChange={setPage}
+                            />
+                        </div>
+                    )}
+                </>
+            )}
+        </Card>
         </div>
     );
 }

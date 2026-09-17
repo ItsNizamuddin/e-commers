@@ -1,10 +1,14 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
-import { api } from "../../../lib/api";
+import React, { useState } from "react";
+import {
+    useGetInventoryListQuery,
+    useGetInventoryMovementsQuery,
+    useAdjustInventoryMutation,
+    useUpdateInventoryThresholdsMutation,
+} from "../../../store/api";
 import type {
     InventoryResponse,
-    StockMovementResponse,
 } from "@ecommers/types";
 import {
     Card,
@@ -24,6 +28,7 @@ import {
     FormField,
     TableAction,
     TableActionGroup,
+    toast,
 } from "@ecommers/ui";
 import {
     Warehouse,
@@ -36,99 +41,75 @@ import { RequireRole } from "../../../components/auth/require-role";
 
 export default function InventoryPage() {
     const [activeTab, setActiveTab] = useState<"matrix" | "movements">("matrix");
-
-    // Inventory State
-    const [items, setItems] = useState<InventoryResponse[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
+    const [movementsPage, setMovementsPage] = useState(1);
+    const [pageSize, setPageSize] = useState(15);
 
-    // Movements State
-    const [movements, setMovements] = useState<StockMovementResponse[]>([]);
-    const [movementsLoading, setMovementsLoading] = useState(false);
+    // RTK Query hooks
+    const {
+        data: inventoryData,
+        isLoading: loading,
+        isFetching: refreshing,
+        error: inventoryError,
+        refetch: refetchInventory,
+    } = useGetInventoryListQuery({ page, limit: pageSize });
+
+    const items = inventoryData?.items || [];
+    const totalPages = inventoryData?.pagination?.totalPages || 1;
+    const totalItems = inventoryData?.pagination?.total || 0;
+
+    const {
+        data: movementsData,
+        isLoading: movementsLoading,
+        refetch: refetchMovements,
+    } = useGetInventoryMovementsQuery({ page: movementsPage, limit: pageSize }, { skip: activeTab !== "movements" });
+
+    const movements = movementsData?.items || [];
+    const movementsTotalPages = movementsData?.pagination?.totalPages || 1;
+    const movementsTotalItems = movementsData?.pagination?.total || movements.length;
+
+    const [adjustInventoryMutation, { isLoading: isAdjusting }] = useAdjustInventoryMutation();
+    const [updateThresholdsMutation, { isLoading: isSavingThresholds }] = useUpdateInventoryThresholdsMutation();
 
     // Adjust Modal State
     const [isAdjustOpen, setIsAdjustOpen] = useState(false);
     const [selectedInventory, setSelectedInventory] = useState<InventoryResponse | null>(null);
     const [delta, setDelta] = useState("10");
     const [adjustReason, setAdjustReason] = useState("");
-    const [isAdjusting, setIsAdjusting] = useState(false);
 
     // Thresholds Modal State
     const [isThresholdOpen, setIsThresholdOpen] = useState(false);
     const [reorderThreshold, setReorderThreshold] = useState("10");
     const [safetyStock, setSafetyStock] = useState("5");
-    const [isSavingThresholds, setIsSavingThresholds] = useState(false);
 
     const [notice, setNotice] = useState<string | null>(null);
 
-    const fetchInventory = useCallback(async (isManual = false) => {
-        if (isManual) setRefreshing(true);
-        else setLoading(true);
-        setError(null);
-        try {
-            const res = await api.inventory.list({
-                page,
-                limit: 10,
-            });
-            setItems(res.items || []);
-            setTotalPages(res.pagination?.totalPages || 1);
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError("Failed to fetch inventory records.");
-            }
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, [page]);
-
-    const fetchMovements = useCallback(async () => {
-        setMovementsLoading(true);
-        try {
-            const res = await api.inventory.movements({ page: 1, limit: 15 });
-            setMovements(res.items || []);
-        } catch {
-            // Non-critical if empty
-        } finally {
-            setMovementsLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (activeTab === "matrix") {
-            fetchInventory();
-        } else {
-            fetchMovements();
-        }
-    }, [activeTab, fetchInventory, fetchMovements]);
+    const error = inventoryError
+        ? typeof inventoryError === "string"
+            ? inventoryError
+            : "Failed to fetch inventory records."
+        : null;
 
     const handleAdjustSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedInventory) return;
 
-        setIsAdjusting(true);
         try {
-            await api.inventory.adjust({
+            await adjustInventoryMutation({
                 inventoryId: selectedInventory.id,
                 delta: parseInt(delta, 10) || 0,
                 reason: adjustReason.trim() || "Administrative stock correction",
                 referenceType: "MANUAL_ADJUSTMENT",
-            });
+            }).unwrap();
             setIsAdjustOpen(false);
-            setNotice(`Stock adjusted for variant ${selectedInventory.variantId.slice(-8)}`);
+            const msg = `Stock adjusted for variant ${selectedInventory.variantId.slice(-8)}`;
+            setNotice(msg);
+            toast.success(msg);
             setTimeout(() => setNotice(null), 3500);
-            fetchInventory(true);
         } catch (err: unknown) {
             if (err instanceof Error) {
-                alert(`Adjustment failed: ${err.message}`);
+                toast.error(`Adjustment failed: ${err.message}`);
             }
-        } finally {
-            setIsAdjusting(false);
         }
     };
 
@@ -136,23 +117,24 @@ export default function InventoryPage() {
         e.preventDefault();
         if (!selectedInventory) return;
 
-        setIsSavingThresholds(true);
         try {
-            await api.inventory.updateThresholds(selectedInventory.id, {
-                reorderThreshold: parseInt(reorderThreshold, 10) || 10,
-                safetyStock: parseInt(safetyStock, 10) || 5,
-                expectedVersion: selectedInventory.version,
-            });
+            await updateThresholdsMutation({
+                id: selectedInventory.id,
+                body: {
+                    reorderThreshold: parseInt(reorderThreshold, 10) || 10,
+                    safetyStock: parseInt(safetyStock, 10) || 5,
+                    expectedVersion: selectedInventory.version,
+                },
+            }).unwrap();
             setIsThresholdOpen(false);
-            setNotice(`Thresholds updated for variant ${selectedInventory.variantId.slice(-8)}`);
+            const msg = `Thresholds updated for variant ${selectedInventory.variantId.slice(-8)}`;
+            setNotice(msg);
+            toast.success(msg);
             setTimeout(() => setNotice(null), 3500);
-            fetchInventory(true);
         } catch (err: unknown) {
             if (err instanceof Error) {
-                alert(`Thresholds update failed: ${err.message}`);
+                toast.error(`Thresholds update failed: ${err.message}`);
             }
-        } finally {
-            setIsSavingThresholds(false);
         }
     };
 
@@ -194,7 +176,7 @@ export default function InventoryPage() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => (activeTab === "matrix" ? fetchInventory(true) : fetchMovements())}
+                        onClick={() => (activeTab === "matrix" ? refetchInventory() : refetchMovements())}
                         isLoading={refreshing || movementsLoading}
                         className="gap-1.5"
                     >
@@ -212,7 +194,7 @@ export default function InventoryPage() {
             )}
 
             {/* Tabs Navigation Card */}
-            <Card className="p-1">
+            <Card className="p-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                 <div className="flex gap-1.5">
                     <button
                         type="button"
@@ -240,22 +222,44 @@ export default function InventoryPage() {
                         <span>Movement Audit Ledger</span>
                     </button>
                 </div>
+
+                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400 shrink-0 self-end sm:self-auto">
+                    <span>Show</span>
+                    <select
+                        value={pageSize}
+                        onChange={(e) => {
+                            setPageSize(Number(e.target.value));
+                            setPage(1);
+                            setMovementsPage(1);
+                        }}
+                        className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value={10}>10</option>
+                        <option value={15}>15</option>
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                    </select>
+                    <span>entries</span>
+                </div>
             </Card>
 
             {/* Tab 1: Stock Matrix */}
             {activeTab === "matrix" && (
-                <Card className="p-3.5 sm:p-4">
+                <Card className="p-0 overflow-hidden flex flex-col border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl shadow-xs">
                     {loading ? (
-                        <div className="flex flex-col items-center justify-center py-16 gap-3">
+                        <div className="flex flex-col items-center justify-center py-20 gap-3">
                             <Spinner size="md" />
                             <p className="text-xs text-slate-500 dark:text-slate-400">Loading warehouse inventory...</p>
                         </div>
                     ) : error ? (
-                        <ErrorState title="Failed to load inventory" message={error} onRetry={() => fetchInventory()} />
+                        <div className="p-6">
+                            <ErrorState title="Failed to load inventory" message={error} onRetry={() => refetchInventory()} />
+                        </div>
                     ) : (
                         <>
-                            <Table>
-                                <TableHeader>
+                            <Table className="overflow-auto max-h-[calc(100vh-280px)] min-h-[300px] border-none rounded-none">
+                                <TableHeader className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs shadow-xs">
                                     <TableRow>
                                         <TableHead>Inventory ID / Variant</TableHead>
                                         <TableHead>On Hand</TableHead>
@@ -333,9 +337,15 @@ export default function InventoryPage() {
                                 </TableBody>
                             </Table>
 
-                            {totalPages > 1 && (
-                                <div className="mt-4 flex justify-end">
-                                    <Pagination page={page} totalPages={totalPages} onPageChange={(p) => setPage(p)} />
+                            {totalItems > 0 && (
+                                <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
+                                    <Pagination
+                                        page={page}
+                                        totalPages={totalPages}
+                                        totalItems={totalItems}
+                                        pageSize={pageSize}
+                                        onPageChange={setPage}
+                                    />
                                 </div>
                             )}
                         </>
@@ -345,16 +355,17 @@ export default function InventoryPage() {
 
             {/* Tab 2: Movement Audit Ledger */}
             {activeTab === "movements" && (
-                <Card className="p-3.5 sm:p-4">
+                <Card className="p-0 overflow-hidden flex flex-col border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl shadow-xs">
                     {movementsLoading ? (
-                        <div className="flex flex-col items-center justify-center py-12 gap-2">
+                        <div className="flex flex-col items-center justify-center py-20 gap-2">
                             <Spinner size="md" />
                             <p className="text-xs text-slate-500 dark:text-slate-400">Loading audit ledger...</p>
                         </div>
                     ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
+                        <>
+                            <Table className="overflow-auto max-h-[calc(100vh-280px)] min-h-[300px] border-none rounded-none">
+                                <TableHeader className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs shadow-xs">
+                                    <TableRow>
                                     <TableHead>Timestamp</TableHead>
                                     <TableHead>Variant ID</TableHead>
                                     <TableHead>Type</TableHead>
@@ -398,8 +409,21 @@ export default function InventoryPage() {
                                 )}
                             </TableBody>
                         </Table>
-                    )}
-                </Card>
+
+                        {movementsTotalItems > 0 && (
+                            <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
+                                <Pagination
+                                    page={movementsPage}
+                                    totalPages={movementsTotalPages}
+                                    totalItems={movementsTotalItems}
+                                    pageSize={pageSize}
+                                    onPageChange={setMovementsPage}
+                                />
+                            </div>
+                        )}
+                    </>
+                )}
+            </Card>
             )}
 
             {/* Adjust Modal */}

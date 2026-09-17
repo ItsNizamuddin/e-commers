@@ -2,8 +2,12 @@
 
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { api } from "../../../../lib/api";
-import type { OrderResponse, OrderFulfillmentStatus } from "@ecommers/types";
+import {
+    useGetAdminOrderByIdQuery,
+    useUpdateOrderFulfillmentMutation,
+    useCancelAdminOrderMutation,
+} from "../../../../store/api";
+import type { OrderFulfillmentStatus } from "@ecommers/types";
 import {
     Card,
     Badge,
@@ -14,6 +18,7 @@ import {
     Select,
     FormField,
     ConfirmDialog,
+    toast,
 } from "@ecommers/ui";
 import {
     ArrowLeft,
@@ -31,92 +36,84 @@ export default function OrderDetailPage() {
     const router = useRouter();
     const id = params?.id as string;
 
-    const [order, setOrder] = useState<OrderResponse | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const {
+        data: order,
+        isLoading: loading,
+        error: orderError,
+        refetch: fetchOrder,
+    } = useGetAdminOrderByIdQuery(id, { skip: !id });
+
+    const [updateOrderFulfillment, { isLoading: isUpdatingFulfillment }] = useUpdateOrderFulfillmentMutation();
+    const [cancelAdminOrder, { isLoading: isCancelling }] = useCancelAdminOrderMutation();
 
     // Fulfillment Form State
     const [targetFulfillment, setTargetFulfillment] = useState<OrderFulfillmentStatus>("PROCESSING");
     const [carrier, setCarrier] = useState("");
     const [trackingNumber, setTrackingNumber] = useState("");
-    const [isUpdatingFulfillment, setIsUpdatingFulfillment] = useState(false);
     const [fulfillmentNotice, setFulfillmentNotice] = useState<string | null>(null);
 
     // Cancellation State
     const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
-    const [isCancelling, setIsCancelling] = useState(false);
-
-    const fetchOrder = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const data = await api.orders.adminGetById(id);
-            setOrder(data);
-            if (data.fulfillmentStatus) {
-                setTargetFulfillment(data.fulfillmentStatus);
-            }
-            if (data.fulfillment?.carrier) setCarrier(data.fulfillment.carrier);
-            if (data.fulfillment?.trackingNumber) setTrackingNumber(data.fulfillment.trackingNumber);
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError("Failed to fetch order details.");
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
 
     useEffect(() => {
-        if (id) {
-            fetchOrder();
+        if (order) {
+            if (order.fulfillmentStatus) {
+                setTargetFulfillment(order.fulfillmentStatus);
+            }
+            if (order.fulfillment?.carrier) setCarrier(order.fulfillment.carrier);
+            if (order.fulfillment?.trackingNumber) setTrackingNumber(order.fulfillment.trackingNumber);
         }
-    }, [id]);
+    }, [order]);
 
     const handleUpdateFulfillment = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!order) return;
-        setIsUpdatingFulfillment(true);
         setFulfillmentNotice(null);
         try {
-            const updated = await api.orders.adminUpdateFulfillment(id, {
-                fulfillmentStatus: targetFulfillment,
-                carrier: carrier.trim() || undefined,
-                trackingNumber: trackingNumber.trim() || undefined,
-                expectedVersion: order.version,
-            });
-            setOrder(updated);
+            await updateOrderFulfillment({
+                id,
+                body: {
+                    fulfillmentStatus: targetFulfillment,
+                    carrier: carrier.trim() || undefined,
+                    trackingNumber: trackingNumber.trim() || undefined,
+                    expectedVersion: order.version,
+                },
+            }).unwrap();
             setFulfillmentNotice(`Fulfillment updated to ${targetFulfillment}`);
+            toast.success(`Fulfillment updated to ${targetFulfillment}`);
             setTimeout(() => setFulfillmentNotice(null), 3000);
         } catch (err: unknown) {
             if (err instanceof Error) {
-                alert(`Error updating fulfillment: ${err.message}`);
+                toast.error(`Error updating fulfillment: ${err.message}`);
             }
-        } finally {
-            setIsUpdatingFulfillment(false);
         }
     };
 
     const handleCancelOrder = async () => {
         if (!order) return;
-        setIsCancelling(true);
         try {
-            const cancelled = await api.orders.adminCancel(id, {
-                reason: cancelReason.trim() || "Administrative cancellation",
-                expectedVersion: order.version,
-            });
-            setOrder(cancelled);
+            await cancelAdminOrder({
+                id,
+                body: {
+                    reason: cancelReason.trim() || "Administrative cancellation",
+                    expectedVersion: order.version,
+                },
+            }).unwrap();
             setIsCancelDialogOpen(false);
+            toast.success("Order cancelled successfully.");
         } catch (err: unknown) {
             if (err instanceof Error) {
-                alert(`Cancellation failed: ${err.message}`);
+                toast.error(`Cancellation failed: ${err.message}`);
             }
-        } finally {
-            setIsCancelling(false);
         }
     };
+
+    const error = orderError
+        ? typeof orderError === "string"
+            ? orderError
+            : "Failed to fetch order details."
+        : null;
 
     if (loading) {
         return (

@@ -140,13 +140,13 @@ export class OutboxDispatcher {
             return;
         }
 
-        const deterministicJobId = `outbox:${event._id.toString()}`;
+        const deterministicJobId = `outbox_${event._id.toString()}`;
 
         switch (event.eventType) {
             case "PRODUCTION_BATCH_COMPLETED": {
                 // Enqueue food batch label generation in documents queue
                 await queues.documents.add("generate-batch-labels", event.payload, {
-                    jobId: `${deterministicJobId}:label`,
+                    jobId: `${deterministicJobId}_label`,
                 });
                 break;
             }
@@ -154,7 +154,7 @@ export class OutboxDispatcher {
             case "PRODUCTION_BATCH_REVERSED": {
                 // Enqueue staff reversal notification
                 await queues.notifications.add("send-reversal-alert", event.payload, {
-                    jobId: `${deterministicJobId}:notify`,
+                    jobId: `${deterministicJobId}_notify`,
                 });
                 break;
             }
@@ -162,7 +162,7 @@ export class OutboxDispatcher {
             case "REPACKAGING_COMPLETED": {
                 // Enqueue retail pack sticker generation
                 await queues.documents.add("generate-retail-labels", event.payload, {
-                    jobId: `${deterministicJobId}:label`,
+                    jobId: `${deterministicJobId}_label`,
                 });
                 break;
             }
@@ -170,24 +170,24 @@ export class OutboxDispatcher {
             case "ORDER_CONFIRMED": {
                 // Enqueue order confirmation email + GST invoice generation
                 await queues.notifications.add("send-order-email", event.payload, {
-                    jobId: `${deterministicJobId}:email`,
+                    jobId: `${deterministicJobId}_email`,
                 });
                 await queues.documents.add("generate-invoice-pdf", event.payload, {
-                    jobId: `${deterministicJobId}:invoice`,
+                    jobId: `${deterministicJobId}_invoice`,
                 });
                 break;
             }
 
             case "STOCK_BELOW_REORDER": {
                 await queues.notifications.add("procurement-reorder-alert", event.payload, {
-                    jobId: `${deterministicJobId}:reorder`,
+                    jobId: `${deterministicJobId}_reorder`,
                 });
                 break;
             }
 
             case "EXPIRY_WARNING_DIGEST": {
                 await queues.notifications.add("fefo-expiry-digest", event.payload, {
-                    jobId: `${deterministicJobId}:digest`,
+                    jobId: `${deterministicJobId}_digest`,
                 });
                 break;
             }

@@ -2,7 +2,12 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "../../../lib/api";
+import {
+    useGetCategoriesQuery,
+    useUpdateCategoryMutation,
+    useReorderCategoriesMutation,
+    useDeleteCategoryMutation,
+} from "../../../store/api";
 import type { CategoryResponse } from "@ecommers/types";
 import {
     Card,
@@ -20,6 +25,7 @@ import {
     TableActionGroup,
     ConfirmDialog,
     toast,
+    Pagination,
 } from "@ecommers/ui";
 import {
     FolderTree,
@@ -48,14 +54,30 @@ import { CategoryTreeTable } from "../../../components/categories/category-tree-
 
 export default function CategoriesPage() {
     const router = useRouter();
-    const [categories, setCategories] = useState<CategoryResponse[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+
+    const {
+        data: categories = [],
+        isLoading: loading,
+        isFetching: refreshing,
+        error: categoriesError,
+        refetch,
+    } = useGetCategoriesQuery();
+
+    const [updateCategoryMutation] = useUpdateCategoryMutation();
+    const [reorderCategoriesMutation] = useReorderCategoriesMutation();
+    const [deleteCategoryMutation] = useDeleteCategoryMutation();
+
+    const error = categoriesError
+        ? typeof categoriesError === "string"
+            ? categoriesError
+            : "Failed to load categories."
+        : null;
 
     // View mode & Tree state
     const [viewMode, setViewMode] = useState<"tree" | "flat">("tree");
     const [searchQuery, setSearchQuery] = useState("");
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(15);
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
     // Status toggle & Reorder feedback states
@@ -65,33 +87,13 @@ export default function CategoriesPage() {
     const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    const loadCategories = async (isManual = false) => {
-        if (isManual) setRefreshing(true);
-        else setLoading(true);
-        setError(null);
-        try {
-            const data = await api.categories.list();
-            const list = data || [];
-            setCategories(list);
-
-            // Auto-expand branches initially
-            const tree = buildCategoryTree(list);
-            setExpandedIds(getAllBranchIds(tree));
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError("Failed to load categories.");
-            }
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    };
-
+    // Auto-expand branches initially once categories load
     useEffect(() => {
-        loadCategories();
-    }, []);
+        if (categories.length > 0) {
+            const tree = buildCategoryTree(categories);
+            setExpandedIds((prev) => (prev.size === 0 ? getAllBranchIds(tree) : prev));
+        }
+    }, [categories]);
 
     // Tree calculation and search filtering
     const { filteredTree, matchedIds, autoExpandIds } = useMemo(() => {
@@ -126,6 +128,9 @@ export default function CategoriesPage() {
         );
     }, [categories, searchQuery]);
 
+    const totalPages = Math.ceil(flatFilteredCategories.length / pageSize) || 1;
+    const paginatedCategories = flatFilteredCategories.slice((page - 1) * pageSize, page * pageSize);
+
     // Tree Expansion Handlers
     const handleToggleExpand = (id: string) => {
         setExpandedIds((prev) => {
@@ -154,19 +159,10 @@ export default function CategoriesPage() {
         const targetCategory = categories.find((c) => c.id === id);
         const catName = targetCategory?.name || "Category";
 
-        // Optimistic UI update
-        setCategories((prev) =>
-            prev.map((c) => (c.id === id ? { ...c, isActive: newActive } : c))
-        );
-
         try {
-            await api.categories.update(id, { isActive: newActive });
+            await updateCategoryMutation({ id, body: { isActive: newActive } }).unwrap();
             toast.success(`${catName} is now ${newActive ? "Active" : "Hidden"}`);
         } catch (err: unknown) {
-            // Revert state on error
-            setCategories((prev) =>
-                prev.map((c) => (c.id === id ? { ...c, isActive: !newActive } : c))
-            );
             toast.error(err instanceof Error ? `Failed to update status: ${err.message}` : "Failed to update category status.");
         } finally {
             setTogglingActiveId(null);
@@ -182,19 +178,16 @@ export default function CategoriesPage() {
         const result = reorderCategoryList(categories, sourceId, targetId, position);
         if (!result) return;
 
-        const { updatedCategories, changedCategories } = result;
-
-        // Optimistic update in UI
-        setCategories(updatedCategories);
+        const { changedCategories } = result;
 
         // Persist updated sortOrder using dedicated reorder API
         try {
-            await api.categories.reorder(
+            await reorderCategoriesMutation(
                 changedCategories.map((item) => ({
                     id: item.id,
                     sortOrder: item.sortOrder,
                 }))
-            );
+            ).unwrap();
             toast.success("Category order updated.");
         } catch (err: unknown) {
             console.error("Failed to persist category order:", err);
@@ -206,10 +199,9 @@ export default function CategoriesPage() {
         if (!categoryToDelete) return;
         setIsDeleting(true);
         try {
-            await api.categories.delete(categoryToDelete);
+            await deleteCategoryMutation(categoryToDelete).unwrap();
             setCategoryToDelete(null);
             toast.success("Category deleted successfully.");
-            loadCategories(true);
         } catch (err: unknown) {
             if (err instanceof Error) {
                 toast.error(`Delete failed: ${err.message}`);
@@ -260,7 +252,7 @@ export default function CategoriesPage() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => loadCategories(true)}
+                        onClick={() => refetch()}
                         isLoading={refreshing}
                         className="gap-1.5 h-8 text-xs"
                     >
@@ -324,23 +316,29 @@ export default function CategoriesPage() {
             </div>
 
             {/* Main Table Card */}
-            <Card className="p-3.5 sm:p-4">
+            <Card className="p-0 overflow-hidden flex flex-col border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl shadow-xs">
                 {/* Search & View Controls Toolbar */}
-                <div className="flex flex-wrap items-center justify-between gap-2.5 pb-3 mb-3 border-b border-slate-100 dark:border-neutral-800">
+                <div className="flex flex-wrap items-center justify-between gap-2.5 p-3.5 sm:p-4 border-b border-slate-100 dark:border-neutral-800 bg-slate-50/40 dark:bg-neutral-900/30">
                     {/* Live Search Input */}
                     <div className="relative flex-1 min-w-[220px] max-w-sm">
                         <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input
                             type="text"
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                setPage(1);
+                            }}
                             placeholder="Search categories by name, slug..."
                             className="w-full h-8 pl-8 pr-7 text-xs rounded-md border border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-900 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                         />
                         {searchQuery && (
                             <button
                                 type="button"
-                                onClick={() => setSearchQuery("")}
+                                onClick={() => {
+                                    setSearchQuery("");
+                                    setPage(1);
+                                }}
                                 className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-neutral-300"
                             >
                                 <X size={13} />
@@ -374,6 +372,27 @@ export default function CategoriesPage() {
                                     <ChevronsDownUp size={13} />
                                     <span>Collapse All</span>
                                 </Button>
+                            </div>
+                        )}
+
+                        {viewMode === "flat" && (
+                            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400 shrink-0 mr-1">
+                                <span>Show</span>
+                                <select
+                                    value={pageSize}
+                                    onChange={(e) => {
+                                        setPageSize(Number(e.target.value));
+                                        setPage(1);
+                                    }}
+                                    className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value={10}>10</option>
+                                    <option value={15}>15</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100</option>
+                                </select>
+                                <span>entries</span>
                             </div>
                         )}
 
@@ -413,39 +432,45 @@ export default function CategoriesPage() {
                         <p className="text-xs text-slate-500 dark:text-slate-400">Loading categories...</p>
                     </div>
                 ) : error ? (
-                    <ErrorState
-                        title="Failed to load categories"
-                        message={error}
-                        onRetry={() => loadCategories()}
-                    />
+                    <div className="p-6">
+                        <ErrorState
+                            title="Failed to load categories"
+                            message={error}
+                            onRetry={() => refetch()}
+                        />
+                    </div>
                 ) : viewMode === "tree" ? (
                     /* Modular Hierarchical Tree Table with DnD and Status Toggle */
-                    <CategoryTreeTable
-                        rows={flattenedRows}
-                        matchedIds={matchedIds}
-                        onToggleExpand={handleToggleExpand}
-                        onEdit={(id) => router.push(`/categories/${id}`)}
-                        onDelete={(id) => setCategoryToDelete(id)}
-                        onAddSubcategory={(parentId) => router.push(`/categories/new?parentId=${parentId}`)}
-                        onToggleActive={handleToggleActive}
-                        togglingActiveId={togglingActiveId}
-                        onReorder={handleReorder}
-                        isSearchActive={Boolean(searchQuery.trim())}
-                    />
+                    <div className="overflow-auto max-h-[calc(100vh-280px)] min-h-[300px]">
+                        <CategoryTreeTable
+                            rows={flattenedRows}
+                            matchedIds={matchedIds}
+                            onToggleExpand={handleToggleExpand}
+                            onEdit={(id) => router.push(`/categories/${id}`)}
+                            onDelete={(id) => setCategoryToDelete(id)}
+                            onAddSubcategory={(parentId) => router.push(`/categories/new?parentId=${parentId}`)}
+                            onToggleActive={handleToggleActive}
+                            togglingActiveId={togglingActiveId}
+                            onReorder={handleReorder}
+                            isSearchActive={Boolean(searchQuery.trim())}
+                        />
+                    </div>
                 ) : (
                     /* Flat Table View */
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Category Name</TableHead>
-                                <TableHead>Slug</TableHead>
-                                <TableHead>Parent Category</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>SEO Health</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
+                    <>
+                        <div className="overflow-auto max-h-[calc(100vh-280px)] min-h-[300px]">
+                            <Table className="border-none rounded-none">
+                                <TableHeader className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs shadow-xs">
+                                    <TableRow>
+                                        <TableHead>Category Name</TableHead>
+                                        <TableHead>Slug</TableHead>
+                                        <TableHead>Parent Category</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead>SEO Health</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
                             {flatFilteredCategories.length === 0 ? (
                                 <TableRow noHover>
                                     <TableCell colSpan={6} className="text-center text-slate-400 dark:text-neutral-500 py-10 text-xs">
@@ -455,7 +480,7 @@ export default function CategoriesPage() {
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                flatFilteredCategories.map((c) => {
+                                paginatedCategories.map((c) => {
                                     const parentName = categories.find((p) => p.id === c.parentId)?.name || "Root (None)";
                                     const hasSeo = Boolean(c.seo?.metaTitle || c.seo?.metaDescription);
 
@@ -568,8 +593,22 @@ export default function CategoriesPage() {
                             )}
                         </TableBody>
                     </Table>
+                </div>
+
+                {flatFilteredCategories.length > 0 && (
+                    <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
+                        <Pagination
+                            page={page}
+                            totalPages={totalPages}
+                            totalItems={flatFilteredCategories.length}
+                            pageSize={pageSize}
+                            onPageChange={setPage}
+                        />
+                    </div>
                 )}
-            </Card>
+            </>
+        )}
+    </Card>
 
             {/* Delete Confirmation Modal (Requires typing 'delete' to confirm) */}
             <ConfirmDialog

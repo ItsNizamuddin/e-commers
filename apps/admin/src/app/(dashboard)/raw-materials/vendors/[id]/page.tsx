@@ -1,10 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { api } from "../../../../../lib/api";
-import type { Vendor, RawMaterialLot, VendorStatus } from "@ecommers/types";
+import {
+    useGetVendorByIdQuery,
+    useGetVendorPurchasesQuery,
+    useUpdateVendorMutation,
+} from "../../../../../store/api";
+import type { RawMaterialLot, VendorStatus } from "@ecommers/types";
 import {
     Card,
     Badge,
@@ -13,6 +17,7 @@ import {
     Spinner,
     FormField,
     Select,
+    Pagination,
     toast,
 } from "@ecommers/ui";
 import {
@@ -39,13 +44,33 @@ export default function VendorDetailPage() {
     const router = useRouter();
     const vendorId = params?.id as string;
 
-    const [vendor, setVendor] = useState<Vendor | null>(null);
-    const [purchases, setPurchases] = useState<RawMaterialLot[]>([]);
-    const [loading, setLoading] = useState(true);
+    const {
+        data: vendor,
+        isLoading: vendorLoading,
+    } = useGetVendorByIdQuery(vendorId, { skip: !vendorId });
+
+    const {
+        data: purchases = [],
+        isLoading: purchasesLoading,
+    } = useGetVendorPurchasesQuery(vendorId, { skip: !vendorId });
+
+    const [updateVendor, { isLoading: isSubmitting }] = useUpdateVendorMutation();
+    const loading = vendorLoading || purchasesLoading;
+
+    // Purchases Pagination
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+
+    const totalItems = purchases.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+    const paginatedPurchases = useMemo(() => {
+        const start = (page - 1) * pageSize;
+        return purchases.slice(start, start + pageSize);
+    }, [purchases, page, pageSize]);
 
     // Edit Vendor Modal
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [editName, setEditName] = useState("");
     const [editContact, setEditContact] = useState("");
     const [editEmail, setEditEmail] = useState("");
@@ -54,38 +79,17 @@ export default function VendorDetailPage() {
     const [editStatus, setEditStatus] = useState<VendorStatus>("ACTIVE");
     const [editNotes, setEditNotes] = useState("");
 
-    const loadData = useCallback(async () => {
-        if (!vendorId) return;
-        setLoading(true);
-        try {
-            const [vData, pData] = await Promise.all([
-                api.manufacturing.getVendorById(vendorId),
-                api.manufacturing.getVendorPurchases(vendorId),
-            ]);
-            setVendor(vData);
-            setPurchases(pData || []);
-
-            // Prefill edit form
-            if (vData) {
-                setEditName(vData.name || "");
-                setEditContact(vData.contactNumber || "");
-                setEditEmail(vData.email || "");
-                setEditGstin(vData.gstin || "");
-                setEditAddress(vData.address || "");
-                setEditStatus(vData.status || "ACTIVE");
-                setEditNotes(vData.notes || "");
-            }
-        } catch (err: unknown) {
-            console.error("Failed to load vendor details:", err);
-            toast.error("Failed to load vendor profile.");
-        } finally {
-            setLoading(false);
-        }
-    }, [vendorId]);
-
     useEffect(() => {
-        loadData();
-    }, [loadData]);
+        if (vendor) {
+            setEditName(vendor.name || "");
+            setEditContact(vendor.contactNumber || "");
+            setEditEmail(vendor.email || "");
+            setEditGstin(vendor.gstin || "");
+            setEditAddress(vendor.address || "");
+            setEditStatus(vendor.status || "ACTIVE");
+            setEditNotes(vendor.notes || "");
+        }
+    }, [vendor]);
 
     const handleUpdateVendor = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -94,26 +98,25 @@ export default function VendorDetailPage() {
             return;
         }
 
-        setIsSubmitting(true);
         try {
-            const updated = await api.manufacturing.updateVendor(vendorId, {
-                name: editName.trim(),
-                contactNumber: editContact.trim() || undefined,
-                email: editEmail.trim() || undefined,
-                gstin: editGstin.trim()?.toUpperCase() || undefined,
-                address: editAddress.trim() || undefined,
-                status: editStatus,
-                notes: editNotes.trim() || undefined,
-            });
+            await updateVendor({
+                id: vendorId,
+                body: {
+                    name: editName.trim(),
+                    contactNumber: editContact.trim() || undefined,
+                    email: editEmail.trim() || undefined,
+                    gstin: editGstin.trim()?.toUpperCase() || undefined,
+                    address: editAddress.trim() || undefined,
+                    status: editStatus,
+                    notes: editNotes.trim() || undefined,
+                },
+            }).unwrap();
             toast.success("Vendor profile updated successfully!");
-            setVendor(updated);
             setIsEditModalOpen(false);
         } catch (err: any) {
             console.error("Failed to update vendor:", err);
-            const msg = err instanceof Error ? err.message : "Failed to update vendor.";
+            const msg = err?.data?.message || err?.message || "Failed to update vendor.";
             toast.error(msg);
-        } finally {
-            setIsSubmitting(false);
         }
     };
 
@@ -308,7 +311,7 @@ export default function VendorDetailPage() {
             </div>
 
             {/* Inward Purchases & Lot History Ledger */}
-            <Card className="bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl shadow-xs overflow-hidden">
+            <Card className="bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl shadow-xs overflow-hidden flex flex-col">
                 <div className="p-4 border-b border-slate-100 dark:border-neutral-800 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <Truck size={16} className="text-emerald-600" />
@@ -316,9 +319,28 @@ export default function VendorDetailPage() {
                             Inward Purchase & Lot History Ledger ({purchases.length})
                         </h2>
                     </div>
-                    <Badge variant="neutral" size="sm">
-                        Historical Lots
-                    </Badge>
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400">
+                            <span>Show</span>
+                            <select
+                                value={pageSize}
+                                onChange={(e) => {
+                                    setPageSize(Number(e.target.value));
+                                    setPage(1);
+                                }}
+                                className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value={10}>10</option>
+                                <option value={15}>15</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                            </select>
+                            <span>entries</span>
+                        </div>
+                        <Badge variant="neutral" size="sm">
+                            Historical Lots
+                        </Badge>
+                    </div>
                 </div>
 
                 {purchases.length === 0 ? (
@@ -342,23 +364,24 @@ export default function VendorDetailPage() {
                         </Link>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="border-b border-slate-100 dark:border-neutral-800/80 bg-slate-50/75 dark:bg-neutral-900/50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                                    <th className="py-3 px-4">Lot Number</th>
-                                    <th className="py-3 px-4">Raw Material</th>
-                                    <th className="py-3 px-4">Intake Date</th>
-                                    <th className="py-3 px-4">Expiry Date</th>
-                                    <th className="py-3 px-4 text-right">Quantity</th>
-                                    <th className="py-3 px-4 text-right">Unit Rate</th>
-                                    <th className="py-3 px-4 text-right">Total Cost</th>
-                                    <th className="py-3 px-4">Invoice / PO</th>
-                                    <th className="py-3 px-4 text-center">Stock Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-neutral-800/60 text-xs">
-                                {purchases.map((lot) => {
+                    <>
+                        <div className="overflow-auto max-h-[calc(100vh-320px)] min-h-[250px]">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs border-b border-slate-200 dark:border-neutral-800 shadow-xs">
+                                    <tr className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                        <th className="py-3 px-4">Lot Number</th>
+                                        <th className="py-3 px-4">Raw Material</th>
+                                        <th className="py-3 px-4">Intake Date</th>
+                                        <th className="py-3 px-4">Expiry Date</th>
+                                        <th className="py-3 px-4 text-right">Quantity</th>
+                                        <th className="py-3 px-4 text-right">Unit Rate</th>
+                                        <th className="py-3 px-4 text-right">Total Cost</th>
+                                        <th className="py-3 px-4">Invoice / PO</th>
+                                        <th className="py-3 px-4 text-center">Stock Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-neutral-800/60 text-xs">
+                                    {paginatedPurchases.map((lot) => {
                                     const rm = typeof lot.rawMaterialId === "object" ? (lot.rawMaterialId as any) : null;
                                     const totalLotCost = (lot.initialQuantity || 0) * (lot.costPerUnit || 0);
 
@@ -441,8 +464,21 @@ export default function VendorDetailPage() {
                             </tbody>
                         </table>
                     </div>
-                )}
-            </Card>
+
+                    {totalItems > 0 && (
+                        <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
+                            <Pagination
+                                page={page}
+                                totalPages={totalPages}
+                                totalItems={totalItems}
+                                pageSize={pageSize}
+                                onPageChange={setPage}
+                            />
+                        </div>
+                    )}
+                </>
+            )}
+        </Card>
 
             {/* Edit Vendor Modal */}
             {isEditModalOpen && (

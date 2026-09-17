@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
-import { api } from "../../../lib/api";
+import React, { useState } from "react";
+import { useGetCustomersQuery } from "../../../store/api";
 import type { CustomerListItem } from "@ecommers/types";
 import {
     Card,
@@ -27,48 +27,33 @@ import {
 import { RequireRole } from "../../../components/auth/require-role";
 
 export default function CustomersPage() {
-    const [customers, setCustomers] = useState<CustomerListItem[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
     const [search, setSearch] = useState("");
     const [sortBy, setSortBy] = useState<"spend" | "orders" | "createdAt">("spend");
     const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const [totalItems, setTotalItems] = useState(0);
+    const [pageSize, setPageSize] = useState(15);
 
-    const fetchCustomers = useCallback(async (isManual = false) => {
-        if (isManual) setRefreshing(true);
-        else setLoading(true);
-        setError(null);
+    const {
+        data,
+        isLoading: loading,
+        isFetching: refreshing,
+        error: queryError,
+        refetch,
+    } = useGetCustomersQuery({
+        page,
+        limit: pageSize,
+        search: search.trim() || undefined,
+        sortBy,
+        sortOrder: "desc",
+    });
 
-        try {
-            const res = await api.admin.getCustomers({
-                page,
-                limit: 10,
-                search: search.trim() || undefined,
-                sortBy,
-                sortOrder: "desc",
-            });
-            setCustomers(res.items || []);
-            setTotalPages(res.pagination?.totalPages || 1);
-            setTotalItems(res.pagination?.total || 0);
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError("Failed to fetch customer accounts.");
-            }
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, [page, search, sortBy]);
-
-    useEffect(() => {
-        fetchCustomers();
-    }, [fetchCustomers]);
+    const customers = data?.items || [];
+    const totalPages = data?.pagination?.totalPages || 1;
+    const totalItems = data?.pagination?.total || 0;
+    const error = queryError
+        ? "message" in queryError
+            ? (queryError.message as string)
+            : "Failed to fetch customer accounts."
+        : null;
 
     return (
         <RequireRole allowedRoles={["SUPER_ADMIN", "ADMIN", "SUPPORT_AGENT"]}>
@@ -94,7 +79,7 @@ export default function CustomersPage() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => fetchCustomers(true)}
+                        onClick={() => refetch()}
                         isLoading={refreshing}
                     >
                         <RefreshCw size={13} className="mr-1.5" />
@@ -133,22 +118,43 @@ export default function CustomersPage() {
                             </Select>
                         </div>
                     </div>
+
+                    <div className="ml-auto flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400 shrink-0">
+                        <span>Show</span>
+                        <select
+                            value={pageSize}
+                            onChange={(e) => {
+                                setPageSize(Number(e.target.value));
+                                setPage(1);
+                            }}
+                            className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value={10}>10</option>
+                            <option value={15}>15</option>
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                        </select>
+                        <span>entries</span>
+                    </div>
                 </div>
             </Card>
 
             {/* Customers Table Card */}
-            <Card className="p-3.5">
+            <Card className="p-0 overflow-hidden flex flex-col border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl shadow-xs">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-12 gap-2.5">
                         <Spinner size="md" />
                         <p className="text-xs text-slate-500 dark:text-neutral-400">Loading customer accounts...</p>
                     </div>
                 ) : error ? (
-                    <ErrorState title="Failed to load customers" message={error} onRetry={() => fetchCustomers()} />
+                    <div className="p-6">
+                        <ErrorState title="Failed to load customers" message={error} onRetry={() => refetch()} />
+                    </div>
                 ) : (
                     <>
-                        <Table>
-                            <TableHeader>
+                        <Table className="overflow-auto max-h-[calc(100vh-280px)] min-h-[300px] border-none rounded-none">
+                            <TableHeader className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs shadow-xs">
                                 <TableRow>
                                     <TableHead>Customer</TableHead>
                                     <TableHead>Email</TableHead>
@@ -210,12 +216,15 @@ export default function CustomersPage() {
                             </TableBody>
                         </Table>
 
-                        {totalPages > 1 && (
-                            <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
-                                <span>
-                                    Showing page {page} of {totalPages} ({totalItems} customers)
-                                </span>
-                                <Pagination page={page} totalPages={totalPages} onPageChange={(p) => setPage(p)} />
+                        {totalItems > 0 && (
+                            <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
+                                <Pagination
+                                    page={page}
+                                    totalPages={totalPages}
+                                    totalItems={totalItems}
+                                    pageSize={pageSize}
+                                    onPageChange={setPage}
+                                />
                             </div>
                         )}
                     </>

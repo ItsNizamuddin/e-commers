@@ -1,8 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, Suspense } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { api } from "@/lib/api";
+import {
+    useGetSeoMetadataRowsQuery,
+    useUpdateSeoRowMutation,
+} from "@/store/api";
 import type { SeoEntityType } from "@ecommers/types";
 import {
     Card,
@@ -61,14 +64,21 @@ function EditSeoPageContent() {
     const entityId = searchParams.get("id") || "";
     const targetLocation = (searchParams.get("location") || "GLOBAL").toLowerCase();
 
-    // Loading & state
-    const [isLoading, setIsLoading] = useState(true);
-    const [isSaving, setIsSaving] = useState(false);
+    const {
+        data: metadataRowsData,
+        isLoading,
+        error: queryError,
+        refetch,
+    } = useGetSeoMetadataRowsQuery(
+        { entityType, entityId },
+        { skip: !entityId }
+    );
+    const [updateSeoRow, { isLoading: isSaving }] = useUpdateSeoRowMutation();
+
     const [error, setError] = useState<string | null>(null);
 
-    // Entity & Rows data
-    const [entityInfo, setEntityInfo] = useState<{ id: string; title: string; slug: string; type: SeoEntityType } | null>(null);
-    const [allRows, setAllRows] = useState<MetadataRowItem[]>([]);
+    const entityInfo = metadataRowsData?.entity || null;
+    const allRows: MetadataRowItem[] = (metadataRowsData?.rows as MetadataRowItem[]) || [];
     const [activeRow, setActiveRow] = useState<MetadataRowItem | null>(null);
 
     // Form fields
@@ -94,42 +104,24 @@ function EditSeoPageContent() {
     // Active tab in the edit form
     const [activeTab, setActiveTab] = useState<"meta" | "content" | "social">("meta");
 
-    // Fetch entity SEO rows
-    const loadData = useCallback(async () => {
+    useEffect(() => {
         if (!entityId) {
             setError("No entity ID provided.");
-            setIsLoading(false);
             return;
         }
 
-        setIsLoading(true);
-        setError(null);
-        try {
-            const data = await api.seo.getMetadataRows(entityType, entityId);
-            setEntityInfo(data.entity);
-            setAllRows(data.rows || []);
-
-            // Pick the target row
-            const found = (data.rows || []).find(
+        if (allRows.length > 0) {
+            const found = allRows.find(
                 (r) => r.locationKey.toLowerCase() === targetLocation
-            ) || data.rows[0];
+            ) || allRows[0];
 
             if (found) {
                 applyRowToState(found);
             } else {
                 setError(`Location "${targetLocation}" was not found.`);
             }
-        } catch (err: unknown) {
-            console.error("Failed to load SEO metadata for edit:", err);
-            setError(err instanceof Error ? err.message : "Failed to load SEO metadata.");
-        } finally {
-            setIsLoading(false);
         }
-    }, [entityType, entityId, targetLocation]);
-
-    useEffect(() => {
-        loadData();
-    }, [loadData]);
+    }, [allRows, entityId, targetLocation]);
 
     const applyRowToState = (row: MetadataRowItem) => {
         setActiveRow(row);
@@ -165,7 +157,6 @@ function EditSeoPageContent() {
     // Save changes handler
     const handleSave = async (returnToTable: boolean = true) => {
         if (!activeRow) return;
-        setIsSaving(true);
         setError(null);
 
         try {
@@ -203,22 +194,24 @@ function EditSeoPageContent() {
                 payload.isIndexed = isIndexed;
             }
 
-            await api.seo.updateRow(entityType, entityId, activeRow.locationKey, payload);
+            await updateSeoRow({
+                entityType,
+                entityId,
+                locationKey: activeRow.locationKey,
+                data: payload,
+            }).unwrap();
             toast.success(`SEO metadata for ${activeRow.locationName} saved successfully!`);
 
             if (returnToTable) {
                 router.push(`/seo?type=${entityType}&id=${entityId}`);
             } else {
-                // Refresh local data to reflect updated timestamp
-                await loadData();
+                refetch();
             }
-        } catch (err: unknown) {
+        } catch (err: any) {
             console.error("Failed to save SEO metadata:", err);
-            const msg = err instanceof Error ? err.message : "Failed to save SEO metadata.";
+            const msg = err?.data?.message || err?.message || "Failed to save SEO metadata.";
             setError(msg);
             toast.error(msg);
-        } finally {
-            setIsSaving(false);
         }
     };
 

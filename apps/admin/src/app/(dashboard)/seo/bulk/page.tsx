@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { api } from "@/lib/api";
+import { useExportSeoCsvMutation, useImportSeoCsvMutation } from "@/store/api";
 import type { BulkSeoUploadResult, SeoEntityType } from "@ecommers/types";
 import {
     Card,
@@ -121,7 +121,7 @@ function BulkSeoPageContent() {
     const [selectedFields, setSelectedFields] = useState<string[]>(
         AVAILABLE_EXPORT_FIELDS.map((f) => f.id)
     );
-    const [isExporting, setIsExporting] = useState(false);
+    const [exportCsv, { isLoading: isExporting }] = useExportSeoCsvMutation();
 
     const handleToggleField = (fieldId: string) => {
         setSelectedFields((prev) =>
@@ -143,9 +143,8 @@ function BulkSeoPageContent() {
             return;
         }
 
-        setIsExporting(true);
         try {
-            const csvText = await api.seo.exportCsv(entityType, selectedFields);
+            const csvText = await exportCsv({ entityType, fields: selectedFields }).unwrap();
             const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
@@ -160,11 +159,9 @@ function BulkSeoPageContent() {
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
             toast.success(`Exported ${entityType.toLowerCase()} SEO data successfully!`);
-        } catch (err: unknown) {
+        } catch (err: any) {
             console.error("Failed to export SEO data:", err);
-            toast.error(err instanceof Error ? err.message : "Failed to export SEO data.");
-        } finally {
-            setIsExporting(false);
+            toast.error(err?.data?.message || err?.message || "Failed to export SEO data.");
         }
     };
 
@@ -175,7 +172,7 @@ function BulkSeoPageContent() {
     const [csvContent, setCsvContent] = useState("");
     const [fileName, setFileName] = useState<string | null>(null);
     const [parsedPreview, setParsedPreview] = useState<Array<Record<string, string>>>([]);
-    const [isUploading, setIsUploading] = useState(false);
+    const [importCsv, { isLoading: isUploading }] = useImportSeoCsvMutation();
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [uploadResult, setUploadResult] = useState<BulkSeoUploadResult | null>(null);
 
@@ -258,21 +255,18 @@ function BulkSeoPageContent() {
             return;
         }
 
-        setIsUploading(true);
         setUploadError(null);
         setUploadResult(null);
 
         try {
-            const res = await api.seo.importCsv(csvContent.trim());
+            const res = await importCsv({ csvContent: csvContent.trim() }).unwrap();
             setUploadResult(res);
             toast.success(`Import complete! Processed ${res.totalRows} rows.`);
-        } catch (err: unknown) {
+        } catch (err: any) {
             console.error("Failed to import CSV:", err);
-            const msg = err instanceof Error ? err.message : "Failed to import SEO CSV.";
+            const msg = err?.data?.message || err?.message || "Failed to import SEO CSV.";
             setUploadError(msg);
             toast.error(msg);
-        } finally {
-            setIsUploading(false);
         }
     };
 

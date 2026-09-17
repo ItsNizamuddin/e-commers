@@ -1,12 +1,16 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { api } from "../../../../lib/api";
+import {
+    useGetProductByIdQuery,
+    useGetCategoriesQuery,
+    useGetAdminLocationsQuery,
+    useUpdateProductMutation,
+    useDeleteProductMutation,
+} from "../../../../store/api";
 import type {
     ProductResponse,
-    CategoryResponse,
-    LocationResponse,
     UpdateProductInput,
 } from "@ecommers/types";
 import { Spinner, Button } from "@ecommers/ui";
@@ -18,78 +22,52 @@ export default function EditProductPage() {
     const router = useRouter();
     const id = params?.id as string;
 
-    const [product, setProduct] = useState<ProductResponse | null>(null);
-    const [categories, setCategories] = useState<CategoryResponse[]>([]);
-    const [locations, setLocations] = useState<LocationResponse[]>([]);
-    const [loading, setLoading] = useState(true);
+    const {
+        data: product,
+        isLoading: productLoading,
+        error: productError,
+    } = useGetProductByIdQuery(id, { skip: !id });
+
+    const {
+        data: categories = [],
+        isLoading: categoriesLoading,
+    } = useGetCategoriesQuery();
+
+    const {
+        data: locations = [],
+        isLoading: locationsLoading,
+    } = useGetAdminLocationsQuery();
+
+    const [updateProduct, { isLoading: isSubmitting }] = useUpdateProductMutation();
+    const [deleteProduct, { isLoading: isDeleting }] = useDeleteProductMutation();
+
     const [error, setError] = useState<string | null>(null);
     const [saveNotice, setSaveNotice] = useState<string | null>(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isDeleting, setIsDeleting] = useState(false);
 
-    const loadData = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const [prod, cats, locs] = await Promise.all([
-                api.products.getById(id),
-                api.categories.list().catch(() => []),
-                api.locations.adminList().catch(() => []),
-            ]);
-            setProduct(prod);
-            setCategories(cats || []);
-            setLocations(locs || []);
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError("Failed to load product details.");
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        if (id) {
-            loadData();
-        }
-    }, [id]);
+    const loading = productLoading || categoriesLoading || locationsLoading;
 
     const handleSubmit = async (payload: UpdateProductInput) => {
-        setIsSubmitting(true);
         setSaveNotice(null);
         setError(null);
         try {
-            const updated = await api.products.update(id, payload);
-            setProduct(updated as any);
+            await updateProduct({ id, body: payload }).unwrap();
             setSaveNotice("Product updated successfully!");
             setTimeout(() => setSaveNotice(null), 3500);
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError("Failed to update product.");
-            }
+        } catch (err: any) {
+            const msg = err?.data?.message || err?.message || "Failed to update product.";
+            setError(msg);
             throw err;
-        } finally {
-            setIsSubmitting(false);
         }
     };
 
     const handleDelete = async () => {
-        setIsDeleting(true);
+        setError(null);
         try {
-            await api.products.delete(id);
+            await deleteProduct(id).unwrap();
             router.push("/products");
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError("Failed to delete product.");
-            }
-        } finally {
-            setIsDeleting(false);
+        } catch (err: any) {
+            const msg = err?.data?.message || err?.message || "Failed to delete product.";
+            setError(msg);
         }
     };
 

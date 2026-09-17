@@ -135,32 +135,6 @@ export function CustomPricingTiers({
     // Ensure safe default tier matching baseCurrency
     const safePrices = prices.length > 0 ? prices : [{ currency: baseCurrency, amount: 0 }];
 
-    // Auto-enrich any existing tiers (including Tier 1) with country and location metadata
-    useEffect(() => {
-        if (activeLocationTargets.length === 0) return;
-
-        let hasMissingMetadata = false;
-        const enriched = safePrices.map((tier) => {
-            const tierCurr = (tier.currency || "").toUpperCase();
-            const match = activeLocationTargets.find((t) => t.currency === tierCurr);
-            if (match && (!tier.countryCode || !tier.countryName || !tier.locationName)) {
-                hasMissingMetadata = true;
-                return {
-                    ...tier,
-                    countryCode: tier.countryCode || match.countryCode,
-                    countryName: tier.countryName || match.countryName,
-                    locationCode: tier.locationCode || match.locationCode,
-                    locationName: tier.locationName || (match.locationNames.length > 1 ? `${match.countryName} (${match.locationNames.join(", ")})` : match.locationName),
-                };
-            }
-            return tier;
-        });
-
-        if (hasMissingMetadata) {
-            onChange(enriched);
-        }
-    }, [activeLocationTargets, safePrices, onChange]);
-
     // Currencies already used in current tiers
     const usedCurrencies = useMemo(() => {
         return new Set(safePrices.map((p) => (p.currency || "").toUpperCase()));

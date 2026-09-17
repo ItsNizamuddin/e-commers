@@ -1,45 +1,33 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { api } from "../../../../lib/api";
-import type { CategoryResponse, CreateCategoryInput, UpdateCategoryInput } from "@ecommers/types";
+import {
+    useGetCategoriesQuery,
+    useCreateCategoryMutation,
+} from "../../../../store/api";
+import type { CreateCategoryInput, UpdateCategoryInput } from "@ecommers/types";
 import { CategoryForm } from "../../../../components/categories/category-form";
-import { Spinner } from "@ecommers/ui";
+import { Spinner, toast } from "@ecommers/ui";
 
 function CreateCategoryContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const defaultParentId = searchParams.get("parentId") || undefined;
 
-    const [categories, setCategories] = useState<CategoryResponse[]>([]);
-    const [isLoadingCategories, setIsLoadingCategories] = useState(true);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const {
+        data: categories = [],
+        isLoading: isLoadingCategories,
+    } = useGetCategoriesQuery();
 
-    useEffect(() => {
-        let isMounted = true;
-        async function fetchCategories() {
-            try {
-                const list = await api.categories.list();
-                if (isMounted) setCategories(list || []);
-            } catch {
-                // Non-blocking fallback
-            } finally {
-                if (isMounted) setIsLoadingCategories(false);
-            }
-        }
-        fetchCategories();
-        return () => {
-            isMounted = false;
-        };
-    }, []);
+    const [createCategory, { isLoading: isSubmitting }] = useCreateCategoryMutation();
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     const handleCreate = async (payload: CreateCategoryInput | UpdateCategoryInput) => {
         setErrorMessage(null);
-        setIsSubmitting(true);
         try {
-            await api.categories.create(payload as CreateCategoryInput);
+            await createCategory(payload as CreateCategoryInput).unwrap();
+            toast.success("Category created successfully.");
             router.push("/categories");
         } catch (err: unknown) {
             if (err instanceof Error) {
@@ -47,8 +35,6 @@ function CreateCategoryContent() {
             } else {
                 setErrorMessage("Failed to create category. Please check your inputs.");
             }
-        } finally {
-            setIsSubmitting(false);
         }
     };
 

@@ -3,7 +3,11 @@
 import React, { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api } from "../../../../lib/api";
+import {
+    useGetRawMaterialByIdQuery,
+    useUpdateRawMaterialMutation,
+    useGetProductsQuery,
+} from "../../../../store/api";
 import type {
     RawMaterial,
     RawMaterialCategory,
@@ -50,9 +54,8 @@ export default function EditRawMaterialPage({ params }: { params: Promise<{ id: 
     const { id } = use(params);
     const router = useRouter();
 
-    const [material, setMaterial] = useState<RawMaterial | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [isSaving, setIsSaving] = useState(false);
+    const { data: material, isLoading: loading } = useGetRawMaterialByIdQuery(id, { skip: !id });
+    const [updateRawMaterial, { isLoading: isSaving }] = useUpdateRawMaterialMutation();
 
     // Form fields
     const [name, setName] = useState("");
@@ -62,50 +65,26 @@ export default function EditRawMaterialPage({ params }: { params: Promise<{ id: 
     const [isActive, setIsActive] = useState(true);
 
     // Retail Product Linkage
-    const [products, setProducts] = useState<Product[]>([]);
-    const [loadingProducts, setLoadingProducts] = useState(false);
+    const shouldLoadProducts = usage === "SELLABLE" || usage === "BOTH";
+    const { data: productsData, isLoading: loadingProducts } = useGetProductsQuery(
+        { limit: 100 },
+        { skip: !shouldLoadProducts }
+    );
+    const products = productsData?.items || [];
     const [selectedProductId, setSelectedProductId] = useState("");
     const [selectedVariantId, setSelectedVariantId] = useState("");
 
     useEffect(() => {
-        const fetchMaterial = async () => {
-            setLoading(true);
-            try {
-                const data = await api.manufacturing.getRawMaterialById(id);
-                setMaterial(data);
-                setName(data.name);
-                setCategory(data.category);
-                setUsage(data.usage || "RAW_MATERIAL");
-                setThreshold(String(data.reorderThreshold || 5));
-                setIsActive(data.isActive ?? true);
-                if (data.linkedProductId) setSelectedProductId(data.linkedProductId);
-                if (data.linkedVariantId) setSelectedVariantId(data.linkedVariantId);
-            } catch (err: unknown) {
-                console.error("Failed to load raw material:", err);
-                toast.error("Failed to load raw material details.");
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchMaterial();
-    }, [id]);
-
-    useEffect(() => {
-        if (usage === "SELLABLE" || usage === "BOTH") {
-            setLoadingProducts(true);
-            api.products
-                .list({ limit: 100 })
-                .then((res) => {
-                    const prods = (res as any)?.products || (res as any)?.data || (Array.isArray(res) ? res : []);
-                    setProducts(prods);
-                })
-                .catch((err) => {
-                    console.error("Failed to load products for linkage:", err);
-                })
-                .finally(() => setLoadingProducts(false));
+        if (material) {
+            setName(material.name);
+            setCategory(material.category);
+            setUsage(material.usage || "RAW_MATERIAL");
+            setThreshold(String(material.reorderThreshold || 5));
+            setIsActive(material.isActive ?? true);
+            if (material.linkedProductId) setSelectedProductId(material.linkedProductId);
+            if (material.linkedVariantId) setSelectedVariantId(material.linkedVariantId);
         }
-    }, [usage]);
+    }, [material]);
 
     const handleProductChange = (prodId: string) => {
         setSelectedProductId(prodId);
@@ -122,17 +101,19 @@ export default function EditRawMaterialPage({ params }: { params: Promise<{ id: 
             return;
         }
 
-        setIsSaving(true);
         try {
-            await api.manufacturing.updateRawMaterial(id, {
-                name: name.trim(),
-                category,
-                usage,
-                linkedProductId: (usage === "SELLABLE" || usage === "BOTH") && selectedProductId ? selectedProductId : null,
-                linkedVariantId: (usage === "SELLABLE" || usage === "BOTH") && selectedVariantId ? selectedVariantId : null,
-                reorderThreshold: threshold ? parseFloat(threshold) : 5,
-                isActive,
-            });
+            await updateRawMaterial({
+                id,
+                body: {
+                    name: name.trim(),
+                    category,
+                    usage,
+                    linkedProductId: (usage === "SELLABLE" || usage === "BOTH") && selectedProductId ? selectedProductId : null,
+                    linkedVariantId: (usage === "SELLABLE" || usage === "BOTH") && selectedVariantId ? selectedVariantId : null,
+                    reorderThreshold: threshold ? parseFloat(threshold) : 5,
+                    isActive,
+                },
+            }).unwrap();
 
             toast.success(`Raw material '${name}' updated successfully!`);
             router.push("/raw-materials");
@@ -140,8 +121,6 @@ export default function EditRawMaterialPage({ params }: { params: Promise<{ id: 
             console.error("Failed to update raw material:", err);
             const msg = err instanceof Error ? err.message : "Failed to update raw material.";
             toast.error(msg);
-        } finally {
-            setIsSaving(false);
         }
     };
 

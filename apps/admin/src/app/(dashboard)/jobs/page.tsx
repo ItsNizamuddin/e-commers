@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { api, getAccessToken } from "../../../lib/api";
-import type { QueueJobItem, QueueJobStatus, QueueJobsListResponse } from "@ecommers/types";
+import React, { useState, useMemo } from "react";
+import { getAccessToken } from "../../../lib/api";
+import { useGetJobsListQuery } from "../../../store/api";
+import type { QueueJobItem, QueueJobStatus } from "@ecommers/types";
 import {
     Card,
     Badge,
@@ -17,6 +18,7 @@ import {
     Modal,
     Input,
     Select,
+    Pagination,
 } from "@ecommers/ui";
 import {
     Cpu,
@@ -37,7 +39,6 @@ import {
     ExternalLink,
     Filter,
     Activity,
-    FileText,
 } from "lucide-react";
 import { RequireRole } from "../../../components/auth/require-role";
 
@@ -120,9 +121,6 @@ const STATUSES: Array<{ value: string; label: string }> = [
 ];
 
 export default function BackgroundJobsPage() {
-    const [jobs, setJobs] = useState<QueueJobItem[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [isRefreshing, setIsRefreshing] = useState(false);
     const [autoRefresh, setAutoRefresh] = useState(false);
 
     // Filters & Pagination - Strictly focused on Bulk Operations & Updaters
@@ -130,55 +128,31 @@ export default function BackgroundJobsPage() {
     const [selectedStatus, setSelectedStatus] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
     const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const [totalCount, setTotalCount] = useState(0);
+    const [pageSize, setPageSize] = useState(15);
 
     // Modal Inspection
     const [inspectJob, setInspectJob] = useState<QueueJobItem | null>(null);
     const [copiedPayload, setCopiedPayload] = useState(false);
     const [copiedResult, setCopiedResult] = useState(false);
 
-    const fetchJobs = useCallback(
-        async (silent = false) => {
-            if (!silent) setLoading(true);
-            else setIsRefreshing(true);
-
-            try {
-                const isSpecificJob = selectedOperation.startsWith("bulk-");
-                const res: QueueJobsListResponse = await api.admin.listJobs({
-                    queueName: isSpecificJob ? undefined : "bulkProcessing",
-                    jobName: isSpecificJob ? selectedOperation : undefined,
-                    status: selectedStatus || undefined,
-                    referenceNumber: searchQuery.trim() || undefined,
-                    page,
-                    limit: 15,
-                });
-
-                setJobs(res.items || []);
-                setTotalPages(res.pagination?.totalPages || 1);
-                setTotalCount(res.pagination?.total || 0);
-            } catch (err) {
-                console.error("Failed to load background bulk jobs:", err);
-            } finally {
-                setLoading(false);
-                setIsRefreshing(false);
-            }
+    const isSpecificJob = selectedOperation.startsWith("bulk-");
+    const { data, isLoading: loading, isFetching: isRefreshing, refetch } = useGetJobsListQuery(
+        {
+            queueName: isSpecificJob ? undefined : "bulkProcessing",
+            jobName: isSpecificJob ? selectedOperation : undefined,
+            status: selectedStatus || undefined,
+            referenceNumber: searchQuery.trim() || undefined,
+            page,
+            limit: pageSize,
         },
-        [selectedOperation, selectedStatus, searchQuery, page]
+        {
+            pollingInterval: autoRefresh ? 6000 : 0,
+        }
     );
 
-    useEffect(() => {
-        fetchJobs();
-    }, [fetchJobs]);
-
-    // Auto-refresh timer every 6 seconds when active
-    useEffect(() => {
-        if (!autoRefresh) return;
-        const interval = setInterval(() => {
-            fetchJobs(true);
-        }, 6000);
-        return () => clearInterval(interval);
-    }, [autoRefresh, fetchJobs]);
+    const jobs = data?.items || [];
+    const totalPages = data?.pagination?.totalPages || 1;
+    const totalCount = data?.pagination?.total || 0;
 
     // Summary stats
     const stats = useMemo(() => {
@@ -189,9 +163,9 @@ export default function BackgroundJobsPage() {
         return { completed, processing, failed, pending };
     }, [jobs]);
 
-    const handleCopyJson = (data: any, type: "payload" | "result") => {
-        if (!data) return;
-        navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+    const handleCopyJson = (payloadData: any, type: "payload" | "result") => {
+        if (!payloadData) return;
+        navigator.clipboard.writeText(JSON.stringify(payloadData, null, 2));
         if (type === "payload") {
             setCopiedPayload(true);
             setTimeout(() => setCopiedPayload(false), 2000);
@@ -263,7 +237,7 @@ export default function BackgroundJobsPage() {
                         <Button
                             variant="secondary"
                             size="sm"
-                            onClick={() => fetchJobs(true)}
+                            onClick={() => refetch()}
                             disabled={loading || isRefreshing}
                             className="gap-1.5"
                         >
@@ -363,15 +337,30 @@ export default function BackgroundJobsPage() {
                 </Card>
 
                 {/* Jobs Table */}
-                <Card className="p-0 overflow-hidden bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl">
+                <Card className="p-0 overflow-hidden bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl flex flex-col shadow-xs">
                     <div className="px-5 py-3.5 border-b border-slate-100 dark:border-neutral-800/80 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Layers size={16} className="text-blue-600" />
                             <span className="text-xs font-bold text-slate-900 dark:text-white">Tracked Bulk Updaters & Ledger</span>
                         </div>
-                        <span className="text-[11px] text-slate-400">
-                            Showing {jobs.length} of {totalCount} records
-                        </span>
+                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400 shrink-0">
+                            <span>Show</span>
+                            <select
+                                value={pageSize}
+                                onChange={(e) => {
+                                    setPageSize(Number(e.target.value));
+                                    setPage(1);
+                                }}
+                                className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value={10}>10</option>
+                                <option value={15}>15</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                            </select>
+                            <span>entries</span>
+                        </div>
                     </div>
 
                     {loading && jobs.length === 0 ? (
@@ -388,9 +377,9 @@ export default function BackgroundJobsPage() {
                             </p>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
-                            <Table>
-                                <TableHeader>
+                        <div className="overflow-auto max-h-[calc(100vh-280px)] min-h-[300px]">
+                            <Table className="border-none rounded-none">
+                                <TableHeader className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs shadow-xs">
                                     <TableRow>
                                         <TableHead className="w-[180px]">Bulk Job / ID</TableHead>
                                         <TableHead>Operation Queue</TableHead>
@@ -483,32 +472,16 @@ export default function BackgroundJobsPage() {
                         </div>
                     )}
 
-                    {/* Pagination */}
-                    {totalPages > 1 && (
-                        <div className="px-5 py-3 border-t border-slate-100 dark:border-neutral-800/80 flex items-center justify-between text-xs">
-                            <span className="text-slate-500">
-                                Page {page} of {totalPages}
-                            </span>
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                                    disabled={page === 1 || loading}
-                                >
-                                    <ChevronLeft size={14} />
-                                    <span>Prev</span>
-                                </Button>
-                                <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                                    disabled={page === totalPages || loading}
-                                >
-                                    <span>Next</span>
-                                    <ChevronRight size={14} />
-                                </Button>
-                            </div>
+                    {/* Pinned Pagination Footer */}
+                    {totalCount > 0 && (
+                        <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
+                            <Pagination
+                                page={page}
+                                totalPages={totalPages}
+                                totalItems={totalCount}
+                                pageSize={pageSize}
+                                onPageChange={setPage}
+                            />
                         </div>
                     )}
                 </Card>

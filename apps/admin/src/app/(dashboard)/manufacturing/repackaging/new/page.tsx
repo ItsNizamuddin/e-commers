@@ -3,12 +3,15 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { api } from "../../../../../lib/api";
+import {
+    useGetRawMaterialsQuery,
+    useGetProductsQuery,
+    useGetAdminLocationsQuery,
+    useGetRawMaterialLotsQuery,
+    useCreateRepackagingRunMutation,
+} from "../../../../../store/api";
 import type {
-    RawMaterial,
-    RawMaterialLot,
     RawMaterialUnit,
-    Product,
     ProductVariant,
 } from "@ecommers/types";
 import {
@@ -59,17 +62,19 @@ function convertQuantity(qty: number, fromUnit: string, toUnit: string): number 
 export default function NewRepackagingRunPage() {
     const router = useRouter();
 
-    // Data lists
-    const [loadingData, setLoadingData] = useState(true);
-    const [materials, setMaterials] = useState<RawMaterial[]>([]);
-    const [products, setProducts] = useState<Product[]>([]);
-    const [locations, setLocations] = useState<Array<{ id: string; name: string }>>([]);
-    const [packagingMaterials, setPackagingMaterials] = useState<RawMaterial[]>([]);
+    const { data: materials = [], isLoading: loadingMaterials } = useGetRawMaterialsQuery();
+    const { data: productsData, isLoading: loadingProducts } = useGetProductsQuery({ limit: 100 });
+    const { data: locations = [], isLoading: loadingLocations } = useGetAdminLocationsQuery();
+
+    const products = productsData?.items || [];
+    const loadingData = loadingMaterials || loadingProducts || loadingLocations;
+
+    const packagingMaterials = useMemo(() => {
+        return materials.filter((m) => m.category === "PACKAGING");
+    }, [materials]);
 
     // Form selection states
     const [selectedMaterialId, setSelectedMaterialId] = useState<string>("");
-    const [materialLots, setMaterialLots] = useState<RawMaterialLot[]>([]);
-    const [loadingLots, setLoadingLots] = useState(false);
     const [selectedLotId, setSelectedLotId] = useState<string>("");
 
     const [selectedProductId, setSelectedProductId] = useState<string>("");
@@ -85,84 +90,63 @@ export default function NewRepackagingRunPage() {
     const [wastageQuantity, setWastageQuantity] = useState<number>(0);
     const [notes, setNotes] = useState<string>("");
 
-    const [submitting, setSubmitting] = useState(false);
+    const [createRepackagingRun, { isLoading: submitting }] = useCreateRepackagingRunMutation();
 
-    // 1. Initial Load: Materials, Products, Locations
+    // Default material: prioritize materials with usage "BOTH" or "SELLABLE"
     useEffect(() => {
-        setLoadingData(true);
-        Promise.all([
-            api.manufacturing.listRawMaterials(),
-            api.products.list({ limit: 100 }).catch(() => ({ items: [] as Product[] })),
-            api.locations.adminList().catch(() => []),
-        ])
-            .then(([materialsData, productsRes, locationsData]) => {
-                const mats = materialsData || [];
-                setMaterials(mats);
-
-                // Separate packaging materials
-                const pkgMats = mats.filter((m) => m.category === "PACKAGING");
-                setPackagingMaterials(pkgMats);
-
-                const prods = (productsRes && productsRes.items) ? productsRes.items : [];
-                setProducts(prods);
-
-                const locs = locationsData || [];
-                setLocations(locs);
-                if (locs.length > 0) {
-                    setSelectedWarehouseId(locs[0]!.id);
-                }
-
-                // Default material: prioritize materials with usage "SELLABLE" or "BOTH"
-                const defaultMat = mats.find((m) => m.usage === "BOTH" || m.usage === "SELLABLE") || mats[0];
-                if (defaultMat) {
-                    setSelectedMaterialId(defaultMat.id || (defaultMat as any)._id || "");
-                    setUnitSizeUnit(defaultMat.unit);
-                }
-            })
-            .catch((err: unknown) => {
-                console.error("Failed to load repackaging prerequisites:", err);
-                toast.error("Failed to load prerequisite data.");
-            })
-            .finally(() => setLoadingData(false));
-    }, []);
-
-    // 2. When Material changes: fetch its active lots and pre-select linked product/variant if any
-    useEffect(() => {
-        if (!selectedMaterialId) {
-            setMaterialLots([]);
-            setSelectedLotId("");
-            return;
-        }
-
-        const currentMat = materials.find((m) => (m.id || (m as any)._id) === selectedMaterialId);
-        if (currentMat) {
-            // Pre-select linked product/variant if configured
-            if (currentMat.linkedProductId) {
-                setSelectedProductId(currentMat.linkedProductId);
-                if (currentMat.linkedVariantId) {
-                    setSelectedVariantId(currentMat.linkedVariantId);
-                }
+        if (!selectedMaterialId && materials.length > 0) {
+            const defaultMat = materials.find((m) => m.usage === "BOTH" || m.usage === "SELLABLE") || materials[0];
+            if (defaultMat) {
+                setSelectedMaterialId(defaultMat.id || (defaultMat as any)._id || "");
+                setUnitSizeUnit(defaultMat.unit);
             }
         }
+    }, [materials, selectedMaterialId]);
 
-        setLoadingLots(true);
-        api.manufacturing.listLots({ rawMaterialId: selectedMaterialId })
-            .then((lots: RawMaterialLot[]) => {
-                const activeLots = (lots || []).filter(
-                    (l: RawMaterialLot) => !l.isDepleted && l.availableQuantity > 0
-                );
-                setMaterialLots(activeLots);
-                if (activeLots.length > 0) {
-                    setSelectedLotId(activeLots[0]!.id || (activeLots[0]! as any)._id || "");
-                } else {
-                    setSelectedLotId("");
+    // Default warehouse
+    useEffect(() => {
+        if (!selectedWarehouseId && locations.length > 0) {
+            setSelectedWarehouseId(locations[0]!.id);
+        }
+    }, [locations, selectedWarehouseId]);
+
+    // Query active lots for selected material
+    const {
+        data: rawLots = [],
+        isLoading: loadingLots,
+    } = useGetRawMaterialLotsQuery(
+        { rawMaterialId: selectedMaterialId },
+        { skip: !selectedMaterialId }
+    );
+
+    const materialLots = useMemo(() => {
+        return (rawLots || []).filter((l) => !l.isDepleted && l.availableQuantity > 0);
+    }, [rawLots]);
+
+    // When materialLots change, auto-select first lot
+    useEffect(() => {
+        if (materialLots.length > 0) {
+            setSelectedLotId((prev) => {
+                if (prev && materialLots.some((l) => (l.id || (l as any)._id) === prev)) {
+                    return prev;
                 }
-            })
-            .catch((err: unknown) => {
-                console.error("Failed to fetch lots for material:", err);
-                toast.error("Could not fetch lots for selected material.");
-            })
-            .finally(() => setLoadingLots(false));
+                return materialLots[0]!.id || (materialLots[0]! as any)._id || "";
+            });
+        } else {
+            setSelectedLotId("");
+        }
+    }, [materialLots]);
+
+    // When Material changes: pre-select linked product/variant if configured
+    useEffect(() => {
+        if (!selectedMaterialId) return;
+        const currentMat = materials.find((m) => (m.id || (m as any)._id) === selectedMaterialId);
+        if (currentMat?.linkedProductId) {
+            setSelectedProductId(currentMat.linkedProductId);
+            if (currentMat.linkedVariantId) {
+                setSelectedVariantId(currentMat.linkedVariantId);
+            }
+        }
     }, [selectedMaterialId, materials]);
 
     // Selected entities
@@ -300,9 +284,8 @@ export default function NewRepackagingRunPage() {
             return;
         }
 
-        setSubmitting(true);
         try {
-            await api.manufacturing.createRepackagingRun({
+            await createRepackagingRun({
                 sourceRawMaterialId: selectedMaterialId,
                 sourceLotId: selectedLotId,
                 targetProductId: selectedProductId,
@@ -314,17 +297,15 @@ export default function NewRepackagingRunPage() {
                 packagingMaterialId: selectedPackagingMaterialId || undefined,
                 wastageQuantity: wastageQuantity > 0 ? wastageQuantity : undefined,
                 notes: notes.trim() || undefined,
-            });
+            }).unwrap();
 
             toast.success(
                 `Successfully transformed bulk lot into ${packageUnitsProduced} retail pack units!`
             );
             router.push("/manufacturing/repackaging");
-        } catch (err: unknown) {
+        } catch (err: any) {
             console.error("Failed to execute repackaging run:", err);
-            toast.error((err as Error)?.message || "Failed to execute repackaging run.");
-        } finally {
-            setSubmitting(false);
+            toast.error(err?.data?.message || err?.message || "Failed to execute repackaging run.");
         }
     };
 

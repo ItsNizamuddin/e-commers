@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import {
     Card,
@@ -12,6 +12,7 @@ import {
     FormField,
     Select,
     Textarea,
+    Pagination,
     toast,
 } from "@ecommers/ui";
 import {
@@ -33,7 +34,12 @@ import {
     Eye,
     Clock,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import {
+    useGetProductionRunsQuery,
+    useGetRecipesQuery,
+    useGetAdminLocationsQuery,
+    useReverseProductionRunMutation,
+} from "@/store/api";
 import type {
     ProductionRun,
     Recipe,
@@ -42,15 +48,41 @@ import type {
 } from "@ecommers/types";
 
 export default function ManufacturingPage() {
-    const [productionRuns, setProductionRuns] = useState<ProductionRun[]>([]);
-    const [recipes, setRecipes] = useState<Recipe[]>([]);
-    const [locations, setLocations] = useState<LocationResponse[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
+    const {
+        data: productionRuns = [],
+        isLoading: runsLoading,
+        isFetching: runsFetching,
+        refetch: refetchRuns,
+    } = useGetProductionRunsQuery();
+
+    const {
+        data: recipes = [],
+        isLoading: recipesLoading,
+        refetch: refetchRecipes,
+    } = useGetRecipesQuery();
+
+    const {
+        data: locations = [],
+        isLoading: locationsLoading,
+        refetch: refetchLocations,
+    } = useGetAdminLocationsQuery();
+
+    const [reverseProductionRun, { isLoading: submittingReversal }] = useReverseProductionRunMutation();
+
+    const loading = runsLoading || recipesLoading || locationsLoading;
+    const refreshing = runsFetching;
+
+    const refetchAll = () => {
+        refetchRuns();
+        refetchRecipes();
+        refetchLocations();
+    };
 
     // Filters
     const [searchQuery, setSearchQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState<string>("ALL");
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(15);
 
     // Modal: View Batch Details
     const [viewingBatch, setViewingBatch] = useState<ProductionRun | null>(null);
@@ -59,35 +91,6 @@ export default function ManufacturingPage() {
     const [reversingBatch, setReversingBatch] = useState<ProductionRun | null>(null);
     const [reversalReason, setReversalReason] = useState("");
     const [reverseQuantity, setReverseQuantity] = useState<string>("");
-    const [submittingReversal, setSubmittingReversal] = useState(false);
-
-    // Load initial data
-    const loadData = useCallback(async (isRefresh = false) => {
-        if (isRefresh) setRefreshing(true);
-        else setLoading(true);
-
-        try {
-            const [runsData, recipesData, locationsData] = await Promise.all([
-                api.manufacturing.listProductionRuns().catch(() => []),
-                api.manufacturing.listRecipes().catch(() => []),
-                api.locations.adminList().catch(() => []),
-            ]);
-
-            setProductionRuns(Array.isArray(runsData) ? runsData : []);
-            setRecipes(Array.isArray(recipesData) ? recipesData : []);
-            setLocations(Array.isArray(locationsData) ? locationsData : []);
-        } catch (err: unknown) {
-            console.error("Failed to load manufacturing data:", err);
-            toast.error("Failed to load manufacturing runs.");
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        loadData();
-    }, [loadData]);
 
     const safeRuns = Array.isArray(productionRuns) ? productionRuns : [];
 
@@ -102,6 +105,14 @@ export default function ManufacturingPage() {
             (run.productTitle && run.productTitle.toLowerCase().includes(q));
         return matchesStatus && matchesQuery;
     });
+
+    const totalItems = filteredRuns.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+    const paginatedRuns = useMemo(() => {
+        const start = (page - 1) * pageSize;
+        return filteredRuns.slice(start, start + pageSize);
+    }, [filteredRuns, page, pageSize]);
 
     // KPI Aggregations
     const completedRuns = safeRuns.filter((r) => r.status === "COMPLETED");
@@ -118,23 +129,22 @@ export default function ManufacturingPage() {
             return;
         }
 
-        setSubmittingReversal(true);
         try {
-            await api.manufacturing.reverseProduction(reversingBatch.id, {
-                reason: reversalReason.trim(),
-                reverseQuantity: reverseQuantity ? parseFloat(reverseQuantity) : undefined,
-            });
+            await reverseProductionRun({
+                id: reversingBatch.id,
+                body: {
+                    reason: reversalReason.trim(),
+                    reverseQuantity: reverseQuantity ? parseFloat(reverseQuantity) : undefined,
+                },
+            }).unwrap();
 
             toast.success(`Batch ${reversingBatch.batchNumber} has been successfully reversed.`);
             setReversingBatch(null);
             setReversalReason("");
             setReverseQuantity("");
-            loadData(true);
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : "Failed to reverse production batch.";
             toast.error(msg);
-        } finally {
-            setSubmittingReversal(false);
         }
     };
 
@@ -155,7 +165,7 @@ export default function ManufacturingPage() {
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => loadData(true)}
+                        onClick={refetchAll}
                         disabled={refreshing}
                         className="flex items-center gap-1.5"
                     >
@@ -271,36 +281,63 @@ export default function ManufacturingPage() {
             </div>
 
             {/* Main Table Card */}
-            <Card className="p-5 bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 shadow-sm rounded-2xl">
+            <Card className="bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 shadow-sm rounded-2xl overflow-hidden flex flex-col">
                 {/* Search & Status Filter */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-5">
+                <div className="p-4 border-b border-slate-100 dark:border-neutral-800 flex flex-col sm:flex-row items-center justify-between gap-3">
                     <div className="relative w-full sm:w-80">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                         <Input
                             placeholder="Search by batch #, recipe, product..."
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                setPage(1);
+                            }}
                             className="pl-9 h-9 text-xs"
                         />
                     </div>
 
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <span className="text-xs text-slate-500 font-medium">Status:</span>
-                        <div className="inline-flex rounded-xl bg-slate-100 dark:bg-neutral-800 p-1">
-                            {["ALL", "COMPLETED", "REVERSED"].map((st) => (
-                                <button
-                                    key={st}
-                                    type="button"
-                                    onClick={() => setStatusFilter(st)}
-                                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
-                                        statusFilter === st
-                                            ? "bg-white dark:bg-neutral-700 text-slate-900 dark:text-white shadow-xs"
-                                            : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
-                                    }`}
-                                >
-                                    {st}
-                                </button>
-                            ))}
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-500 font-medium">Status:</span>
+                            <div className="inline-flex rounded-xl bg-slate-100 dark:bg-neutral-800 p-1">
+                                {["ALL", "COMPLETED", "REVERSED"].map((st) => (
+                                    <button
+                                        key={st}
+                                        type="button"
+                                        onClick={() => {
+                                            setStatusFilter(st);
+                                            setPage(1);
+                                        }}
+                                        className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                                            statusFilter === st
+                                                ? "bg-white dark:bg-neutral-700 text-slate-900 dark:text-white shadow-xs"
+                                                : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                                        }`}
+                                    >
+                                        {st}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400 shrink-0">
+                            <span>Show</span>
+                            <select
+                                value={pageSize}
+                                onChange={(e) => {
+                                    setPageSize(Number(e.target.value));
+                                    setPage(1);
+                                }}
+                                className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value={10}>10</option>
+                                <option value={15}>15</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                            </select>
+                            <span>entries</span>
                         </div>
                     </div>
                 </div>
@@ -322,23 +359,24 @@ export default function ManufacturingPage() {
                         </p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs border-collapse">
-                            <thead>
-                                <tr className="border-b border-slate-200 dark:border-neutral-800 text-slate-400 uppercase tracking-wider text-[11px]">
-                                    <th className="py-3 px-3 font-semibold">Batch # & Date</th>
-                                    <th className="py-3 px-3 font-semibold">Recipe & Version</th>
-                                    <th className="py-3 px-3 font-semibold">Output Product</th>
-                                    <th className="py-3 px-3 font-semibold text-right">Yield Qty</th>
-                                    <th className="py-3 px-3 font-semibold text-right">Actual Unit Cost</th>
-                                    <th className="py-3 px-3 font-semibold text-right">Total Cost</th>
-                                    <th className="py-3 px-3 font-semibold text-center">Best Before</th>
-                                    <th className="py-3 px-3 font-semibold text-center">Status</th>
-                                    <th className="py-3 px-3 font-semibold text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-neutral-800">
-                                {filteredRuns.map((run) => {
+                    <>
+                        <div className="overflow-auto max-h-[calc(100vh-320px)] min-h-[300px]">
+                            <table className="w-full text-left text-xs border-collapse">
+                                <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs border-b border-slate-200 dark:border-neutral-800 shadow-xs">
+                                    <tr className="text-slate-400 uppercase tracking-wider text-[11px]">
+                                        <th className="py-3 px-3 font-semibold">Batch # & Date</th>
+                                        <th className="py-3 px-3 font-semibold">Recipe & Version</th>
+                                        <th className="py-3 px-3 font-semibold">Output Product</th>
+                                        <th className="py-3 px-3 font-semibold text-right">Yield Qty</th>
+                                        <th className="py-3 px-3 font-semibold text-right">Actual Unit Cost</th>
+                                        <th className="py-3 px-3 font-semibold text-right">Total Cost</th>
+                                        <th className="py-3 px-3 font-semibold text-center">Best Before</th>
+                                        <th className="py-3 px-3 font-semibold text-center">Status</th>
+                                        <th className="py-3 px-3 font-semibold text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-neutral-800">
+                                    {paginatedRuns.map((run) => {
                                     const isReversed = run.status === "REVERSED";
                                     const bestBeforeDate = run.expiryDate
                                         ? new Date(run.expiryDate).toLocaleDateString("en-IN", {
@@ -483,8 +521,21 @@ export default function ManufacturingPage() {
                             </tbody>
                         </table>
                     </div>
-                )}
-            </Card>
+
+                    {totalItems > 0 && (
+                        <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
+                            <Pagination
+                                page={page}
+                                totalPages={totalPages}
+                                totalItems={totalItems}
+                                pageSize={pageSize}
+                                onPageChange={setPage}
+                            />
+                        </div>
+                    )}
+                </>
+            )}
+        </Card>
 
             {/* ========================================================================= */}
             {/* Modal: View Batch Details                                                 */}

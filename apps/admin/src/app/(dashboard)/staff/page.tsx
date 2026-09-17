@@ -1,7 +1,12 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
-import { api } from "../../../lib/api";
+import React, { useState } from "react";
+import {
+    useGetStaffListQuery,
+    useCreateStaffMutation,
+    useUpdateStaffRoleMutation,
+    useUpdateStaffStatusMutation,
+} from "../../../store/api";
 import type { UserResponse, UserRole } from "@ecommers/types";
 import {
     Card,
@@ -21,6 +26,7 @@ import {
     FormField,
     TableAction,
     TableActionGroup,
+    Pagination,
 } from "@ecommers/ui";
 import {
     ShieldCheck,
@@ -34,10 +40,29 @@ import {
 import { RequireRole } from "../../../components/auth/require-role";
 
 export default function StaffPage() {
-    const [staff, setStaff] = useState<UserResponse[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(15);
+
+    const {
+        data,
+        isLoading: loading,
+        isFetching: refreshing,
+        error: queryError,
+        refetch,
+    } = useGetStaffListQuery({ page, limit: pageSize });
+
+    const [createStaff, { isLoading: isCreating }] = useCreateStaffMutation();
+    const [updateStaffRole, { isLoading: isUpdatingRole }] = useUpdateStaffRoleMutation();
+    const [updateStaffStatus] = useUpdateStaffStatusMutation();
+
+    const staff = data?.items || [];
+    const totalPages = data?.pagination?.totalPages || 1;
+    const totalItems = data?.pagination?.total || 0;
+    const error = queryError
+        ? "message" in queryError
+            ? (queryError.message as string)
+            : "Failed to retrieve staff directory."
+        : null;
 
     // Create Modal
     const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -46,52 +71,24 @@ export default function StaffPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [role, setRole] = useState<UserRole>("ADMIN");
-    const [isCreating, setIsCreating] = useState(false);
 
     // Change Role Modal
     const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null);
     const [targetRole, setTargetRole] = useState<UserRole>("ADMIN");
-    const [isUpdatingRole, setIsUpdatingRole] = useState(false);
 
     const [notice, setNotice] = useState<string | null>(null);
 
-    const fetchStaff = useCallback(async (isManual = false) => {
-        if (isManual) setRefreshing(true);
-        else setLoading(true);
-        setError(null);
-
-        try {
-            const res = await api.admin.listStaff({ page: 1, limit: 50 });
-            const items = Array.isArray(res) ? res : ((res as any)?.items || (res as any)?.data || []);
-            setStaff(items);
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError("Failed to retrieve staff directory.");
-            }
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchStaff();
-    }, [fetchStaff]);
-
     const handleCreateStaff = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsCreating(true);
         try {
-            await api.admin.createStaff({
+            await createStaff({
                 firstName: firstName.trim(),
                 lastName: lastName.trim(),
                 email: email.trim(),
                 password,
                 role,
-            });
+            }).unwrap();
             setIsCreateOpen(false);
             setFirstName("");
             setLastName("");
@@ -99,13 +96,12 @@ export default function StaffPage() {
             setPassword("");
             setNotice(`Staff member created successfully.`);
             setTimeout(() => setNotice(null), 3500);
-            fetchStaff(true);
         } catch (err: unknown) {
-            if (err instanceof Error) {
-                alert(`Error creating staff: ${err.message}`);
+            if (err && typeof err === "object" && "message" in err) {
+                alert(`Error creating staff: ${(err as any).message}`);
+            } else {
+                alert("Error creating staff.");
             }
-        } finally {
-            setIsCreating(false);
         }
     };
 
@@ -113,32 +109,31 @@ export default function StaffPage() {
         e.preventDefault();
         if (!selectedUser) return;
 
-        setIsUpdatingRole(true);
         try {
-            await api.admin.updateStaffRole(selectedUser.id, targetRole);
+            await updateStaffRole({ userId: selectedUser.id, role: targetRole }).unwrap();
             setIsRoleModalOpen(false);
             setNotice(`Role updated to ${targetRole} for ${selectedUser.firstName}`);
             setTimeout(() => setNotice(null), 3500);
-            fetchStaff(true);
         } catch (err: unknown) {
-            if (err instanceof Error) {
-                alert(`Role update failed: ${err.message}`);
+            if (err && typeof err === "object" && "message" in err) {
+                alert(`Role update failed: ${(err as any).message}`);
+            } else {
+                alert("Role update failed.");
             }
-        } finally {
-            setIsUpdatingRole(false);
         }
     };
 
     const handleToggleStatus = async (user: UserResponse) => {
         const nextStatus = !user.isActive;
         try {
-            await api.admin.updateStaffStatus(user.id, nextStatus);
+            await updateStaffStatus({ userId: user.id, isActive: nextStatus }).unwrap();
             setNotice(`Status updated for ${user.firstName}`);
             setTimeout(() => setNotice(null), 3500);
-            fetchStaff(true);
         } catch (err: unknown) {
-            if (err instanceof Error) {
-                alert(`Status update failed: ${err.message}`);
+            if (err && typeof err === "object" && "message" in err) {
+                alert(`Failed to update status: ${(err as any).message}`);
+            } else {
+                alert("Failed to update status.");
             }
         }
     };
@@ -182,7 +177,7 @@ export default function StaffPage() {
                             type="button"
                             variant="outline"
                             size="sm"
-                            onClick={() => fetchStaff(true)}
+                            onClick={() => refetch()}
                             isLoading={refreshing}
                             className="gap-1.5"
                         >
@@ -209,108 +204,150 @@ export default function StaffPage() {
                     </div>
                 )}
 
+                {/* Controls Bar */}
+                <div className="flex items-center justify-between gap-2 px-1">
+                    <div className="text-xs text-slate-500 dark:text-neutral-400">
+                        Total Staff Accounts: <span className="font-semibold text-slate-900 dark:text-white">{totalItems}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400 shrink-0">
+                        <span>Show</span>
+                        <select
+                            value={pageSize}
+                            onChange={(e) => {
+                                setPageSize(Number(e.target.value));
+                                setPage(1);
+                            }}
+                            className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value={10}>10</option>
+                            <option value={15}>15</option>
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                        </select>
+                        <span>entries</span>
+                    </div>
+                </div>
+
                 {/* Staff Table Card */}
-                <Card className="p-3.5 sm:p-4">
+                <Card className="p-0 overflow-hidden flex flex-col border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl shadow-xs">
                     {loading ? (
                         <div className="flex flex-col items-center justify-center py-12 gap-2">
                             <Spinner size="md" />
                             <p className="text-xs text-slate-500 dark:text-slate-400">Loading staff directory...</p>
                         </div>
                     ) : error ? (
-                        <ErrorState title="Failed to load staff" message={error} onRetry={() => fetchStaff()} />
+                        <div className="p-6">
+                            <ErrorState title="Failed to load staff" message={error} onRetry={() => refetch()} />
+                        </div>
                     ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Staff Member</TableHead>
-                                    <TableHead>Email</TableHead>
-                                    <TableHead>Role</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead>Created</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {staff.length === 0 ? (
-                                    <TableRow noHover>
-                                        <TableCell colSpan={6} className="text-center py-12">
-                                            <div className="flex flex-col items-center justify-center gap-2">
-                                                <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/60 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                                                    <Users size={20} />
-                                                </div>
-                                                <div>
-                                                    <div className="text-sm font-bold text-slate-900 dark:text-white">
-                                                        No staff accounts found
-                                                    </div>
-                                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-xs">
-                                                        Assign administrative and operational clearance roles to manage the store.
-                                                    </p>
-                                                </div>
-                                                <Button
-                                                    type="button"
-                                                    variant="primary"
-                                                    size="sm"
-                                                    onClick={() => setIsCreateOpen(true)}
-                                                    className="mt-2"
-                                                >
-                                                    <Plus size={13} />
-                                                    <span>Add Staff Member</span>
-                                                </Button>
-                                            </div>
-                                        </TableCell>
+                        <>
+                            <Table className="overflow-auto max-h-[calc(100vh-280px)] min-h-[300px] border-none rounded-none">
+                                <TableHeader className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs shadow-xs">
+                                    <TableRow>
+                                        <TableHead>Staff Member</TableHead>
+                                        <TableHead>Email</TableHead>
+                                        <TableHead>Role</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead>Created</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
-                                ) : (
-                                    staff.map((u) => {
-                                        const createdStr = new Date(u.createdAt).toLocaleDateString("en-US", {
-                                            month: "short",
-                                            day: "numeric",
-                                            year: "numeric",
-                                        });
-
-                                        return (
-                                            <TableRow key={u.id}>
-                                                <TableCell>
-                                                    <div className="font-bold text-slate-900 dark:text-slate-100">
-                                                        {u.firstName} {u.lastName}
+                                </TableHeader>
+                                <TableBody>
+                                    {staff.length === 0 ? (
+                                        <TableRow noHover>
+                                            <TableCell colSpan={6} className="text-center py-12">
+                                                <div className="flex flex-col items-center justify-center gap-2">
+                                                    <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/60 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                                                        <Users size={20} />
                                                     </div>
-                                                </TableCell>
-                                                <TableCell className="text-slate-600 dark:text-slate-300">{u.email}</TableCell>
-                                                <TableCell>{getRoleBadge(u.role)}</TableCell>
-                                                <TableCell>
-                                                    <Badge variant={u.isActive ? "success" : "neutral"} size="sm">
-                                                        {u.isActive ? "Active" : "Inactive"}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell className="text-xs text-slate-500 dark:text-slate-400">
-                                                    {createdStr}
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <TableActionGroup>
-                                                        <TableAction
-                                                            icon={<ShieldCheck size={14} />}
-                                                            label="Role"
-                                                            onClick={() => {
-                                                                setSelectedUser(u);
-                                                                setTargetRole(u.role);
-                                                                setIsRoleModalOpen(true);
-                                                            }}
-                                                            title="Change Role"
-                                                        />
-                                                        <TableAction
-                                                            icon={u.isActive ? <UserX size={14} /> : <UserCheck size={14} />}
-                                                            label={u.isActive ? "Deactivate" : "Activate"}
-                                                            variant={u.isActive ? "destructive" : "default"}
-                                                            onClick={() => handleToggleStatus(u)}
-                                                            title={u.isActive ? "Deactivate User" : "Activate User"}
-                                                        />
-                                                    </TableActionGroup>
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })
-                                )}
-                            </TableBody>
-                        </Table>
+                                                    <div>
+                                                        <div className="text-sm font-bold text-slate-900 dark:text-white">
+                                                            No staff accounts found
+                                                        </div>
+                                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-xs">
+                                                            Assign administrative and operational clearance roles to manage the store.
+                                                        </p>
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        variant="primary"
+                                                        size="sm"
+                                                        onClick={() => setIsCreateOpen(true)}
+                                                        className="mt-2"
+                                                    >
+                                                        <Plus size={13} />
+                                                        <span>Add Staff Member</span>
+                                                    </Button>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        staff.map((u) => {
+                                            const createdStr = new Date(u.createdAt).toLocaleDateString("en-US", {
+                                                month: "short",
+                                                day: "numeric",
+                                                year: "numeric",
+                                            });
+
+                                            return (
+                                                <TableRow key={u.id}>
+                                                    <TableCell>
+                                                        <div className="font-bold text-slate-900 dark:text-slate-100">
+                                                            {u.firstName} {u.lastName}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-slate-600 dark:text-neutral-300 text-xs">{u.email}</TableCell>
+                                                    <TableCell>{getRoleBadge(u.role)}</TableCell>
+                                                    <TableCell>
+                                                        <Badge variant={u.isActive ? "success" : "neutral"} size="sm">
+                                                            {u.isActive ? "Active" : "Inactive"}
+                                                        </Badge>
+                                                    </TableCell>
+                                                    <TableCell className="text-xs text-slate-500 dark:text-neutral-400">
+                                                        {createdStr}
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        <TableActionGroup>
+                                                            <TableAction
+                                                                icon={<ShieldCheck size={14} />}
+                                                                label="Role"
+                                                                onClick={() => {
+                                                                    setSelectedUser(u);
+                                                                    setTargetRole(u.role);
+                                                                    setIsRoleModalOpen(true);
+                                                                }}
+                                                                title="Change Role"
+                                                            />
+                                                            <TableAction
+                                                                icon={u.isActive ? <UserX size={14} /> : <UserCheck size={14} />}
+                                                                label={u.isActive ? "Deactivate" : "Activate"}
+                                                                variant={u.isActive ? "destructive" : "default"}
+                                                                onClick={() => handleToggleStatus(u)}
+                                                                title={u.isActive ? "Deactivate User" : "Activate User"}
+                                                            />
+                                                        </TableActionGroup>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })
+                                    )}
+                                </TableBody>
+                            </Table>
+
+                            {totalItems > 0 && (
+                                <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
+                                    <Pagination
+                                        page={page}
+                                        totalPages={totalPages}
+                                        totalItems={totalItems}
+                                        pageSize={pageSize}
+                                        onPageChange={setPage}
+                                    />
+                                </div>
+                            )}
+                        </>
                     )}
                 </Card>
 

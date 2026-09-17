@@ -3,7 +3,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api } from "../../../../lib/api";
+import {
+    useGetRecipesQuery,
+    useGetAdminLocationsQuery,
+    useCheckProductionFeasibilityQuery,
+    useCreateProductionRunMutation,
+} from "../../../../store/api";
 import type {
     Recipe,
     ProductionFeasibilityCheck,
@@ -38,10 +43,11 @@ import {
 export default function NewProductionRunPage() {
     const router = useRouter();
 
-    const [recipes, setRecipes] = useState<Recipe[]>([]);
-    const [locations, setLocations] = useState<LocationResponse[]>([]);
-    const [loadingData, setLoadingData] = useState(true);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const { data: recipes = [], isLoading: recipesLoading } = useGetRecipesQuery();
+    const { data: locations = [], isLoading: locationsLoading } = useGetAdminLocationsQuery();
+    const [createProductionRun, { isLoading: isSubmitting }] = useCreateProductionRunMutation();
+
+    const loadingData = recipesLoading || locationsLoading;
 
     // Form fields
     const [selectedRecipeId, setSelectedRecipeId] = useState("");
@@ -52,34 +58,27 @@ export default function NewProductionRunPage() {
     );
     const [notes, setNotes] = useState("");
 
-    // Live Feasibility State
-    const [feasibility, setFeasibility] = useState<ProductionFeasibilityCheck | null>(null);
-    const [checkingFeasibility, setCheckingFeasibility] = useState(false);
+    useEffect(() => {
+        if (!selectedRecipeId && recipes.length > 0) {
+            setSelectedRecipeId(recipes[0].id);
+            setPlannedQuantity(recipes[0].batchYield.quantity || 1);
+        }
+    }, [recipes, selectedRecipeId]);
 
     useEffect(() => {
-        setLoadingData(true);
-        Promise.all([
-            api.manufacturing.listRecipes({ status: "ACTIVE" }),
-            api.locations.adminList().catch(() => []),
-        ])
-            .then(([recipesData, locationsData]) => {
-                setRecipes(recipesData || []);
-                if (recipesData && recipesData.length > 0) {
-                    setSelectedRecipeId(recipesData[0]!.id);
-                    setPlannedQuantity(recipesData[0]!.batchYield.quantity || 1);
-                }
-                const activeLocs = locationsData || [];
-                setLocations(activeLocs);
-                if (activeLocs.length > 0) {
-                    setSelectedWarehouseId(activeLocs[0]!.id);
-                }
-            })
-            .catch((err) => {
-                console.error("Failed to load initial manufacturing data:", err);
-                toast.error("Failed to load recipes.");
-            })
-            .finally(() => setLoadingData(false));
-    }, []);
+        if (!selectedWarehouseId && locations.length > 0) {
+            setSelectedWarehouseId(locations[0].id);
+        }
+    }, [locations, selectedWarehouseId]);
+
+    // Live Feasibility Query
+    const {
+        data: feasibility,
+        isFetching: checkingFeasibility,
+    } = useCheckProductionFeasibilityQuery(
+        { recipeId: selectedRecipeId, plannedQuantity },
+        { skip: !selectedRecipeId || plannedQuantity <= 0 }
+    );
 
     const selectedRecipe = useMemo(() => {
         return recipes.find((r) => r.id === selectedRecipeId);
@@ -93,36 +92,6 @@ export default function NewProductionRunPage() {
             setPlannedQuantity(r.batchYield.quantity || 1);
         }
     };
-
-    // Pre-flight check triggered when recipe or quantity changes
-    const triggerFeasibilityCheck = useCallback(async () => {
-        if (!selectedRecipeId || plannedQuantity <= 0) {
-            setFeasibility(null);
-            return;
-        }
-
-        setCheckingFeasibility(true);
-        try {
-            const check = await api.manufacturing.checkFeasibility(
-                selectedRecipeId,
-                plannedQuantity,
-                manufacturingDate
-            );
-            setFeasibility(check);
-        } catch (err: unknown) {
-            console.error("Failed to check feasibility:", err);
-            setFeasibility(null);
-        } finally {
-            setCheckingFeasibility(false);
-        }
-    }, [selectedRecipeId, plannedQuantity, manufacturingDate]);
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            triggerFeasibilityCheck();
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [triggerFeasibilityCheck]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -147,16 +116,15 @@ export default function NewProductionRunPage() {
             return;
         }
 
-        setIsSubmitting(true);
         try {
-            await api.manufacturing.executeProduction({
+            await createProductionRun({
                 recipeId: selectedRecipeId,
                 warehouseId: selectedWarehouseId,
                 plannedQuantity,
                 actualQuantity: plannedQuantity,
                 manufacturingDate: new Date(manufacturingDate).toISOString(),
                 notes: notes.trim() || undefined,
-            });
+            }).unwrap();
 
             toast.success("Production batch manufactured & deposited successfully!");
             router.push("/manufacturing");
@@ -164,8 +132,6 @@ export default function NewProductionRunPage() {
             console.error("Failed to execute production run:", err);
             const msg = err instanceof Error ? err.message : "Failed to execute production run.";
             toast.error(msg);
-        } finally {
-            setIsSubmitting(false);
         }
     };
 
@@ -424,7 +390,7 @@ export default function NewProductionRunPage() {
                         variant="primary"
                         type="submit"
                         size="md"
-                        disabled={isSubmitting || (feasibility !== null && !feasibility.canProduce)}
+                        disabled={isSubmitting || Boolean(feasibility && !feasibility.canProduce)}
                         className="gap-2 px-6 font-semibold"
                     >
                         {isSubmitting ? "Manufacturing Batch..." : "Produce & Deposit Batch"}

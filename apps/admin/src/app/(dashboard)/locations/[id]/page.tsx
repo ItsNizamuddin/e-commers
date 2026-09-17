@@ -2,9 +2,11 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { api } from "../../../../lib/api";
+import {
+    useGetLocationByIdQuery,
+    useUpdateLocationMutation,
+} from "../../../../store/api";
 import type {
-    LocationResponse,
     UpdateLocationInput,
     LocationType,
 } from "@ecommers/types";
@@ -22,9 +24,13 @@ export default function EditLocationPage() {
     const router = useRouter();
     const id = params?.id as string;
 
-    const [location, setLocation] = useState<LocationResponse | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [fetchError, setFetchError] = useState<string | null>(null);
+    const {
+        data: location,
+        isLoading: loading,
+        error: fetchError,
+    } = useGetLocationByIdQuery(id, { skip: !id });
+
+    const [updateLocationMutation, { isLoading: isSaving }] = useUpdateLocationMutation();
 
     // Form fields
     const [name, setName] = useState("");
@@ -37,36 +43,22 @@ export default function EditLocationPage() {
     const [postalCodePrefixesStr, setPostalCodePrefixesStr] = useState("");
     const [isActive, setIsActive] = useState(true);
 
-    const [isSaving, setIsSaving] = useState(false);
     const [saveNotice, setSaveNotice] = useState<string | null>(null);
     const [formError, setFormError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!id) return;
-        setLoading(true);
-        setFetchError(null);
-        api.locations.get(id)
-            .then((loc) => {
-                setLocation(loc);
-                setName(loc.name);
-                setType(loc.type);
-                setStateOrRegion(loc.stateOrRegion || "");
-                setCountryCode(loc.countryCode);
-                setCurrency(loc.currency || "INR");
-                setDeliveryEstimate(loc.deliveryEstimate || "Within 24 Hours");
-                setPostalCodesStr((loc.postalCodes || []).join(", "));
-                setPostalCodePrefixesStr((loc.postalCodePrefixes || []).join(", "));
-                setIsActive(loc.isActive);
-            })
-            .catch((err: unknown) => {
-                if (err instanceof Error) {
-                    setFetchError(err.message);
-                } else {
-                    setFetchError("Failed to load location details.");
-                }
-            })
-            .finally(() => setLoading(false));
-    }, [id]);
+        if (location) {
+            setName(location.name);
+            setType(location.type);
+            setStateOrRegion(location.stateOrRegion || "");
+            setCountryCode(location.countryCode);
+            setCurrency(location.currency || "INR");
+            setDeliveryEstimate(location.deliveryEstimate || "Within 24 Hours");
+            setPostalCodesStr((location.postalCodes || []).join(", "));
+            setPostalCodePrefixesStr((location.postalCodePrefixes || []).join(", "));
+            setIsActive(location.isActive);
+        }
+    }, [location]);
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -88,7 +80,6 @@ export default function EditLocationPage() {
             .map((p) => p.trim())
             .filter(Boolean);
 
-        setIsSaving(true);
         try {
             const payload: UpdateLocationInput = {
                 name: name.trim(),
@@ -102,8 +93,7 @@ export default function EditLocationPage() {
                 isActive,
             };
 
-            const updated = await api.locations.update(id, payload);
-            setLocation(updated);
+            await updateLocationMutation({ id, body: payload }).unwrap();
             setSaveNotice("Location details updated successfully!");
             setTimeout(() => setSaveNotice(null), 3000);
         } catch (err: unknown) {
@@ -112,8 +102,6 @@ export default function EditLocationPage() {
             } else {
                 setFormError("Failed to update location.");
             }
-        } finally {
-            setIsSaving(false);
         }
     };
 

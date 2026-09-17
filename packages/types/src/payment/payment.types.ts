@@ -19,6 +19,7 @@ export interface PaymentIntentResult {
     currency: string;
     provider: PaymentProvider;
     status: PaymentStatus;
+    isExisting?: boolean;
 }
 
 export interface PaymentResponse {

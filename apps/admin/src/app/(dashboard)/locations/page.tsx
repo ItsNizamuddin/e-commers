@@ -1,8 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "../../../lib/api";
+import {
+    useGetAdminLocationsQuery,
+    useUpdateLocationMutation,
+    useDeleteLocationMutation,
+    useCheckPincodeMutation,
+} from "../../../store/api";
 import type { LocationResponse, CheckPincodeResponse } from "@ecommers/types";
 import {
     Card,
@@ -13,6 +18,9 @@ import {
     Spinner,
     EmptyState,
     ConfirmDialog,
+    ErrorState,
+    toast,
+    Pagination,
 } from "@ecommers/ui";
 import {
     MapPin,
@@ -31,14 +39,25 @@ import {
 
 export default function LocationsDashboardPage() {
     const router = useRouter();
-    const [locations, setLocations] = useState<LocationResponse[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+
+    const {
+        data: locations = [],
+        isLoading: loading,
+        isFetching: refreshing,
+        error: locationsError,
+        refetch,
+    } = useGetAdminLocationsQuery();
+
+    const [updateLocationMutation] = useUpdateLocationMutation();
+    const [deleteLocationMutation] = useDeleteLocationMutation();
+    const [checkPincodeMutation, { isLoading: isCheckingPincode }] = useCheckPincodeMutation();
 
     // Filters
     const [searchQuery, setSearchQuery] = useState("");
     const [typeFilter, setTypeFilter] = useState<string>("ALL");
     const [statusFilter, setStatusFilter] = useState<string>("ALL");
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(15);
 
     // Delete confirmation
     const [deletingLocation, setDeletingLocation] = useState<LocationResponse | null>(null);
@@ -47,28 +66,6 @@ export default function LocationsDashboardPage() {
     // Pincode lookup testing widget
     const [lookupPincode, setLookupPincode] = useState("");
     const [lookupResult, setLookupResult] = useState<CheckPincodeResponse | null>(null);
-    const [isCheckingPincode, setIsCheckingPincode] = useState(false);
-
-    const fetchLocations = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const data = await api.locations.adminList();
-            setLocations(data || []);
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError("Failed to load serviceable locations.");
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchLocations();
-    }, []);
 
     // Filtered data
     const filteredLocations = locations.filter((loc) => {
@@ -87,17 +84,16 @@ export default function LocationsDashboardPage() {
         return matchesSearch && matchesType && matchesStatus;
     });
 
+    const totalPages = Math.ceil(filteredLocations.length / pageSize) || 1;
+    const paginatedLocations = filteredLocations.slice((page - 1) * pageSize, page * pageSize);
+
     // Quick toggle active
     const handleToggleActive = async (loc: LocationResponse) => {
         try {
-            await api.locations.update(loc.id, { isActive: !loc.isActive });
-            setLocations((prev) =>
-                prev.map((item) =>
-                    item.id === loc.id ? { ...item, isActive: !loc.isActive } : item
-                )
-            );
-        } catch (err) {
-            console.error("Failed to toggle status", err);
+            await updateLocationMutation({ id: loc.id, body: { isActive: !loc.isActive } }).unwrap();
+            toast.success(`${loc.name} is now ${!loc.isActive ? "Active" : "Disabled"}`);
+        } catch (err: unknown) {
+            toast.error(err instanceof Error ? err.message : "Failed to toggle status");
         }
     };
 
@@ -106,11 +102,11 @@ export default function LocationsDashboardPage() {
         if (!deletingLocation) return;
         setIsDeleting(true);
         try {
-            await api.locations.delete(deletingLocation.id);
-            setLocations((prev) => prev.filter((item) => item.id !== deletingLocation.id));
+            await deleteLocationMutation(deletingLocation.id).unwrap();
+            toast.success(`Location ${deletingLocation.name} deleted successfully.`);
             setDeletingLocation(null);
         } catch (err: unknown) {
-            console.error("Failed to delete location", err);
+            toast.error(err instanceof Error ? err.message : "Failed to delete location");
         } finally {
             setIsDeleting(false);
         }
@@ -121,17 +117,20 @@ export default function LocationsDashboardPage() {
         e.preventDefault();
         if (!lookupPincode.trim()) return;
 
-        setIsCheckingPincode(true);
         setLookupResult(null);
         try {
-            const res = await api.locations.checkPincode(lookupPincode.trim());
+            const res = await checkPincodeMutation({ pincode: lookupPincode.trim() }).unwrap();
             setLookupResult(res);
-        } catch (err) {
-            console.error("Pincode check error", err);
-        } finally {
-            setIsCheckingPincode(false);
+        } catch (err: unknown) {
+            toast.error(err instanceof Error ? err.message : "Pincode check error");
         }
     };
+
+    const error = locationsError
+        ? typeof locationsError === "string"
+            ? locationsError
+            : "Failed to load serviceable locations."
+        : null;
 
     return (
         <div className="flex flex-col gap-4">
@@ -152,6 +151,17 @@ export default function LocationsDashboardPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => refetch()}
+                        isLoading={refreshing}
+                        className="gap-1.5 h-8 text-xs font-medium"
+                    >
+                        <RefreshCw size={13} />
+                        <span>Refresh</span>
+                    </Button>
                     <Button
                         type="button"
                         variant="outline"
@@ -235,7 +245,10 @@ export default function LocationsDashboardPage() {
                     <Input
                         size="sm"
                         value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onChange={(e) => {
+                            setSearchQuery(e.target.value);
+                            setPage(1);
+                        }}
                         placeholder="Search by city, code, or state..."
                         className="pl-8 text-xs"
                     />
@@ -245,7 +258,10 @@ export default function LocationsDashboardPage() {
                     <Select
                         size="sm"
                         value={typeFilter}
-                        onChange={(e) => setTypeFilter(e.target.value)}
+                        onChange={(e) => {
+                            setTypeFilter(e.target.value);
+                            setPage(1);
+                        }}
                         className="text-xs"
                         options={[
                             { value: "ALL", label: "All Types" },
@@ -258,7 +274,10 @@ export default function LocationsDashboardPage() {
                     <Select
                         size="sm"
                         value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
+                        onChange={(e) => {
+                            setStatusFilter(e.target.value);
+                            setPage(1);
+                        }}
                         className="text-xs"
                         options={[
                             { value: "ALL", label: "All Status" },
@@ -267,10 +286,37 @@ export default function LocationsDashboardPage() {
                         ]}
                     />
                 </div>
+
+                <div className="ml-auto flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400 shrink-0">
+                    <span>Show</span>
+                    <select
+                        value={pageSize}
+                        onChange={(e) => {
+                            setPageSize(Number(e.target.value));
+                            setPage(1);
+                        }}
+                        className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value={10}>10</option>
+                        <option value={15}>15</option>
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                    </select>
+                    <span>entries</span>
+                </div>
             </div>
 
             {/* Locations Table */}
-            {loading ? (
+            {error ? (
+                <div className="py-8">
+                    <ErrorState
+                        title="Failed to load locations"
+                        message={error}
+                        onRetry={() => refetch()}
+                    />
+                </div>
+            ) : loading ? (
                 <div className="py-20 flex flex-col items-center justify-center gap-2 text-slate-400">
                     <Spinner size="md" />
                     <p className="text-xs">Loading serviceable locations...</p>
@@ -291,10 +337,10 @@ export default function LocationsDashboardPage() {
                     />
                 </Card>
             ) : (
-                <div className="border border-slate-200 dark:border-neutral-800 rounded-xl overflow-hidden bg-white dark:bg-[#111111]">
-                    <div className="overflow-x-auto">
+                <div className="border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl overflow-hidden bg-white dark:bg-[#111111] flex flex-col shadow-xs">
+                    <div className="overflow-auto max-h-[calc(100vh-280px)] min-h-[300px]">
                         <table className="w-full text-left text-xs">
-                            <thead className="bg-slate-50 dark:bg-neutral-900 border-b border-slate-200 dark:border-neutral-800 text-slate-500 dark:text-neutral-400 font-semibold uppercase tracking-wider text-[10px]">
+                            <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs border-b border-slate-200 dark:border-neutral-800 text-slate-500 dark:text-neutral-400 font-semibold uppercase tracking-wider text-[10px] shadow-xs">
                                 <tr>
                                     <th className="py-2.5 px-3.5">Code</th>
                                     <th className="py-2.5 px-3.5">Name & Area</th>
@@ -306,7 +352,7 @@ export default function LocationsDashboardPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-neutral-800">
-                                {filteredLocations.map((loc) => {
+                                {paginatedLocations.map((loc) => {
                                     const postalCount = loc.postalCodes?.length || 0;
                                     const prefixCount = loc.postalCodePrefixes?.length || 0;
 
@@ -404,6 +450,17 @@ export default function LocationsDashboardPage() {
                             </tbody>
                         </table>
                     </div>
+                    {filteredLocations.length > 0 && (
+                        <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
+                            <Pagination
+                                page={page}
+                                totalPages={totalPages}
+                                totalItems={filteredLocations.length}
+                                pageSize={pageSize}
+                                onPageChange={setPage}
+                            />
+                        </div>
+                    )}
                 </div>
             )}
 

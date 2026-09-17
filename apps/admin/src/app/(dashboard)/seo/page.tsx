@@ -1,8 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, Suspense } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { api } from "../../../lib/api";
+import {
+    useListSeoEntitiesQuery,
+    useGetSeoMetadataRowsQuery,
+} from "../../../store/api";
 import type { SeoEntityType } from "@ecommers/types";
 import {
     Card,
@@ -16,6 +19,7 @@ import {
     TableHead,
     TableCell,
     Spinner,
+    Pagination,
 } from "@ecommers/ui";
 import {
     ArrowLeft,
@@ -89,74 +93,43 @@ function SeoMetadataTableContent() {
     const initialId = searchParams.get("id") || "";
 
     const [entityType, setEntityType] = useState<SeoEntityType>(initialType);
-    const [entities, setEntities] = useState<EntityOption[]>([]);
     const [selectedEntityId, setSelectedEntityId] = useState<string>(initialId);
-    const [isLoadingEntities, setIsLoadingEntities] = useState(false);
-
-    // Table rows state
-    const [rows, setRows] = useState<MetadataRowItem[]>([]);
-    const [isLoadingRows, setIsLoadingRows] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+    const [appliedSearch, setAppliedSearch] = useState("");
 
     // Pagination
-    const [pageSize, setPageSize] = useState<number>(10);
+    const [pageSize, setPageSize] = useState<number>(15);
     const [currentPage, setCurrentPage] = useState<number>(1);
 
+    const {
+        data: entities = [],
+        isLoading: isLoadingEntities,
+    } = useListSeoEntitiesQuery({ entityType });
 
-    // Fetch entity list when entityType changes
-    const loadEntities = useCallback(async () => {
-        setIsLoadingEntities(true);
-        try {
-            const list = await api.seo.listEntities(entityType);
-            setEntities(list || []);
-            if (list && list.length > 0) {
-                // If initialId matches one of the entities, select it, otherwise default to first
-                if (initialId && list.some((e) => e.id === initialId)) {
-                    setSelectedEntityId(initialId);
-                } else if (!selectedEntityId || !list.some((e) => e.id === selectedEntityId)) {
-                    setSelectedEntityId(list[0].id);
-                }
-            } else {
-                setSelectedEntityId("");
-                setRows([]);
+    useEffect(() => {
+        if (entities.length > 0) {
+            if (initialId && entities.some((e) => e.id === initialId)) {
+                setSelectedEntityId(initialId);
+            } else if (!selectedEntityId || !entities.some((e) => e.id === selectedEntityId)) {
+                setSelectedEntityId(entities[0].id);
             }
-        } catch (err) {
-            console.error("Failed to load entities for SEO:", err);
-            setEntities([]);
-        } finally {
-            setIsLoadingEntities(false);
+        } else {
+            setSelectedEntityId("");
         }
-    }, [entityType, initialId, selectedEntityId]);
+    }, [entities, initialId, selectedEntityId]);
 
-    useEffect(() => {
-        loadEntities();
-    }, [entityType]);
+    const {
+        data: rowsData,
+        isLoading: isLoadingRowsQuery,
+        isFetching: isFetchingRows,
+        refetch: refetchRows,
+    } = useGetSeoMetadataRowsQuery(
+        { entityType, entityId: selectedEntityId, search: appliedSearch },
+        { skip: !selectedEntityId }
+    );
 
-    // Fetch metadata rows when selectedEntityId changes or refresh clicked
-    const loadRows = useCallback(async () => {
-        if (!selectedEntityId) {
-            setRows([]);
-            return;
-        }
-
-        setIsLoadingRows(true);
-        try {
-            const result = await api.seo.getMetadataRows(entityType, selectedEntityId, searchQuery);
-            setRows(result?.rows || []);
-            setCurrentPage(1);
-        } catch (err) {
-            console.error("Failed to load metadata rows:", err);
-            setRows([]);
-        } finally {
-            setIsLoadingRows(false);
-        }
-    }, [entityType, selectedEntityId, searchQuery]);
-
-    useEffect(() => {
-        if (selectedEntityId) {
-            loadRows();
-        }
-    }, [selectedEntityId]);
+    const rows = rowsData?.rows || [];
+    const isLoadingRows = isLoadingRowsQuery || isFetchingRows;
 
     const selectedEntity = entities.find((e) => e.id === selectedEntityId);
 
@@ -243,7 +216,7 @@ function SeoMetadataTableContent() {
             </div>
 
             {/* Main Data Container Card */}
-            <Card className="bg-white dark:bg-[#111111] border-slate-200 dark:border-neutral-800 shadow-sm rounded-xl overflow-hidden">
+            <Card className="p-0 overflow-hidden flex flex-col border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl shadow-xs">
                 {/* Toolbar */}
                 <div className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30">
                     {/* Left: Show Entries Dropdown */}
@@ -258,6 +231,7 @@ function SeoMetadataTableContent() {
                             className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
                             <option value={10}>10</option>
+                            <option value={15}>15</option>
                             <option value={25}>25</option>
                             <option value={50}>50</option>
                             <option value={100}>100</option>
@@ -271,7 +245,10 @@ function SeoMetadataTableContent() {
                             type="button"
                             variant="outline"
                             size="sm"
-                            onClick={() => loadRows()}
+                            onClick={() => {
+                                setAppliedSearch(searchQuery);
+                                refetchRows();
+                            }}
                             disabled={isLoadingRows}
                             className="w-8 h-8 p-0 rounded-md shrink-0 text-slate-600 dark:text-neutral-300"
                             title="Refresh table"
@@ -284,7 +261,10 @@ function SeoMetadataTableContent() {
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 onKeyDown={(e) => {
-                                    if (e.key === "Enter") loadRows();
+                                    if (e.key === "Enter") {
+                                        setAppliedSearch(searchQuery);
+                                        setCurrentPage(1);
+                                    }
                                 }}
                                 placeholder={`Search ${entityType.toLowerCase()} metadata...`}
                                 className="pl-8 text-xs h-8"
@@ -309,9 +289,9 @@ function SeoMetadataTableContent() {
                 </div>
 
                 {/* Table View */}
-                <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader className="bg-slate-50/70 dark:bg-neutral-900/50">
+                <div className="overflow-auto max-h-[calc(100vh-280px)] min-h-[300px]">
+                    <Table className="border-none rounded-none">
+                        <TableHeader className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs shadow-xs">
                             <TableRow>
                                 <TableHead className="w-[140px] text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-neutral-400">
                                     Robots
@@ -325,150 +305,153 @@ function SeoMetadataTableContent() {
                                 <TableHead className="w-[180px] text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-neutral-400">
                                     Updated
                                 </TableHead>
-                                <TableHead className="w-[90px] text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-neutral-400">
-                                    Actions
+                                <TableHead className="min-w-[200px] text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-neutral-400">
+                                    Meta Title
+                                </TableHead>
+                                <TableHead className="min-w-[240px] text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-neutral-400">
+                                    Meta Description
+                                </TableHead>
+                                <TableHead className="min-w-[160px] text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-neutral-400">
+                                    Canonical URL
+                                </TableHead>
+                                <TableHead className="min-w-[140px] text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-neutral-400">
+                                    Keywords
+                                </TableHead>
+                                <TableHead className="w-[90px] text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-neutral-400 text-center">
+                                    Status
+                                </TableHead>
+                                <TableHead className="w-[110px] text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-neutral-400 text-right pr-4">
+                                    Action
                                 </TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {isLoadingRows ? (
-                                <TableRow>
-                                    <TableCell colSpan={5} className="py-16 text-center text-slate-400">
+                                <TableRow noHover>
+                                    <TableCell colSpan={10} className="py-20 text-center">
                                         <div className="flex flex-col items-center justify-center gap-2">
                                             <Spinner size="md" />
-                                            <p className="text-xs">Loading SEO metadata rows...</p>
+                                            <span className="text-xs text-slate-400">
+                                                Loading metadata rows...
+                                            </span>
                                         </div>
                                     </TableCell>
                                 </TableRow>
                             ) : paginatedRows.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={5} className="py-14 text-center text-slate-400">
-                                        <div className="flex flex-col items-center justify-center gap-1.5">
-                                            <Globe size={24} className="text-slate-300 dark:text-neutral-600" />
-                                            <p className="text-xs font-semibold text-slate-600 dark:text-neutral-300">
-                                                No metadata records found
-                                            </p>
-                                            <p className="text-[11px] text-slate-400">
-                                                Select a valid {entityType.toLowerCase()} to inspect and edit its SEO overrides.
-                                            </p>
+                                <TableRow noHover>
+                                    <TableCell colSpan={10} className="py-16 text-center">
+                                        <div className="flex flex-col items-center justify-center gap-1 text-slate-400">
+                                            <Globe size={24} className="opacity-40 mb-1" />
+                                            <span className="text-xs font-semibold text-slate-600 dark:text-neutral-300">
+                                                No SEO metadata rows found
+                                            </span>
+                                            <span className="text-[11px]">
+                                                {selectedEntity
+                                                    ? `Generate metadata for "${selectedEntity.title}" via Bulk Update`
+                                                    : "Select an entity above to view its regional metadata"}
+                                            </span>
                                         </div>
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                paginatedRows.map((row) => {
-                                    const isGlobal = row.locationKey.toUpperCase() === "GLOBAL";
-                                    return (
-                                        <TableRow
-                                            key={row.id}
-                                            className="hover:bg-slate-50/60 dark:hover:bg-neutral-800/40 transition-colors"
-                                        >
-                                            {/* ROBOTS */}
-                                            <TableCell className="text-xs font-medium text-slate-700 dark:text-neutral-300 whitespace-nowrap">
-                                                <code className="text-[11px] font-mono bg-slate-100 dark:bg-neutral-800/80 px-1.5 py-0.5 rounded text-slate-800 dark:text-neutral-200">
-                                                    {row.robots || "index, follow"}
-                                                </code>
-                                            </TableCell>
-
-                                            {/* LOCATION */}
-                                            <TableCell className="text-xs font-semibold text-slate-800 dark:text-neutral-200">
-                                                <div className="flex items-center gap-1.5">
-                                                    {isGlobal ? (
-                                                        <Globe size={13} className="text-blue-500 shrink-0" />
-                                                    ) : (
-                                                        <MapPin size={13} className="text-emerald-500 shrink-0" />
-                                                    )}
-                                                    <span>{row.locationName}</span>
-                                                </div>
-                                            </TableCell>
-
-                                            {/* SLUG */}
-                                            <TableCell className="text-xs font-mono text-slate-600 dark:text-neutral-400">
-                                                <span>{row.slug}</span>
-                                            </TableCell>
-
-                                            {/* UPDATED */}
-                                            <TableCell className="text-[11px] text-slate-500 dark:text-neutral-400 whitespace-pre-line">
-                                                {formatDate(row.updatedAt)}
-                                            </TableCell>
-
-                                            {/* ACTIONS */}
-                                            <TableCell className="text-right">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        router.push(`/seo/edit?type=${entityType}&id=${selectedEntityId}&location=${row.locationKey}`);
-                                                    }}
-                                                    className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors shadow-sm"
-                                                    title={`Edit SEO for ${row.locationName}`}
-                                                >
-                                                    <Wrench size={15} />
-                                                </button>
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })
+                                paginatedRows.map((row: MetadataRowItem) => (
+                                    <TableRow
+                                        key={row.id}
+                                        className="hover:bg-slate-50/70 dark:hover:bg-neutral-900/50 transition-colors text-xs"
+                                    >
+                                        <TableCell>
+                                            <Badge
+                                                variant={
+                                                    row.robots?.includes("noindex")
+                                                        ? "danger"
+                                                        : "success"
+                                                }
+                                                size="sm"
+                                                className="font-mono text-[10px]"
+                                            >
+                                                {row.robots || "INDEX, FOLLOW"}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="flex items-center gap-1.5 font-medium text-slate-800 dark:text-neutral-200">
+                                                <MapPin
+                                                    size={12}
+                                                    className="text-slate-400 shrink-0"
+                                                />
+                                                <span>{row.locationName}</span>
+                                                <span className="text-[10px] text-slate-400 uppercase">
+                                                    ({row.locationType})
+                                                </span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <code className="text-[11px] font-mono text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/30 px-1.5 py-0.5 rounded">
+                                                /{row.slug}
+                                            </code>
+                                        </TableCell>
+                                        <TableCell className="whitespace-pre-line text-[11px] text-slate-400 font-mono">
+                                            {formatDate(row.updatedAt)}
+                                        </TableCell>
+                                        <TableCell className="max-w-[200px] truncate text-slate-700 dark:text-neutral-300">
+                                            {row.metaTitle || "—"}
+                                        </TableCell>
+                                        <TableCell className="max-w-[240px] truncate text-slate-500 dark:text-neutral-400">
+                                            {row.metaDescription || "—"}
+                                        </TableCell>
+                                        <TableCell className="max-w-[160px] truncate text-slate-500 dark:text-neutral-400 font-mono text-[11px]">
+                                            {row.canonicalUrl || "—"}
+                                        </TableCell>
+                                        <TableCell className="max-w-[140px] truncate text-slate-500 dark:text-neutral-400">
+                                            {row.keywords?.length
+                                                ? row.keywords.join(", ")
+                                                : "—"}
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            <Badge
+                                                variant={
+                                                    row.isIndexed === false
+                                                        ? "neutral"
+                                                        : "success"
+                                                }
+                                                size="sm"
+                                            >
+                                                {row.isIndexed === false ? "Draft" : "Live"}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell className="text-right pr-4">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() =>
+                                                    router.push(
+                                                        `/seo/${row.id}/edit?type=${entityType}&entityId=${selectedEntityId}`
+                                                    )
+                                                }
+                                                className="h-7 text-xs px-2.5 font-semibold"
+                                            >
+                                                Edit Row
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
                             )}
                         </TableBody>
                     </Table>
                 </div>
 
-                {/* Pagination Footer */}
-                <div className="p-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100 dark:border-neutral-800/80 text-xs text-slate-500 dark:text-neutral-400">
-                    <div>
-                        Showing <span className="font-semibold text-slate-700 dark:text-neutral-200">{totalEntries === 0 ? 0 : startIndex + 1}</span> to{" "}
-                        <span className="font-semibold text-slate-700 dark:text-neutral-200">{endIndex}</span> of{" "}
-                        <span className="font-semibold text-slate-700 dark:text-neutral-200">{totalEntries}</span> entries
+                {/* Pinned Pagination Footer */}
+                {totalEntries > 0 && (
+                    <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
+                        <Pagination
+                            page={currentPage}
+                            totalPages={totalPages}
+                            totalItems={totalEntries}
+                            pageSize={pageSize}
+                            onPageChange={setCurrentPage}
+                        />
                     </div>
-
-                    {/* Pagination Buttons */}
-                    <div className="flex items-center gap-1">
-                        <button
-                            type="button"
-                            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                            disabled={currentPage === 1}
-                            className="px-2.5 py-1 text-xs rounded border border-slate-200 dark:border-neutral-800 hover:bg-slate-50 dark:hover:bg-neutral-800 disabled:opacity-40 disabled:pointer-events-none transition-colors"
-                        >
-                            Prev
-                        </button>
-
-                        {Array.from({ length: totalPages }, (_, i) => i + 1)
-                            .filter((page) => {
-                                if (totalPages <= 7) return true;
-                                if (page === 1 || page === totalPages) return true;
-                                return Math.abs(page - currentPage) <= 1;
-                            })
-                            .map((page, idx, arr) => {
-                                const prev = arr[idx - 1];
-                                const showEllipsis = prev && page - prev > 1;
-
-                                return (
-                                    <React.Fragment key={page}>
-                                        {showEllipsis && <span className="px-1 text-slate-400">...</span>}
-                                        <button
-                                            type="button"
-                                            onClick={() => setCurrentPage(page)}
-                                            className={`w-7 h-7 text-xs font-semibold rounded transition-colors ${
-                                                currentPage === page
-                                                    ? "bg-blue-600 text-white shadow-sm"
-                                                    : "border border-slate-200 dark:border-neutral-800 hover:bg-slate-50 dark:hover:bg-neutral-800 text-slate-700 dark:text-neutral-300"
-                                            }`}
-                                        >
-                                            {page}
-                                        </button>
-                                    </React.Fragment>
-                                );
-                            })}
-
-                        <button
-                            type="button"
-                            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                            disabled={currentPage === totalPages || totalPages === 0}
-                            className="px-2.5 py-1 text-xs rounded border border-slate-200 dark:border-neutral-800 hover:bg-slate-50 dark:hover:bg-neutral-800 disabled:opacity-40 disabled:pointer-events-none transition-colors"
-                        >
-                            Next
-                        </button>
-                    </div>
-                </div>
+                )}
             </Card>
 
 

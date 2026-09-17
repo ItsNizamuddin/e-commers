@@ -20,7 +20,7 @@ export class StripePaymentGateway implements IPaymentGateway {
         signatureHeader: string
     ): WebhookNormalizedEvent {
         if (!signatureHeader) {
-            throw new AppError("Missing Stripe-Signature header", 401, "MISSING_SIGNATURE");
+            throw new AppError("Missing Stripe-Signature header", 400, "MISSING_SIGNATURE");
         }
 
         // Parse Stripe signature header (t=timestamp,v1=signature)
@@ -49,7 +49,7 @@ export class StripePaymentGateway implements IPaymentGateway {
         }
 
         if (!isMatch) {
-            throw new AppError("Stripe webhook signature verification failed", 401, "INVALID_WEBHOOK_SIGNATURE");
+            throw new AppError("Stripe webhook signature verification failed", 400, "SIGNATURE_VERIFICATION_FAILED");
         }
 
         const parsed = JSON.parse(rawBody.toString("utf-8"));

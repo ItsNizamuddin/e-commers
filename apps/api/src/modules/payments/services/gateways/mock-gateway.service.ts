@@ -20,7 +20,7 @@ export class MockPaymentGateway implements IPaymentGateway {
         signatureHeader: string
     ): WebhookNormalizedEvent {
         if (!signatureHeader) {
-            throw new AppError("Missing webhook signature header", 401, "MISSING_SIGNATURE");
+            throw new AppError("Missing webhook signature header", 400, "MISSING_SIGNATURE");
         }
 
         const expectedSignature = crypto
@@ -42,8 +42,8 @@ export class MockPaymentGateway implements IPaymentGateway {
         if (!isMatch) {
             throw new AppError(
                 "Cryptographic HMAC webhook signature mismatch",
-                401,
-                "INVALID_WEBHOOK_SIGNATURE"
+                400,
+                "SIGNATURE_VERIFICATION_FAILED"
             );
         }
 

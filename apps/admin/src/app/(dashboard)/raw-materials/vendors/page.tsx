@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
-import { api } from "../../../../lib/api";
+import { useGetVendorsQuery, useCreateVendorMutation } from "../../../../store/api";
 import type { Vendor, VendorStatus } from "@ecommers/types";
 import {
     Card,
@@ -11,6 +11,7 @@ import {
     Input,
     Spinner,
     FormField,
+    Pagination,
     toast,
 } from "@ecommers/ui";
 import {
@@ -32,40 +33,27 @@ import {
 } from "lucide-react";
 
 export default function VendorsPage() {
-    const [vendors, setVendors] = useState<Vendor[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
+    const {
+        data: vendors = [],
+        isLoading: loading,
+        isFetching: refreshing,
+        refetch,
+    } = useGetVendorsQuery();
+    const [createVendor, { isLoading: isSubmitting }] = useCreateVendorMutation();
+
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState<"ALL" | VendorStatus>("ALL");
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(15);
 
     // Add Vendor Modal
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [newName, setNewName] = useState("");
     const [newContactNumber, setNewContactNumber] = useState("");
     const [newEmail, setNewEmail] = useState("");
     const [newGstin, setNewGstin] = useState("");
     const [newAddress, setNewAddress] = useState("");
     const [newNotes, setNewNotes] = useState("");
-
-    const fetchVendors = useCallback(async (isManual = false) => {
-        if (isManual) setRefreshing(true);
-        else setLoading(true);
-        try {
-            const data = await api.manufacturing.listVendors();
-            setVendors(data || []);
-        } catch (err: unknown) {
-            console.error("Failed to load vendors:", err);
-            toast.error("Failed to load vendor directory.");
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchVendors();
-    }, [fetchVendors]);
 
     const handleCreateVendor = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -78,9 +66,8 @@ export default function VendorsPage() {
             return;
         }
 
-        setIsSubmitting(true);
         try {
-            await api.manufacturing.createVendor({
+            await createVendor({
                 name: newName.trim(),
                 contactNumber: newContactNumber.trim(),
                 email: newEmail.trim() || undefined,
@@ -88,7 +75,7 @@ export default function VendorsPage() {
                 address: newAddress.trim() || undefined,
                 notes: newNotes.trim() || undefined,
                 status: "ACTIVE",
-            });
+            }).unwrap();
             toast.success(`Vendor '${newName.trim()}' created successfully!`);
             setIsAddModalOpen(false);
             // Reset form
@@ -98,13 +85,10 @@ export default function VendorsPage() {
             setNewGstin("");
             setNewAddress("");
             setNewNotes("");
-            fetchVendors();
         } catch (err: any) {
             console.error("Failed to create vendor:", err);
-            const msg = err instanceof Error ? err.message : "Failed to create vendor.";
+            const msg = err?.data?.message || err?.message || "Failed to create vendor.";
             toast.error(msg);
-        } finally {
-            setIsSubmitting(false);
         }
     };
 
@@ -123,6 +107,14 @@ export default function VendorsPage() {
             return true;
         });
     }, [vendors, statusFilter, searchTerm]);
+
+    const totalItems = filteredVendors.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+    const paginatedVendors = useMemo(() => {
+        const start = (page - 1) * pageSize;
+        return filteredVendors.slice(start, start + pageSize);
+    }, [filteredVendors, page, pageSize]);
 
     // Summary Metrics
     const metrics = useMemo(() => {
@@ -156,7 +148,7 @@ export default function VendorsPage() {
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => fetchVendors(true)}
+                        onClick={() => refetch()}
                         disabled={refreshing}
                         className="gap-2 text-xs"
                     >
@@ -259,37 +251,67 @@ export default function VendorsPage() {
                         />
                     </div>
 
-                    <div className="flex items-center gap-1.5 self-start sm:self-auto">
-                        <Button
-                            variant={statusFilter === "ALL" ? "primary" : "outline"}
-                            size="sm"
-                            onClick={() => setStatusFilter("ALL")}
-                            className="text-xs h-8 px-3"
-                        >
-                            All ({vendors.length})
-                        </Button>
-                        <Button
-                            variant={statusFilter === "ACTIVE" ? "primary" : "outline"}
-                            size="sm"
-                            onClick={() => setStatusFilter("ACTIVE")}
-                            className="text-xs h-8 px-3"
-                        >
-                            Active ({vendors.filter((v) => v.status === "ACTIVE").length})
-                        </Button>
-                        <Button
-                            variant={statusFilter === "INACTIVE" ? "primary" : "outline"}
-                            size="sm"
-                            onClick={() => setStatusFilter("INACTIVE")}
-                            className="text-xs h-8 px-3"
-                        >
-                            Inactive ({vendors.filter((v) => v.status === "INACTIVE").length})
-                        </Button>
+                    <div className="flex items-center gap-3 self-start sm:self-auto">
+                        <div className="flex items-center gap-1.5">
+                            <Button
+                                variant={statusFilter === "ALL" ? "primary" : "outline"}
+                                size="sm"
+                                onClick={() => {
+                                    setStatusFilter("ALL");
+                                    setPage(1);
+                                }}
+                                className="text-xs h-8 px-3"
+                            >
+                                All ({vendors.length})
+                            </Button>
+                            <Button
+                                variant={statusFilter === "ACTIVE" ? "primary" : "outline"}
+                                size="sm"
+                                onClick={() => {
+                                    setStatusFilter("ACTIVE");
+                                    setPage(1);
+                                }}
+                                className="text-xs h-8 px-3"
+                            >
+                                Active ({vendors.filter((v) => v.status === "ACTIVE").length})
+                            </Button>
+                            <Button
+                                variant={statusFilter === "INACTIVE" ? "primary" : "outline"}
+                                size="sm"
+                                onClick={() => {
+                                    setStatusFilter("INACTIVE");
+                                    setPage(1);
+                                }}
+                                className="text-xs h-8 px-3"
+                            >
+                                Inactive ({vendors.filter((v) => v.status === "INACTIVE").length})
+                            </Button>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400 shrink-0">
+                            <span>Show</span>
+                            <select
+                                value={pageSize}
+                                onChange={(e) => {
+                                    setPageSize(Number(e.target.value));
+                                    setPage(1);
+                                }}
+                                className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value={10}>10</option>
+                                <option value={15}>15</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                            </select>
+                            <span>entries</span>
+                        </div>
                     </div>
                 </div>
             </Card>
 
             {/* Vendors Table */}
-            <Card className="bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl shadow-xs overflow-hidden">
+            <Card className="bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl shadow-xs overflow-hidden flex flex-col">
                 {loading ? (
                     <div className="py-20 flex flex-col items-center justify-center">
                         <Spinner size="lg" />
@@ -319,22 +341,23 @@ export default function VendorsPage() {
                         )}
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="border-b border-slate-100 dark:border-neutral-800/80 bg-slate-50/75 dark:bg-neutral-900/50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                                    <th className="py-3 px-4">Vendor / Supplier</th>
-                                    <th className="py-3 px-4">Contact Info</th>
-                                    <th className="py-3 px-4">GSTIN / Tax</th>
-                                    <th className="py-3 px-4 text-center">Intakes</th>
-                                    <th className="py-3 px-4 text-right">Lifetime Spend</th>
-                                    <th className="py-3 px-4">Last Purchase</th>
-                                    <th className="py-3 px-4">Status</th>
-                                    <th className="py-3 px-4 text-right">Ledger</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-neutral-800/60 text-xs">
-                                {filteredVendors.map((vendor) => (
+                    <>
+                        <div className="overflow-auto max-h-[calc(100vh-270px)] min-h-[300px]">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs border-b border-slate-200 dark:border-neutral-800 shadow-xs">
+                                    <tr className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                        <th className="py-3 px-4">Vendor / Supplier</th>
+                                        <th className="py-3 px-4">Contact Info</th>
+                                        <th className="py-3 px-4">GSTIN / Tax</th>
+                                        <th className="py-3 px-4 text-center">Intakes</th>
+                                        <th className="py-3 px-4 text-right">Lifetime Spend</th>
+                                        <th className="py-3 px-4">Last Purchase</th>
+                                        <th className="py-3 px-4">Status</th>
+                                        <th className="py-3 px-4 text-right">Ledger</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-neutral-800/60 text-xs">
+                                    {paginatedVendors.map((vendor) => (
                                     <tr
                                         key={vendor.id}
                                         className="hover:bg-slate-50/50 dark:hover:bg-neutral-800/30 transition-colors group"
@@ -439,8 +462,21 @@ export default function VendorsPage() {
                             </tbody>
                         </table>
                     </div>
-                )}
-            </Card>
+
+                    {totalItems > 0 && (
+                        <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
+                            <Pagination
+                                page={page}
+                                totalPages={totalPages}
+                                totalItems={totalItems}
+                                pageSize={pageSize}
+                                onPageChange={setPage}
+                            />
+                        </div>
+                    )}
+                </>
+            )}
+        </Card>
 
             {/* Create Vendor Modal */}
             {isAddModalOpen && (

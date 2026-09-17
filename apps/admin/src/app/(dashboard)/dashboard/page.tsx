@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import Link from "next/link";
-import { api } from "../../../lib/api";
+import { useGetDashboardMetricsQuery, useGetJobsListQuery } from "../../../store/api";
 import type { AdminDashboardMetrics, AdminLowStockItem, AdminRecentOrderItem, QueueJobItem } from "@ecommers/types";
 import {
     Card,
@@ -31,43 +31,31 @@ import {
 import { RequireRole } from "../../../components/auth/require-role";
 
 export default function DashboardOverviewPage() {
-    const [data, setData] = useState<AdminDashboardMetrics | null>(null);
-    const [recentJobs, setRecentJobs] = useState<QueueJobItem[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const {
+        data,
+        isLoading: metricsLoading,
+        error: metricsError,
+        refetch: refetchMetrics,
+    } = useGetDashboardMetricsQuery();
 
-    const fetchDashboard = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const [metricsRes, jobsRes] = await Promise.allSettled([
-                api.admin.getDashboard(),
-                api.admin.listJobs({ queueName: "bulkProcessing", limit: 5 }),
-            ]);
+    const {
+        data: jobsData,
+        isLoading: jobsLoading,
+        refetch: refetchJobs,
+    } = useGetJobsListQuery({ queueName: "bulkProcessing", limit: 5 });
 
-            if (metricsRes.status === "fulfilled") {
-                setData(metricsRes.value);
-            } else {
-                throw metricsRes.reason;
-            }
+    const recentJobs = jobsData?.items || [];
+    const loading = metricsLoading || jobsLoading;
+    const error = metricsError
+        ? "message" in metricsError
+            ? (metricsError.message as string)
+            : "Failed to load dashboard metrics."
+        : null;
 
-            if (jobsRes.status === "fulfilled" && jobsRes.value?.items) {
-                setRecentJobs(jobsRes.value.items);
-            }
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError("Failed to load dashboard metrics.");
-            }
-        } finally {
-            setLoading(false);
-        }
+    const fetchDashboard = () => {
+        refetchMetrics();
+        refetchJobs();
     };
-
-    useEffect(() => {
-        fetchDashboard();
-    }, []);
 
     if (loading) {
         return (

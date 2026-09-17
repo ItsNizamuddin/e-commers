@@ -1,8 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
-import { api } from "../../../../lib/api";
+import {
+    useGetRepackagingRunsQuery,
+    useReverseRepackagingRunMutation,
+} from "../../../../store/api";
 import type { RepackagingRun } from "@ecommers/types";
 import {
     Card,
@@ -12,6 +15,7 @@ import {
     Spinner,
     Modal,
     FormField,
+    Pagination,
     toast,
 } from "@ecommers/ui";
 import {
@@ -32,11 +36,21 @@ import {
 } from "lucide-react";
 
 export default function RepackagingDashboardPage() {
-    const [runs, setRuns] = useState<RepackagingRun[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState<string>("ALL");
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(15);
+
+    const {
+        data: runs = [],
+        isLoading: loading,
+        isFetching: refreshing,
+        refetch,
+    } = useGetRepackagingRunsQuery({
+        status: statusFilter !== "ALL" ? statusFilter : undefined,
+    });
+
+    const [reverseRepackagingRun, { isLoading: submittingReversal }] = useReverseRepackagingRunMutation();
 
     // Modal: View Details
     const [viewingRun, setViewingRun] = useState<RepackagingRun | null>(null);
@@ -45,29 +59,6 @@ export default function RepackagingDashboardPage() {
     const [reversingRun, setReversingRun] = useState<RepackagingRun | null>(null);
     const [reversalReason, setReversalReason] = useState("");
     const [reverseQuantity, setReverseQuantity] = useState("");
-    const [submittingReversal, setSubmittingReversal] = useState(false);
-
-    const fetchRuns = useCallback(async (isManual = false) => {
-        if (isManual) setRefreshing(true);
-        else setLoading(true);
-
-        try {
-            const data = await api.manufacturing.listRepackagingRuns({
-                status: statusFilter !== "ALL" ? statusFilter : undefined,
-            });
-            setRuns(Array.isArray(data) ? data : []);
-        } catch (err: unknown) {
-            console.error("Failed to load repackaging runs:", err);
-            toast.error("Failed to load repackaging runs.");
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, [statusFilter]);
-
-    useEffect(() => {
-        fetchRuns();
-    }, [fetchRuns]);
 
     const safeRuns = Array.isArray(runs) ? runs : [];
 
@@ -109,6 +100,14 @@ export default function RepackagingDashboardPage() {
         });
     }, [safeRuns, statusFilter, searchQuery]);
 
+    const totalItems = filteredRuns.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+    const paginatedRuns = useMemo(() => {
+        const start = (page - 1) * pageSize;
+        return filteredRuns.slice(start, start + pageSize);
+    }, [filteredRuns, page, pageSize]);
+
     const handleReverseRun = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!reversingRun) return;
@@ -118,24 +117,23 @@ export default function RepackagingDashboardPage() {
             return;
         }
 
-        setSubmittingReversal(true);
         try {
-            await api.manufacturing.reverseRepackagingRun(reversingRun.id, {
-                reason: reversalReason.trim(),
-                reverseQuantity: reverseQuantity ? parseInt(reverseQuantity, 10) : undefined,
-            });
+            await reverseRepackagingRun({
+                id: reversingRun.id,
+                body: {
+                    reason: reversalReason.trim(),
+                    reverseQuantity: reverseQuantity ? parseInt(reverseQuantity, 10) : undefined,
+                },
+            }).unwrap();
 
             toast.success(`Repackaging run ${reversingRun.runNumber} reversed. Stock restored!`);
             setReversingRun(null);
             setReversalReason("");
             setReverseQuantity("");
-            fetchRuns(true);
         } catch (err: unknown) {
             console.error("Failed to reverse repackaging run:", err);
             const msg = err instanceof Error ? err.message : "Failed to reverse run.";
             toast.error(msg);
-        } finally {
-            setSubmittingReversal(false);
         }
     };
 
@@ -169,7 +167,7 @@ export default function RepackagingDashboardPage() {
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => fetchRuns(true)}
+                        onClick={() => refetch()}
                         disabled={refreshing}
                         className="gap-1.5 text-xs"
                     >
@@ -254,26 +252,50 @@ export default function RepackagingDashboardPage() {
                     />
                 </div>
 
-                <div className="flex items-center gap-1.5">
-                    {(["ALL", "COMPLETED", "REVERSED"] as const).map((st) => (
-                        <button
-                            key={st}
-                            type="button"
-                            onClick={() => setStatusFilter(st)}
-                            className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-                                statusFilter === st
-                                    ? "bg-slate-900 text-white dark:bg-white dark:text-neutral-900"
-                                    : "text-slate-600 dark:text-neutral-400 hover:bg-slate-100 dark:hover:bg-neutral-800"
-                            }`}
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5">
+                        {(["ALL", "COMPLETED", "REVERSED"] as const).map((st) => (
+                            <button
+                                key={st}
+                                type="button"
+                                onClick={() => {
+                                    setStatusFilter(st);
+                                    setPage(1);
+                                }}
+                                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                                    statusFilter === st
+                                        ? "bg-slate-900 text-white dark:bg-white dark:text-neutral-900"
+                                        : "text-slate-600 dark:text-neutral-400 hover:bg-slate-100 dark:hover:bg-neutral-800"
+                                }`}
+                            >
+                                {st === "ALL" ? "All Runs" : st === "COMPLETED" ? "Completed" : "Reversed"}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400 shrink-0">
+                        <span>Show</span>
+                        <select
+                            value={pageSize}
+                            onChange={(e) => {
+                                setPageSize(Number(e.target.value));
+                                setPage(1);
+                            }}
+                            className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
-                            {st === "ALL" ? "All Runs" : st === "COMPLETED" ? "Completed" : "Reversed"}
-                        </button>
-                    ))}
+                            <option value={10}>10</option>
+                            <option value={15}>15</option>
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                        </select>
+                        <span>entries</span>
+                    </div>
                 </div>
             </div>
 
             {/* Repackaging Runs Table */}
-            <Card className="bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl overflow-hidden shadow-xs">
+            <Card className="bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl overflow-hidden shadow-xs flex flex-col">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-20">
                         <Spinner size="lg" />
@@ -300,35 +322,36 @@ export default function RepackagingDashboardPage() {
                         </Link>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse text-xs">
-                            <thead>
-                                <tr className="bg-slate-50/80 dark:bg-neutral-900/60 border-b border-slate-200 dark:border-neutral-800 text-slate-500 dark:text-neutral-400 font-semibold">
-                                    <th className="py-3 px-4">Run # & Date</th>
-                                    <th className="py-3 px-3">Source Bulk Material</th>
-                                    <th className="py-3 px-3">Source Lot #</th>
-                                    <th className="py-3 px-3">Target Retail Pack</th>
-                                    <th className="py-3 px-3 text-right">Yield Output</th>
-                                    <th className="py-3 px-3 text-right">Cost / Unit</th>
-                                    <th className="py-3 px-3">Lot Expiry</th>
-                                    <th className="py-3 px-3 text-center">Status</th>
-                                    <th className="py-3 px-4 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-neutral-800/80">
-                                {filteredRuns.map((r) => {
-                                    const isReversed = r.status === "REVERSED";
+                    <>
+                        <div className="overflow-auto max-h-[calc(100vh-270px)] min-h-[300px]">
+                            <table className="w-full text-left border-collapse text-xs">
+                                <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs border-b border-slate-200 dark:border-neutral-800 shadow-xs">
+                                    <tr className="bg-slate-50/80 dark:bg-neutral-900/60 border-b border-slate-200 dark:border-neutral-800 text-slate-500 font-semibold">
+                                        <th className="py-3 px-4">Run # & Date</th>
+                                        <th className="py-3 px-3">Source Bulk Material</th>
+                                        <th className="py-3 px-3">Source Lot #</th>
+                                        <th className="py-3 px-3">Target Retail Pack</th>
+                                        <th className="py-3 px-3 text-right">Yield Output</th>
+                                        <th className="py-3 px-3 text-right">Cost / Unit</th>
+                                        <th className="py-3 px-3">Lot Expiry</th>
+                                        <th className="py-3 px-3 text-center">Status</th>
+                                        <th className="py-3 px-4 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-neutral-800/80">
+                                    {paginatedRuns.map((r) => {
+                                        const isReversed = r.status === "REVERSED";
 
-                                    return (
-                                        <tr key={r.id} className="hover:bg-slate-50/60 dark:hover:bg-neutral-800/30 transition-colors">
-                                            <td className="py-3 px-4">
-                                                <span className="font-mono font-bold text-slate-900 dark:text-white block">
-                                                    {r.runNumber}
-                                                </span>
-                                                <span className="text-[11px] text-slate-400">
-                                                    {r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-IN") : "—"}
-                                                </span>
-                                            </td>
+                                        return (
+                                            <tr key={r.id} className="hover:bg-slate-50/60 dark:hover:bg-neutral-800/30 transition-colors">
+                                                <td className="py-3 px-4">
+                                                    <span className="font-mono font-bold text-slate-900 dark:text-white block">
+                                                        {r.runNumber}
+                                                    </span>
+                                                    <span className="text-[11px] text-slate-400">
+                                                        {r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-IN") : "—"}
+                                                    </span>
+                                                </td>
 
                                             <td className="py-3 px-3">
                                                 <span className="font-semibold text-slate-900 dark:text-white block">
@@ -417,8 +440,21 @@ export default function RepackagingDashboardPage() {
                             </tbody>
                         </table>
                     </div>
-                )}
-            </Card>
+
+                    {totalItems > 0 && (
+                        <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
+                            <Pagination
+                                page={page}
+                                totalPages={totalPages}
+                                totalItems={totalItems}
+                                pageSize={pageSize}
+                                onPageChange={setPage}
+                            />
+                        </div>
+                    )}
+                </>
+            )}
+        </Card>
 
             {/* Details Modal */}
             <Modal

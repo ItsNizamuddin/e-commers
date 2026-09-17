@@ -1,9 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api } from "../../../../lib/api";
+import {
+    useGetRawMaterialsQuery,
+    useCreateRawMaterialMutation,
+    useGetProductsQuery,
+} from "../../../../store/api";
 import type {
     RawMaterialCategory,
     RawMaterialUnit,
@@ -109,7 +113,9 @@ function resolveUniqueMaterialSku(name: string, existingCodes: Set<string>): str
 export default function NewRawMaterialPage() {
     const router = useRouter();
 
-    const [isSaving, setIsSaving] = useState(false);
+    const { data: rawMaterials = [] } = useGetRawMaterialsQuery();
+    const [createRawMaterial, { isLoading: isSaving }] = useCreateRawMaterialMutation();
+
     const [code, setCode] = useState("");
     const [name, setName] = useState("");
     const [category, setCategory] = useState<RawMaterialCategory>("INGREDIENT");
@@ -120,49 +126,27 @@ export default function NewRawMaterialPage() {
     const [threshold, setThreshold] = useState("5");
 
     // SKU Auto-generation & Uniqueness state
-    const [existingCodes, setExistingCodes] = useState<Set<string>>(new Set());
+    const existingCodes = useMemo(() => new Set(rawMaterials.map((m) => m.code.toUpperCase())), [rawMaterials]);
     const [isCodeManuallyEdited, setIsCodeManuallyEdited] = useState(false);
     const [codeValidationState, setCodeValidationState] = useState<"idle" | "unique" | "duplicate">("idle");
     const [suggestedAlternativeCode, setSuggestedAlternativeCode] = useState("");
 
-    // Preload existing raw materials to guarantee immediate client-side uniqueness
-    useEffect(() => {
-        api.manufacturing
-            .listRawMaterials()
-            .then((list) => {
-                const codes = new Set(list.map((m) => m.code.toUpperCase()));
-                setExistingCodes(codes);
-            })
-            .catch((err) => {
-                console.error("Failed to load existing raw material codes:", err);
-            });
-    }, []);
-
     // Products & Variants list for linking
-    const [products, setProducts] = useState<Product[]>([]);
-    const [loadingProducts, setLoadingProducts] = useState(false);
+    const shouldLoadProducts = usage === "SELLABLE" || usage === "BOTH";
+    const { data: productsData, isLoading: loadingProducts } = useGetProductsQuery(
+        { limit: 100 },
+        { skip: !shouldLoadProducts }
+    );
+    const products = productsData?.items || [];
     const [selectedProductId, setSelectedProductId] = useState("");
     const [selectedVariantId, setSelectedVariantId] = useState("");
 
     useEffect(() => {
-        if (usage === "SELLABLE" || usage === "BOTH") {
-            setLoadingProducts(true);
-            api.products
-                .list({ limit: 100 })
-                .then((res: { items?: Product[] }) => {
-                    const prods = res.items || [];
-                    setProducts(prods);
-                    if (prods.length > 0 && !selectedProductId) {
-                        setSelectedProductId(prods[0]!.id);
-                        setSelectedVariantId("");
-                    }
-                })
-                .catch((err: unknown) => {
-                    console.error("Failed to load products for linkage:", err);
-                })
-                .finally(() => setLoadingProducts(false));
+        if (products.length > 0 && !selectedProductId) {
+            setSelectedProductId(products[0]!.id);
+            setSelectedVariantId("");
         }
-    }, [usage]);
+    }, [products, selectedProductId]);
 
     // Update variant when product changes (default to All Variants)
     const handleProductChange = (prodId: string) => {
@@ -244,9 +228,8 @@ export default function NewRawMaterialPage() {
             return;
         }
 
-        setIsSaving(true);
         try {
-            await api.manufacturing.createRawMaterial({
+            await createRawMaterial({
                 code: code.trim().toUpperCase(),
                 name: name.trim(),
                 category,
@@ -257,7 +240,7 @@ export default function NewRawMaterialPage() {
                 initialStock: initialStock ? parseFloat(initialStock) : 0,
                 initialCostPerUnit: initialCost ? parseFloat(initialCost) : 0,
                 reorderThreshold: threshold ? parseFloat(threshold) : 5,
-            });
+            }).unwrap();
 
             toast.success(`Raw material '${name}' created successfully!`);
             router.push("/raw-materials");
@@ -265,8 +248,6 @@ export default function NewRawMaterialPage() {
             console.error("Failed to create raw material:", err);
             const msg = err instanceof Error ? err.message : "Failed to create raw material.";
             toast.error(msg);
-        } finally {
-            setIsSaving(false);
         }
     };
 

@@ -36,8 +36,8 @@ export class ProductsClient {
         if (Array.isArray(items)) {
             try {
                 Object.defineProperties(items, {
-                    items: { value: items, enumerable: true, writable: true, configurable: true },
-                    pagination: { value: pagination, enumerable: true, writable: true, configurable: true },
+                    items: { value: items, enumerable: false, writable: true, configurable: true },
+                    pagination: { value: pagination, enumerable: false, writable: true, configurable: true },
                 });
             } catch {
                 // ignore if non-extensible

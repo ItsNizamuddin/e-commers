@@ -1,9 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, Suspense } from "react";
+import React, { useState, useMemo, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { api } from "../../../../lib/api";
+import {
+    useGetRawMaterialLedgerQuery,
+    useGetRawMaterialsQuery,
+} from "../../../../store/api";
 import type { RawMaterialStockMovement, RawMaterial } from "@ecommers/types";
 import {
     Card,
@@ -11,7 +14,7 @@ import {
     Button,
     Spinner,
     Select,
-    toast,
+    Pagination,
 } from "@ecommers/ui";
 import {
     Layers,
@@ -29,37 +32,52 @@ function RawMaterialLedgerContent() {
     const searchParams = useSearchParams();
     const initialRawMaterialId = searchParams.get("rawMaterialId") || "";
 
-    const [movements, setMovements] = useState<RawMaterialStockMovement[]>([]);
-    const [materials, setMaterials] = useState<RawMaterial[]>([]);
     const [selectedMaterialId, setSelectedMaterialId] = useState(initialRawMaterialId);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(15);
 
-    const fetchData = useCallback(async (isManual = false) => {
-        if (isManual) setRefreshing(true);
-        else setLoading(true);
-        try {
-            const [ledgerData, matsData] = await Promise.all([
-                api.manufacturing.listLedger({
-                    rawMaterialId: selectedMaterialId || undefined,
-                    limit: 150,
-                }),
-                api.manufacturing.listRawMaterials(),
-            ]);
-            setMovements(ledgerData || []);
-            setMaterials(matsData || []);
-        } catch (err: unknown) {
-            console.error("Failed to load ledger:", err);
-            toast.error("Failed to load stock movements.");
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, [selectedMaterialId]);
+    const {
+        data: movements = [],
+        isLoading: ledgerLoading,
+        isFetching: ledgerFetching,
+        refetch: refetchLedger,
+    } = useGetRawMaterialLedgerQuery({
+        rawMaterialId: selectedMaterialId || undefined,
+        limit: 250,
+    });
+
+    const {
+        data: materials = [],
+        isLoading: matsLoading,
+        refetch: refetchMats,
+    } = useGetRawMaterialsQuery();
+
+    const loading = ledgerLoading || matsLoading;
+    const refreshing = ledgerFetching;
+
+    const handleRefresh = () => {
+        refetchLedger();
+        refetchMats();
+    };
+
+    const handleMaterialChange = (newId: string) => {
+        setSelectedMaterialId(newId);
+        setPage(1);
+    };
+
+    const totalItems = movements.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
     useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+        if (page > totalPages) {
+            setPage(1);
+        }
+    }, [totalPages, page]);
+
+    const paginatedMovements = useMemo(() => {
+        const startIndex = (page - 1) * pageSize;
+        return movements.slice(startIndex, startIndex + pageSize);
+    }, [movements, page, pageSize]);
 
     const getTypeBadge = (type: string) => {
         switch (type) {
@@ -108,7 +126,7 @@ function RawMaterialLedgerContent() {
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => fetchData(true)}
+                        onClick={handleRefresh}
                         disabled={refreshing}
                         className="gap-1.5 text-xs"
                     >
@@ -119,13 +137,13 @@ function RawMaterialLedgerContent() {
             </div>
 
             {/* Filter Bar */}
-            <div className="flex items-center justify-between bg-white dark:bg-[#111111] p-3 rounded-2xl border border-slate-200 dark:border-neutral-800 shadow-xs">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-[#111111] p-3 rounded-2xl border border-slate-200 dark:border-neutral-800 shadow-xs">
                 <div className="flex items-center gap-3">
                     <span className="text-xs font-bold text-slate-700 dark:text-neutral-300">Filter Material:</span>
                     <div className="w-64">
                         <Select
                             value={selectedMaterialId}
-                            onChange={(e) => setSelectedMaterialId(e.target.value)}
+                            onChange={(e) => handleMaterialChange(e.target.value)}
                             options={[
                                 { label: "All Materials", value: "" },
                                 ...materials.map((m) => ({
@@ -137,11 +155,28 @@ function RawMaterialLedgerContent() {
                     </div>
                 </div>
 
-                <span className="text-xs text-slate-400">Showing last {movements.length} ledger events</span>
+                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400">
+                    <span>Show</span>
+                    <select
+                        value={pageSize}
+                        onChange={(e) => {
+                            setPageSize(Number(e.target.value));
+                            setPage(1);
+                        }}
+                        className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value={10}>10</option>
+                        <option value={15}>15</option>
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                    </select>
+                    <span>entries per page</span>
+                </div>
             </div>
 
             {/* Table */}
-            <Card className="bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl overflow-hidden shadow-xs">
+            <Card className="bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl overflow-hidden shadow-xs flex flex-col">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-20">
                         <Spinner size="lg" />
@@ -154,61 +189,75 @@ function RawMaterialLedgerContent() {
                         <p className="text-xs text-slate-400 mt-1">Transactions will appear as materials are purchased or cooked.</p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse text-xs">
-                            <thead>
-                                <tr className="bg-slate-50/80 dark:bg-neutral-900/60 border-b border-slate-200 dark:border-neutral-800 text-slate-500 font-semibold">
-                                    <th className="py-3 px-4">Date & Time</th>
-                                    <th className="py-3 px-3">Raw Material</th>
-                                    <th className="py-3 px-3">Movement Type</th>
-                                    <th className="py-3 px-3 text-right">Quantity Delta</th>
-                                    <th className="py-3 px-3 text-right">Stock Transition</th>
-                                    <th className="py-3 px-3">Reference ID</th>
-                                    <th className="py-3 px-4">Reason / Notes</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-neutral-800/80">
-                                {movements.map((mov) => {
-                                    const isPositive = mov.quantityDelta > 0;
+                    <>
+                        <div className="overflow-auto max-h-[calc(100vh-270px)] min-h-[300px]">
+                            <table className="w-full text-left border-collapse text-xs">
+                                <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs border-b border-slate-200 dark:border-neutral-800 shadow-xs">
+                                    <tr className="text-slate-500 font-semibold">
+                                        <th className="py-3 px-4">Date & Time</th>
+                                        <th className="py-3 px-3">Raw Material</th>
+                                        <th className="py-3 px-3">Movement Type</th>
+                                        <th className="py-3 px-3 text-right">Quantity Delta</th>
+                                        <th className="py-3 px-3 text-right">Stock Transition</th>
+                                        <th className="py-3 px-3">Reference ID</th>
+                                        <th className="py-3 px-4">Reason / Notes</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-neutral-800/80">
+                                    {paginatedMovements.map((mov) => {
+                                        const isPositive = mov.quantityDelta > 0;
 
-                                    return (
-                                        <tr key={mov.id} className="hover:bg-slate-50/60 dark:hover:bg-neutral-800/30 transition-colors">
-                                            <td className="py-3 px-4 font-mono text-slate-500">
-                                                {new Date(mov.createdAt).toLocaleString("en-IN", {
-                                                    day: "2-digit",
-                                                    month: "short",
-                                                    hour: "2-digit",
-                                                    minute: "2-digit",
-                                                })}
-                                            </td>
-                                            <td className="py-3 px-3 font-semibold text-slate-900 dark:text-white">
-                                                {(mov as any).rawMaterialId?.name || "Raw Material"}
-                                            </td>
-                                            <td className="py-3 px-3">
-                                                {getTypeBadge(mov.type)}
-                                            </td>
-                                            <td className="py-3 px-3 text-right font-mono font-bold">
-                                                <span className={isPositive ? "text-emerald-600" : "text-rose-600"}>
-                                                    {isPositive ? `+${mov.quantityDelta}` : mov.quantityDelta} {mov.unit}
-                                                </span>
-                                            </td>
-                                            <td className="py-3 px-3 text-right font-mono text-slate-500">
-                                                <span>{mov.previousStock}</span>
-                                                <span className="mx-1 text-slate-300">→</span>
-                                                <span className="font-bold text-slate-800 dark:text-slate-200">{mov.newStock} {mov.unit}</span>
-                                            </td>
-                                            <td className="py-3 px-3 font-mono text-blue-600 dark:text-blue-400 font-semibold">
-                                                {mov.referenceId}
-                                            </td>
-                                            <td className="py-3 px-4 text-slate-600 dark:text-neutral-300 truncate max-w-[250px]">
-                                                {mov.reason || "—"}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+                                        return (
+                                            <tr key={mov.id} className="hover:bg-slate-50/60 dark:hover:bg-neutral-800/30 transition-colors">
+                                                <td className="py-3 px-4 font-mono text-slate-500">
+                                                    {new Date(mov.createdAt).toLocaleString("en-IN", {
+                                                        day: "2-digit",
+                                                        month: "short",
+                                                        hour: "2-digit",
+                                                        minute: "2-digit",
+                                                    })}
+                                                </td>
+                                                <td className="py-3 px-3 font-semibold text-slate-900 dark:text-white">
+                                                    {(mov as any).rawMaterialId?.name || "Raw Material"}
+                                                </td>
+                                                <td className="py-3 px-3">
+                                                    {getTypeBadge(mov.type)}
+                                                </td>
+                                                <td className="py-3 px-3 text-right font-mono font-bold">
+                                                    <span className={isPositive ? "text-emerald-600" : "text-rose-600"}>
+                                                        {isPositive ? `+${mov.quantityDelta}` : mov.quantityDelta} {mov.unit}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-3 text-right font-mono text-slate-500">
+                                                    <span>{mov.previousStock}</span>
+                                                    <span className="mx-1 text-slate-300">→</span>
+                                                    <span className="font-bold text-slate-800 dark:text-slate-200">{mov.newStock} {mov.unit}</span>
+                                                </td>
+                                                <td className="py-3 px-3 font-mono text-blue-600 dark:text-blue-400 font-semibold">
+                                                    {mov.referenceId}
+                                                </td>
+                                                <td className="py-3 px-4 text-slate-600 dark:text-neutral-300 truncate max-w-[250px]">
+                                                    {mov.reason || "—"}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {totalItems > 0 && (
+                            <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
+                                <Pagination
+                                    page={page}
+                                    totalPages={totalPages}
+                                    totalItems={totalItems}
+                                    pageSize={pageSize}
+                                    onPageChange={setPage}
+                                />
+                            </div>
+                        )}
+                    </>
                 )}
             </Card>
         </div>

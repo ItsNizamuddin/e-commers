@@ -166,4 +166,5 @@ QueueJobSchema.index({ "audit.referenceNumber": 1 });
 QueueJobSchema.index({ "audit.correlationId": 1 });
 QueueJobSchema.index({ "audit.triggeredBy.userId": 1 });
 
-export const QueueJobModel = model<IQueueJob>("QueueJob", QueueJobSchema);
+export const QueueJobModel =
+    (mongoose.models.QueueJob as mongoose.Model<IQueueJob>) || model<IQueueJob>("QueueJob", QueueJobSchema);

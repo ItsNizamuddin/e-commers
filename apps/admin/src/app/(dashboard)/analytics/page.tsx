@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
-import { api } from "../../../lib/api";
+import React, { useState } from "react";
+import { useGetSalesAnalyticsQuery } from "../../../store/api";
 import type { SalesAnalyticsResponse } from "@ecommers/types";
 import {
     Card,
@@ -22,35 +22,21 @@ import {
 import { RequireRole } from "../../../components/auth/require-role";
 
 export default function AnalyticsPage() {
-    const [analytics, setAnalytics] = useState<SalesAnalyticsResponse | null>(null);
     const [interval, setInterval] = useState<"day" | "week" | "month">("day");
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [error, setError] = useState<string | null>(null);
 
-    const fetchAnalytics = useCallback(async (isManual = false) => {
-        if (isManual) setRefreshing(true);
-        else setLoading(true);
-        setError(null);
+    const {
+        data: analytics,
+        isLoading: loading,
+        isFetching: refreshing,
+        error: queryError,
+        refetch,
+    } = useGetSalesAnalyticsQuery({ interval, currency: "USD" });
 
-        try {
-            const data = await api.admin.getSalesAnalytics({ interval, currency: "USD" });
-            setAnalytics(data);
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError("Failed to retrieve sales analytics.");
-            }
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, [interval]);
-
-    useEffect(() => {
-        fetchAnalytics();
-    }, [fetchAnalytics]);
+    const error = queryError
+        ? "message" in queryError
+            ? (queryError.message as string)
+            : "Failed to retrieve sales analytics."
+        : null;
 
     return (
         <RequireRole allowedRoles={["SUPER_ADMIN", "ADMIN", "SALES"]}>
@@ -93,7 +79,7 @@ export default function AnalyticsPage() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => fetchAnalytics(true)}
+                        onClick={() => refetch()}
                         isLoading={refreshing}
                         className="gap-1.5"
                     >
@@ -109,7 +95,7 @@ export default function AnalyticsPage() {
                     <p className="text-xs text-slate-500 dark:text-slate-400">Computing sales aggregations...</p>
                 </div>
             ) : error ? (
-                <ErrorState title="Unable to load analytics" message={error} onRetry={() => fetchAnalytics()} />
+                <ErrorState title="Unable to load analytics" message={error} onRetry={() => refetch()} />
             ) : analytics ? (
                 <>
                     {/* Summary Cards */}

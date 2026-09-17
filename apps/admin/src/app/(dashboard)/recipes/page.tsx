@@ -1,14 +1,15 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
-import { api } from "../../../lib/api";
+import { useGetRecipesQuery } from "../../../store/api";
 import type { Recipe } from "@ecommers/types";
 import {
     Card,
     Badge,
     Button,
     Spinner,
+    Pagination,
     toast,
 } from "@ecommers/ui";
 import {
@@ -26,30 +27,25 @@ import {
 import { BatchSheetModal } from "@/components/manufacturing/batch-sheet-modal";
 
 export default function RecipesPage() {
-    const [recipes, setRecipes] = useState<Recipe[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
+    const {
+        data: recipes = [],
+        isLoading: loading,
+        isFetching: refreshing,
+        refetch,
+    } = useGetRecipesQuery();
+
     const [costingStrategy, setCostingStrategy] = useState<"WAC" | "HIGHEST">("WAC");
     const [batchModalRecipe, setBatchModalRecipe] = useState<Recipe | null>(null);
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(15);
 
-    const fetchRecipes = useCallback(async (isManual = false) => {
-        if (isManual) setRefreshing(true);
-        else setLoading(true);
-        try {
-            const data = await api.manufacturing.listRecipes();
-            setRecipes(data || []);
-        } catch (err: unknown) {
-            console.error("Failed to load recipes:", err);
-            toast.error("Failed to load recipes.");
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, []);
+    const totalItems = recipes.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
-    useEffect(() => {
-        fetchRecipes();
-    }, [fetchRecipes]);
+    const paginatedRecipes = useMemo(() => {
+        const start = (page - 1) * pageSize;
+        return recipes.slice(start, start + pageSize);
+    }, [recipes, page, pageSize]);
 
     return (
         <div className="space-y-6 pb-20 max-w-7xl mx-auto">
@@ -75,7 +71,7 @@ export default function RecipesPage() {
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => fetchRecipes(true)}
+                        onClick={() => refetch()}
                         disabled={refreshing}
                         className="gap-1.5 text-xs"
                     >
@@ -131,10 +127,29 @@ export default function RecipesPage() {
                         Highest / Replacement Rate
                     </button>
                 </div>
+
+                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400 shrink-0">
+                    <span>Show</span>
+                    <select
+                        value={pageSize}
+                        onChange={(e) => {
+                            setPageSize(Number(e.target.value));
+                            setPage(1);
+                        }}
+                        className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value={10}>10</option>
+                        <option value={15}>15</option>
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                    </select>
+                    <span>entries</span>
+                </div>
             </div>
 
             {/* Recipes Table */}
-            <Card className="bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl overflow-hidden shadow-xs">
+            <Card className="bg-white dark:bg-[#111111] border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl overflow-hidden shadow-xs flex flex-col">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-20">
                         <Spinner size="lg" />
@@ -155,24 +170,25 @@ export default function RecipesPage() {
                         </Link>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse text-xs">
-                            <thead>
-                                <tr className="bg-slate-50/80 dark:bg-neutral-900/60 border-b border-slate-200 dark:border-neutral-800 text-slate-500 font-semibold">
-                                    <th className="py-3 px-4">Recipe & Version</th>
-                                    <th className="py-3 px-3">Assigned Finished Product</th>
-                                    <th className="py-3 px-3">Batch Yield</th>
-                                    <th className="py-3 px-3">Shelf Life</th>
-                                    <th className="py-3 px-3">Ingredients / Packaging</th>
-                                    <th className="py-3 px-3 text-right">
-                                        Unit Cost ({costingStrategy === "WAC" ? "WAC" : "Replacement"})
-                                    </th>
-                                    <th className="py-3 px-3 text-right">Selling Price & Margin</th>
-                                    <th className="py-3 px-4 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-neutral-800/80">
-                                {recipes.map((r) => {
+                    <>
+                        <div className="overflow-auto max-h-[calc(100vh-270px)] min-h-[300px]">
+                            <table className="w-full text-left border-collapse text-xs">
+                                <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs border-b border-slate-200 dark:border-neutral-800 shadow-xs">
+                                    <tr className="text-slate-500 font-semibold">
+                                        <th className="py-3 px-4">Recipe & Version</th>
+                                        <th className="py-3 px-3">Assigned Finished Product</th>
+                                        <th className="py-3 px-3">Batch Yield</th>
+                                        <th className="py-3 px-3">Shelf Life</th>
+                                        <th className="py-3 px-3">Ingredients / Packaging</th>
+                                        <th className="py-3 px-3 text-right">
+                                            Unit Cost ({costingStrategy === "WAC" ? "WAC" : "Replacement"})
+                                        </th>
+                                        <th className="py-3 px-3 text-right">Selling Price & Margin</th>
+                                        <th className="py-3 px-4 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-neutral-800/80">
+                                    {paginatedRecipes.map((r) => {
                                     const productObj = (r as any).productId;
                                     const variantObj = productObj?.variants?.find((v: any) => v.id === r.variantId?.toString()) || productObj?.variants?.[0];
                                     const sellingPrice = variantObj?.prices?.[0]?.amount || 0;
@@ -267,8 +283,21 @@ export default function RecipesPage() {
                             </tbody>
                         </table>
                     </div>
-                )}
-            </Card>
+
+                    {totalItems > 0 && (
+                        <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
+                            <Pagination
+                                page={page}
+                                totalPages={totalPages}
+                                totalItems={totalItems}
+                                pageSize={pageSize}
+                                onPageChange={setPage}
+                            />
+                        </div>
+                    )}
+                </>
+            )}
+        </Card>
 
             {/* Production Batch Slip & Scaled Work Order Modal */}
             <BatchSheetModal
@@ -277,7 +306,7 @@ export default function RecipesPage() {
                 recipe={batchModalRecipe}
                 onBatchCreated={(batchNum) => {
                     toast.success(`Production batch ${batchNum} scheduled!`);
-                    fetchRecipes(true);
+                    refetch();
                 }}
             />
         </div>

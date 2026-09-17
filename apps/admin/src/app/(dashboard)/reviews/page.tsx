@@ -1,7 +1,11 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
-import { api } from "../../../lib/api";
+import React, { useState } from "react";
+import {
+    useGetProductsQuery,
+    useGetProductReviewsQuery,
+    useDeleteReviewMutation,
+} from "../../../store/api";
 import type { ReviewResponse, ProductResponse } from "@ecommers/types";
 import {
     Card,
@@ -19,6 +23,7 @@ import {
     Select,
     TableAction,
     TableActionGroup,
+    Pagination,
 } from "@ecommers/ui";
 import {
     Star,
@@ -29,80 +34,53 @@ import {
 } from "lucide-react";
 
 export default function ReviewsPage() {
-    const [products, setProducts] = useState<ProductResponse[]>([]);
     const [selectedProductId, setSelectedProductId] = useState<string>("");
-    const [reviews, setReviews] = useState<ReviewResponse[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    // Summary
-    const [avgRating, setAvgRating] = useState(5.0);
-    const [totalReviews, setTotalReviews] = useState(0);
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(15);
 
     // Delete dialog
     const [reviewToDelete, setReviewToDelete] = useState<string | null>(null);
-    const [isDeleting, setIsDeleting] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
 
-    // Load initial products list
-    useEffect(() => {
-        api.products.list({ limit: 50 }).then((res) => {
-            const prods: ProductResponse[] = Array.isArray(res) ? res : (res?.items || []);
-            setProducts(prods);
-            if (prods.length > 0) {
-                setSelectedProductId(prods[0].id);
-            }
-        }).catch(() => {});
-    }, []);
+    // Products query
+    const { data: productsData } = useGetProductsQuery({ limit: 50 });
+    const products: ProductResponse[] = productsData?.items || [];
+    const activeProductId = selectedProductId || products[0]?.id || "";
 
-    const fetchReviews = useCallback(async (isManual = false) => {
-        if (!selectedProductId) return;
+    // Reviews query
+    const {
+        data: reviewsData,
+        isLoading: reviewsLoading,
+        isFetching: refreshing,
+        error: reviewsError,
+        refetch,
+    } = useGetProductReviewsQuery(
+        { productId: activeProductId },
+        { skip: !activeProductId }
+    );
 
-        if (isManual) setRefreshing(true);
-        else setLoading(true);
-        setError(null);
+    const [deleteReviewMutation, { isLoading: isDeleting }] = useDeleteReviewMutation();
 
-        try {
-            const res = await api.reviews.list(selectedProductId);
-            setReviews(res.reviews || []);
-            setAvgRating(res.summary?.averageRating || 5.0);
-            setTotalReviews(res.summary?.totalReviews || 0);
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError("Failed to load reviews for this product.");
-            }
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, [selectedProductId]);
-
-    useEffect(() => {
-        if (selectedProductId) {
-            fetchReviews();
-        } else {
-            setLoading(false);
-        }
-    }, [selectedProductId, fetchReviews]);
+    const reviews: ReviewResponse[] = reviewsData?.reviews || [];
+    const totalPages = Math.ceil(reviews.length / pageSize) || 1;
+    const paginatedReviews = reviews.slice((page - 1) * pageSize, page * pageSize);
+    const avgRating = reviewsData?.summary?.averageRating ?? 5.0;
+    const totalReviews = reviewsData?.summary?.totalReviews ?? 0;
+    const loading = !activeProductId ? false : reviewsLoading;
 
     const handleDeleteReview = async () => {
         if (!reviewToDelete) return;
-        setIsDeleting(true);
         try {
-            await api.reviews.delete(reviewToDelete);
+            await deleteReviewMutation({ reviewId: reviewToDelete, productId: activeProductId }).unwrap();
             setReviewToDelete(null);
             setNotice("Review deleted successfully.");
             setTimeout(() => setNotice(null), 3000);
-            fetchReviews(true);
         } catch (err: unknown) {
             if (err instanceof Error) {
                 alert(`Delete failed: ${err.message}`);
+            } else {
+                alert("Delete failed.");
             }
-        } finally {
-            setIsDeleting(false);
         }
     };
 
@@ -129,7 +107,7 @@ export default function ReviewsPage() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => fetchReviews(true)}
+                        onClick={() => refetch()}
                         isLoading={refreshing}
                         className="gap-1.5"
                     >
@@ -155,7 +133,10 @@ export default function ReviewsPage() {
                     <div className="flex-1 min-w-[280px]">
                         <Select
                             value={selectedProductId}
-                            onChange={(e) => setSelectedProductId(e.target.value)}
+                            onChange={(e) => {
+                                setSelectedProductId(e.target.value);
+                                setPage(1);
+                            }}
                         >
                             {products.length === 0 ? (
                                 <option value="">No products available</option>
@@ -175,110 +156,149 @@ export default function ReviewsPage() {
                             <span className="font-bold text-sm text-slate-900 dark:text-white">{avgRating.toFixed(1)}</span>
                         </div>
                         <Badge variant="neutral" size="sm">{totalReviews} total reviews</Badge>
+
+                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400 shrink-0 ml-2">
+                            <span>Show</span>
+                            <select
+                                value={pageSize}
+                                onChange={(e) => {
+                                    setPageSize(Number(e.target.value));
+                                    setPage(1);
+                                }}
+                                className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value={10}>10</option>
+                                <option value={15}>15</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                            </select>
+                            <span>entries</span>
+                        </div>
                     </div>
                 </div>
             </Card>
 
             {/* Reviews Table Card */}
-            <Card className="p-3.5 sm:p-4">
+            <Card className="p-0 overflow-hidden flex flex-col border border-slate-200/80 dark:border-neutral-800/80 rounded-2xl shadow-xs">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-16 gap-3">
                         <Spinner size="md" />
                         <p className="text-xs text-slate-500 dark:text-slate-400">Loading reviews...</p>
                     </div>
-                ) : error ? (
-                    <ErrorState title="Failed to load reviews" message={error} onRetry={() => fetchReviews()} />
+                ) : reviewsError ? (
+                    <div className="p-6">
+                        <ErrorState
+                            title="Failed to load reviews"
+                            message={typeof reviewsError === "string" ? reviewsError : "An error occurred while fetching reviews."}
+                            onRetry={() => refetch()}
+                        />
+                    </div>
                 ) : (
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Reviewer</TableHead>
-                                <TableHead>Rating</TableHead>
-                                <TableHead>Title & Comment</TableHead>
-                                <TableHead>Verified</TableHead>
-                                <TableHead>Helpful</TableHead>
-                                <TableHead>Date</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {reviews.length === 0 ? (
-                                <TableRow noHover>
-                                    <TableCell colSpan={7} className="text-center text-slate-400 dark:text-slate-500 py-12">
-                                        No reviews posted for this product yet.
-                                    </TableCell>
+                    <>
+                        <Table className="overflow-auto max-h-[calc(100vh-280px)] min-h-[300px] border-none rounded-none">
+                            <TableHeader className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs shadow-xs">
+                                <TableRow>
+                                    <TableHead>Reviewer</TableHead>
+                                    <TableHead>Rating</TableHead>
+                                    <TableHead>Title & Comment</TableHead>
+                                    <TableHead>Verified</TableHead>
+                                    <TableHead>Helpful</TableHead>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
-                            ) : (
-                                reviews.map((r) => {
-                                    const dateStr = new Date(r.createdAt).toLocaleDateString("en-US", {
-                                        month: "short",
-                                        day: "numeric",
-                                        year: "numeric",
-                                    });
+                            </TableHeader>
+                            <TableBody>
+                                {reviews.length === 0 ? (
+                                    <TableRow noHover>
+                                        <TableCell colSpan={7} className="text-center text-slate-400 dark:text-slate-500 py-12">
+                                            No reviews posted for this product yet.
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    paginatedReviews.map((r) => {
+                                        const dateStr = new Date(r.createdAt).toLocaleDateString("en-US", {
+                                            month: "short",
+                                            day: "numeric",
+                                            year: "numeric",
+                                        });
 
-                                    return (
-                                        <TableRow key={r.id}>
-                                            <TableCell>
-                                                <div className="font-bold text-slate-900 dark:text-slate-100">
-                                                    {r.userName || "Customer"}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex gap-0.5">
-                                                    {[1, 2, 3, 4, 5].map((s) => (
-                                                        <Star
-                                                            key={s}
-                                                            size={12}
-                                                            className={s <= r.rating ? "fill-amber-400 text-amber-400" : "text-slate-200 dark:text-slate-700"}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div>
-                                                    {r.title && (
-                                                        <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">
-                                                            {r.title}
-                                                        </div>
-                                                    )}
-                                                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-md">
-                                                        {r.comment}
+                                        return (
+                                            <TableRow key={r.id}>
+                                                <TableCell>
+                                                    <div className="font-bold text-slate-900 dark:text-slate-100">
+                                                        {r.userName || "Customer"}
                                                     </div>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                {r.isVerifiedPurchase ? (
-                                                    <Badge variant="success" size="sm">Verified</Badge>
-                                                ) : (
-                                                    <Badge variant="neutral" size="sm">Standard</Badge>
-                                                )}
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
-                                                    <ThumbsUp size={12} />
-                                                    <span>{r.helpfulVotes || 0}</span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="text-xs text-slate-500 dark:text-slate-400">
-                                                {dateStr}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <TableActionGroup>
-                                                    <TableAction
-                                                        icon={<Trash2 size={14} />}
-                                                        label="Delete"
-                                                        variant="destructive"
-                                                        onClick={() => setReviewToDelete(r.id)}
-                                                        title="Delete Review"
-                                                    />
-                                                </TableActionGroup>
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })
-                            )}
-                        </TableBody>
-                    </Table>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex gap-0.5">
+                                                        {[1, 2, 3, 4, 5].map((s) => (
+                                                            <Star
+                                                                key={s}
+                                                                size={12}
+                                                                className={s <= r.rating ? "fill-amber-400 text-amber-400" : "text-slate-200 dark:text-slate-700"}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div>
+                                                        {r.title && (
+                                                            <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">
+                                                                {r.title}
+                                                            </div>
+                                                        )}
+                                                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-md">
+                                                            {r.comment}
+                                                        </div>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    {r.isVerifiedPurchase ? (
+                                                        <Badge variant="success" size="sm">Verified</Badge>
+                                                    ) : (
+                                                        <Badge variant="neutral" size="sm">Standard</Badge>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                                                        <ThumbsUp size={12} />
+                                                        <span>{r.helpfulVotes || 0}</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-xs text-slate-500 dark:text-slate-400">
+                                                    {dateStr}
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <TableActionGroup>
+                                                        <TableAction
+                                                            icon={<Trash2 size={14} />}
+                                                            label="Delete"
+                                                            variant="destructive"
+                                                            onClick={() => setReviewToDelete(r.id)}
+                                                            title="Delete Review"
+                                                        />
+                                                    </TableActionGroup>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })
+                                )}
+                            </TableBody>
+                        </Table>
+
+                        {reviews.length > 0 && (
+                            <div className="p-3 sm:px-4 border-t border-slate-100 dark:border-neutral-800/80 bg-slate-50/40 dark:bg-neutral-900/30 shrink-0">
+                                <Pagination
+                                    page={page}
+                                    totalPages={totalPages}
+                                    totalItems={reviews.length}
+                                    pageSize={pageSize}
+                                    onPageChange={setPage}
+                                />
+                            </div>
+                        )}
+                    </>
                 )}
             </Card>
 

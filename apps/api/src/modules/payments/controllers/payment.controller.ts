@@ -18,7 +18,7 @@ export class PaymentController {
                 provider || "MOCK"
             );
 
-            res.status(201).json({
+            res.status(result.isExisting ? 200 : 201).json({
                 success: true,
                 data: result,
             });

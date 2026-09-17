@@ -1,9 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { api } from "../../../../lib/api";
-import type { CategoryResponse, CreateCategoryInput, UpdateCategoryInput } from "@ecommers/types";
+import {
+    useGetCategoryByIdQuery,
+    useGetCategoriesQuery,
+    useUpdateCategoryMutation,
+    useDeleteCategoryMutation,
+} from "../../../../store/api";
+import type { CreateCategoryInput, UpdateCategoryInput } from "@ecommers/types";
 import { Spinner, ErrorState, toast } from "@ecommers/ui";
 import { CategoryForm } from "../../../../components/categories/category-form";
 
@@ -12,60 +17,50 @@ export default function EditCategoryPage() {
     const router = useRouter();
     const id = params?.id as string;
 
-    const [category, setCategory] = useState<CategoryResponse | null>(null);
-    const [categories, setCategories] = useState<CategoryResponse[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const {
+        data: category,
+        isLoading: isLoadingCategory,
+        error: categoryError,
+        refetch: refetchCategory,
+    } = useGetCategoryByIdQuery(id, { skip: !id });
 
-    const [isSaving, setIsSaving] = useState(false);
+    const {
+        data: categories = [],
+        isLoading: isLoadingCategories,
+    } = useGetCategoriesQuery();
+
+    const [updateCategory, { isLoading: isSaving }] = useUpdateCategoryMutation();
+    const [deleteCategory, { isLoading: isDeleting }] = useDeleteCategoryMutation();
+
     const [saveNotice, setSaveNotice] = useState<string | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-    const loadData = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const [cat, allCats] = await Promise.all([
-                api.categories.getById(id),
-                api.categories.list().catch(() => []),
-            ]);
-            setCategory(cat);
-            setCategories(allCats || []);
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError("Failed to load category details.");
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        if (id) {
-            loadData();
-        }
-    }, [id]);
 
     const handleUpdate = async (payload: CreateCategoryInput | UpdateCategoryInput) => {
         setErrorMessage(null);
         setSaveNotice(null);
-        setIsSaving(true);
         try {
-            const updated = await api.categories.update(id, payload as UpdateCategoryInput);
-            setCategory(updated);
+            await updateCategory({ id, body: payload as UpdateCategoryInput }).unwrap();
+            setSaveNotice("Category details and SEO settings saved successfully.");
             toast.success("Category details and SEO settings saved successfully.");
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : "Failed to save category changes.";
             setErrorMessage(msg);
             toast.error(msg);
-        } finally {
-            setIsSaving(false);
         }
     };
 
-    if (loading) {
+    const handleDelete = async () => {
+        try {
+            await deleteCategory(id).unwrap();
+            toast.success("Category deleted successfully.");
+            router.push("/categories");
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : "Failed to delete category.";
+            toast.error(msg);
+        }
+    };
+
+    if (isLoadingCategory) {
         return (
             <div className="flex flex-col items-center justify-center py-24 gap-3">
                 <Spinner size="lg" className="text-blue-600 dark:text-blue-400" />
@@ -76,13 +71,19 @@ export default function EditCategoryPage() {
         );
     }
 
-    if (error || !category) {
+    if (categoryError || !category) {
         return (
             <div className="py-8">
                 <ErrorState
                     title="Category Not Found"
-                    message={error || "Could not retrieve the requested category."}
-                    onRetry={loadData}
+                    message={
+                        categoryError
+                            ? typeof categoryError === "string"
+                                ? categoryError
+                                : "Could not retrieve the requested category."
+                            : "Could not retrieve the requested category."
+                    }
+                    onRetry={() => refetchCategory()}
                 />
             </div>
         );
@@ -93,8 +94,11 @@ export default function EditCategoryPage() {
             mode="edit"
             category={category}
             categories={categories}
+            isLoadingCategories={isLoadingCategories}
             onSubmit={handleUpdate}
             isSubmitting={isSaving}
+            onDelete={handleDelete}
+            isDeleting={isDeleting}
             saveNotice={saveNotice}
             errorMessage={errorMessage}
         />

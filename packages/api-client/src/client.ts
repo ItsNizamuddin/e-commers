@@ -140,9 +140,9 @@ export class ApiClient {
 
                     try {
                         Object.defineProperties(json.data, {
-                            items: { value: json.data, enumerable: true, writable: true, configurable: true },
-                            pagination: { value: pagination, enumerable: true, writable: true, configurable: true },
-                            meta: { value: pagination, enumerable: true, writable: true, configurable: true },
+                            items: { value: json.data, enumerable: false, writable: true, configurable: true },
+                            pagination: { value: pagination, enumerable: false, writable: true, configurable: true },
+                            meta: { value: pagination, enumerable: false, writable: true, configurable: true },
                         });
                     } catch {
                         // ignore if non-extensible

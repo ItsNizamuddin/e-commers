@@ -18,7 +18,7 @@ const router = Router();
 
 // Authenticated Customer Order History
 router.get(
-    "/me",
+    ["/me", "/my-orders"],
     requireAuth,
     validate(orderListQuerySchema, "query"),
     orderController.getMyOrders

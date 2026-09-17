@@ -371,7 +371,7 @@ describe("Payment & Order Module Enterprise Architecture Tests", () => {
             });
 
         expect(patchRes.status).toBe(409);
-        expect(patchRes.body.error.code).toBe("INVALID_CHECKOUT_STATUS");
+        expect(patchRes.body.error.code).toBe("STATE_LOCKED");
     });
 
     /* -------------------------------------------------------------------------- */
@@ -695,7 +695,7 @@ describe("Payment & Order Module Enterprise Architecture Tests", () => {
 
         // 2. Verify Reservation committed (SALE stock movements exist)
         const reservation = await ReservationModel.findById(reservationId);
-        expect(reservation?.status).toBe("COMMITTED");
+        expect(reservation?.status).toBe("CONFIRMED");
 
         // 3. Verify Cart converted to order
         const cart = await CartModel.findById(cartId);

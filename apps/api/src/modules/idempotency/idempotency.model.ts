@@ -1,4 +1,4 @@
-import { Schema, model, type Document } from "mongoose";
+import mongoose, { Schema, model, type Document, type Model } from "mongoose";
 
 export interface IIdempotencyRecord extends Document {
     key: string;
@@ -73,7 +73,6 @@ IdempotencyRecordSchema.index({ scope: 1, key: 1 }, { unique: true });
 // Automatic TTL expiration after 24 hours
 IdempotencyRecordSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-export const IdempotencyRecordModel = model<IIdempotencyRecord>(
-    "IdempotencyRecord",
-    IdempotencyRecordSchema
-);
+export const IdempotencyRecordModel =
+    (mongoose.models.IdempotencyRecord as Model<IIdempotencyRecord>) ||
+    model<IIdempotencyRecord>("IdempotencyRecord", IdempotencyRecordSchema);
