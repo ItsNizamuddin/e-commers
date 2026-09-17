@@ -25,6 +25,7 @@ const loggerOptions: LoggerOptions = {
                 colorize: true,
                 translateTime: "SYS:standard",
                 ignore: "pid,hostname",
+                singleLine: true,
             },
         },
     }),

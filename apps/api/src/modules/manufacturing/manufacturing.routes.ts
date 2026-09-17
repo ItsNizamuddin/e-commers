@@ -96,23 +96,23 @@ adminManufacturingRouter.patch(
 
 // Feasibility Pre-flight & Production Runs
 adminManufacturingRouter.get(
-    "/feasibility",
+    ["/feasibility", "/runs/check-feasibility", "/production-runs/check-feasibility"],
     manufacturingController.checkFeasibility.bind(manufacturingController)
 );
 adminManufacturingRouter.post(
-    "/production-runs",
+    ["/production-runs", "/runs"],
     idempotency(),
     validate(executeProductionSchema, "body"),
     manufacturingController.executeProductionRun.bind(manufacturingController)
 );
 adminManufacturingRouter.post(
-    "/production-runs/:id/reverse",
+    ["/production-runs/:id/reverse", "/runs/:id/reverse"],
     idempotency(),
     validate(reverseProductionSchema, "body"),
     manufacturingController.reverseProductionRun.bind(manufacturingController)
 );
 adminManufacturingRouter.get(
-    "/production-runs",
+    ["/production-runs", "/runs"],
     manufacturingController.listProductionRuns.bind(manufacturingController)
 );
 
