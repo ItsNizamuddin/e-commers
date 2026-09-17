@@ -206,57 +206,81 @@ export default function RawMaterialsPage() {
                     />
                 </div>
 
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-                    <span className="text-[11px] font-semibold text-slate-400 mr-1">Usage:</span>
-                    {(["ALL", "RAW_MATERIAL", "SELLABLE", "BOTH"] as const).map((u) => (
-                        <button
-                            key={u}
-                            type="button"
-                            onClick={() => setSelectedUsage(u)}
-                            className={`px-2 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${selectedUsage === u
-                                    ? "bg-purple-600 text-white"
-                                    : "text-slate-600 dark:text-neutral-400 hover:bg-slate-100 dark:hover:bg-neutral-800"
-                                }`}
-                        >
-                            {u === "ALL" ? "All" : u === "RAW_MATERIAL" ? "Raw" : u === "SELLABLE" ? "Sellable" : "Both (Dual)"}
-                        </button>
-                    ))}
-                    <div className="h-4 w-px bg-slate-200 dark:bg-neutral-800 mx-1" />
-                    {CATEGORIES.slice(0, 4).map((c) => (
-                        <button
-                            key={c.value}
-                            type="button"
-                            onClick={() => {
-                                setSelectedCategory(c.value);
+                <div className="flex flex-wrap items-center gap-2.5">
+                    {/* Category Dropdown */}
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-medium text-slate-500 dark:text-neutral-400">Category:</span>
+                        <select
+                            value={selectedCategory}
+                            onChange={(e) => {
+                                setSelectedCategory(e.target.value);
                                 setPage(1);
                             }}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${selectedCategory === c.value
-                                    ? "bg-slate-900 text-white dark:bg-white dark:text-neutral-900"
-                                    : "text-slate-600 dark:text-neutral-400 hover:bg-slate-100 dark:hover:bg-neutral-800"
-                                }`}
+                            className="h-9 px-3 text-xs font-medium rounded-xl border border-slate-200 dark:border-neutral-800 bg-slate-50 dark:bg-[#161616] text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer"
                         >
-                            {c.label}
-                        </button>
-                    ))}
-                </div>
+                            {CATEGORIES.map((c) => (
+                                <option key={c.value} value={c.value}>
+                                    {c.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
 
-                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400 shrink-0">
-                    <span>Show</span>
-                    <select
-                        value={pageSize}
-                        onChange={(e) => {
-                            setPageSize(Number(e.target.value));
-                            setPage(1);
-                        }}
-                        className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                        <option value={10}>10</option>
-                        <option value={15}>15</option>
-                        <option value={25}>25</option>
-                        <option value={50}>50</option>
-                        <option value={100}>100</option>
-                    </select>
-                    <span>entries</span>
+                    {/* Usage Dropdown */}
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-medium text-slate-500 dark:text-neutral-400">Usage:</span>
+                        <select
+                            value={selectedUsage}
+                            onChange={(e) => {
+                                setSelectedUsage(e.target.value as any);
+                                setPage(1);
+                            }}
+                            className="h-9 px-3 text-xs font-medium rounded-xl border border-slate-200 dark:border-neutral-800 bg-slate-50 dark:bg-[#161616] text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer"
+                        >
+                            <option value="ALL">All Usages</option>
+                            <option value="RAW_MATERIAL">Raw Material</option>
+                            <option value="SELLABLE">Sellable Retail</option>
+                            <option value="BOTH">Dual Use (Both)</option>
+                        </select>
+                    </div>
+
+                    {/* Reset Button */}
+                    {(selectedCategory !== "ALL" || selectedUsage !== "ALL" || searchQuery.trim()) && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                                setSelectedCategory("ALL");
+                                setSelectedUsage("ALL");
+                                setSearchQuery("");
+                                setPage(1);
+                            }}
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 h-9 px-2"
+                        >
+                            Reset
+                        </Button>
+                    )}
+
+                    <div className="h-4 w-px bg-slate-200 dark:bg-neutral-800 hidden sm:block" />
+
+                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400 shrink-0">
+                        <span>Show</span>
+                        <select
+                            value={pageSize}
+                            onChange={(e) => {
+                                setPageSize(Number(e.target.value));
+                                setPage(1);
+                            }}
+                            className="h-9 text-xs font-medium rounded-xl border border-slate-200 dark:border-neutral-800 bg-slate-50 dark:bg-[#161616] px-2.5 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                        >
+                            <option value={10}>10</option>
+                            <option value={15}>15</option>
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                        </select>
+                        <span>entries</span>
+                    </div>
                 </div>
             </div>
 
