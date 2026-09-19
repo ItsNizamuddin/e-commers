@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { manufacturingService } from "./manufacturing.service.js";
+import { packagingMatrixService } from "./packaging-matrix.service.js";
 import { resolveActor } from "../../utils/audit.js";
 
 export class ManufacturingController {
@@ -247,6 +248,65 @@ export class ManufacturingController {
         const { id } = req.params;
         const purchases = await manufacturingService.getVendorPurchases(id as string);
         res.json({ success: true, data: purchases });
+    }
+
+    // Packaging Specifications
+    async listPackagingSpecifications(req: Request, res: Response) {
+        const { productId, variantId, masterFormulaId, isActive } = req.query as {
+            productId?: string;
+            variantId?: string;
+            masterFormulaId?: string;
+            isActive?: string;
+        };
+
+        const specs = await manufacturingService.listPackagingSpecifications({
+            productId,
+            variantId,
+            masterFormulaId,
+            isActive: isActive !== undefined ? isActive === "true" : undefined,
+        });
+
+        res.json({ success: true, data: specs });
+    }
+
+    async getPackagingSpecificationById(req: Request, res: Response) {
+        const { id } = req.params;
+        const spec = await manufacturingService.getPackagingSpecification(id as string);
+        res.json({ success: true, data: spec });
+    }
+
+    async createPackagingSpecification(req: Request, res: Response) {
+        const spec = await manufacturingService.createPackagingSpecification(req.body);
+        res.status(201).json({ success: true, data: spec });
+    }
+
+    async updatePackagingSpecification(req: Request, res: Response) {
+        const { id } = req.params;
+        const spec = await manufacturingService.updatePackagingSpecification(id as string, req.body);
+        res.json({ success: true, data: spec });
+    }
+
+    async deletePackagingSpecification(req: Request, res: Response) {
+        const { id } = req.params;
+        const result = await manufacturingService.deletePackagingSpecification(id as string);
+        res.json({ success: true, data: result });
+    }
+
+    // Packaging & Pricing Matrix
+    async getPackagingMatrix(req: Request, res: Response) {
+        const { id } = req.params;
+        const matrix = await packagingMatrixService.getPackagingMatrix(id as string);
+        res.json({ success: true, data: matrix });
+    }
+
+    async syncPackagingMatrix(req: Request, res: Response) {
+        const { id } = req.params;
+        const actor = await resolveActor((req as any).user?.id);
+        const matrix = await packagingMatrixService.syncPackagingMatrix(
+            { ...req.body, productId: id as string },
+            actor
+        );
+        res.json({ success: true, data: matrix });
     }
 }
 

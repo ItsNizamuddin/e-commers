@@ -127,10 +127,12 @@ export function BatchSheetModal({
     }, [recipe?.id, targetQuantity, manufacturingDate]);
 
     useEffect(() => {
-        if (isOpen && recipe) {
+        if (!isOpen || !recipe || !recipe.id || targetQuantity <= 0) return;
+        const timer = setTimeout(() => {
             fetchFeasibility();
-        }
-    }, [isOpen, recipe, fetchFeasibility]);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [isOpen, recipe, targetQuantity, manufacturingDate, fetchFeasibility]);
 
     // Print action
     const handlePrint = () => {

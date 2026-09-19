@@ -8,10 +8,13 @@ export interface ProductionRunDocument extends Document {
     recipeCode: string;
     recipeName: string;
     recipeVersion: number;
-    productId: mongoose.Types.ObjectId;
-    productTitle: string;
+    productId?: mongoose.Types.ObjectId;
+    productTitle?: string;
     variantId?: mongoose.Types.ObjectId;
     variantTitle?: string;
+    bulkLotId?: mongoose.Types.ObjectId;
+    bulkLotNumber?: string;
+    isBulkProduction?: boolean;
     warehouseId: mongoose.Types.ObjectId;
     plannedQuantity: number;
     actualQuantity: number;
@@ -195,12 +198,14 @@ const ProductionRunSchema = new Schema<ProductionRunDocument>(
         productId: {
             type: Schema.Types.ObjectId,
             ref: "Product",
-            required: true,
+            required: false,
+            default: undefined,
             index: true,
         },
         productTitle: {
             type: String,
-            required: true,
+            required: false,
+            default: undefined,
         },
         variantId: {
             type: Schema.Types.ObjectId,
@@ -209,6 +214,23 @@ const ProductionRunSchema = new Schema<ProductionRunDocument>(
         variantTitle: {
             type: String,
             default: undefined,
+        },
+        bulkLotId: {
+            type: Schema.Types.ObjectId,
+            ref: "RawMaterialLot",
+            default: undefined,
+            index: true,
+        },
+        bulkLotNumber: {
+            type: String,
+            uppercase: true,
+            trim: true,
+            default: undefined,
+        },
+        isBulkProduction: {
+            type: Boolean,
+            default: false,
+            index: true,
         },
         warehouseId: {
             type: Schema.Types.ObjectId,

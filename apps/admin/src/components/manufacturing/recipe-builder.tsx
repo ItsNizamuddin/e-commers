@@ -35,21 +35,24 @@ import {
 } from "lucide-react";
 import { BatchSheetModal } from "./batch-sheet-modal";
 
-function generateDefaultRecipeCode(product: any, unit: string = "1KG"): string {
-    if (!product) return "";
-    const slugOrTitle = product.slug || product.title || "ITEM";
-    const clean = slugOrTitle
+function generateDefaultRecipeCode(productOrName: any, unit: string = "1KG"): string {
+    if (!productOrName) return "";
+    const raw = typeof productOrName === "string" ? productOrName : (productOrName.slug || productOrName.title || "ITEM");
+    const clean = raw
         .toUpperCase()
         .replace(/[^A-Z0-9]/g, "-")
         .replace(/-+/g, "-")
         .replace(/^-|-$/g, "")
-        .slice(0, 14);
-    return `RCP-${clean}-${unit}`;
+        .slice(0, 14)
+        .replace(/-+$/, "");
+    const cleanUnit = (unit || "1KG").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    return `RCP-${clean}-${cleanUnit}`;
 }
 
-function generateDefaultRecipeName(product: any, unit: string = "1 kg"): string {
-    if (!product) return "";
-    return `${product.title} (${unit} Master Formula)`;
+function generateDefaultRecipeName(productOrName: any, unit: string = "1 kg"): string {
+    if (!productOrName) return "";
+    const title = typeof productOrName === "string" ? productOrName : (productOrName.title || "Master Formula");
+    return `${title} (${unit} Master Formula)`;
 }
 
 const UNITS: Array<{ label: string; value: RawMaterialUnit }> = [
@@ -131,6 +134,9 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
     const [isSaving, setIsSaving] = useState(false);
 
     // Form state
+    const [recipeType, setRecipeType] = useState<"STANDALONE" | "PRODUCT_LINKED">(() => {
+        return extractId(initialRecipe?.productId) ? "PRODUCT_LINKED" : "STANDALONE";
+    });
     const [code, setCode] = useState(initialRecipe?.code || "");
     const [name, setName] = useState(initialRecipe?.name || "");
     const [productId, setProductId] = useState(() => extractId(initialRecipe?.productId));
@@ -202,7 +208,14 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
         if (initialRecipe.code) setCode(initialRecipe.code);
         if (initialRecipe.name) setName(initialRecipe.name);
         const pId = extractId(initialRecipe.productId);
-        if (pId) setProductId(pId);
+        if (pId) {
+            setRecipeType("PRODUCT_LINKED");
+            setProductId(pId);
+        } else {
+            setRecipeType("STANDALONE");
+            setProductId("");
+            setVariantId("");
+        }
 
         const vId = extractId(initialRecipe.variantId);
         if (vId) {
@@ -246,21 +259,18 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
                 api.manufacturing.listRawMaterials(),
                 api.products.list({ limit: 100 }),
             ]);
-            setMaterials(matsData || []);
 
-            const productList: any[] = Array.isArray(prodsRes)
-                ? prodsRes
-                : (prodsRes?.items || (prodsRes as any)?.data || []);
+            const rawMats = Array.isArray(matsData) ? matsData : (matsData as any)?.data || [];
+            setMaterials(rawMats);
 
-            // If initialRecipe has a populated product, ensure it exists in products list
-            const populatedProd = (initialRecipe as any)?.product ||
-                (typeof initialRecipe?.productId === "object" ? initialRecipe.productId : null);
-            if (populatedProd) {
-                const popId = extractId(populatedProd);
-                if (popId && !productList.some((p: any) => extractId(p) === popId)) {
+            const productList = prodsRes.items || (prodsRes as any).products || [];
+            if (initialRecipe) {
+                const populatedProd = (initialRecipe as any)?.product ||
+                    (typeof initialRecipe?.productId === "object" ? initialRecipe.productId : null);
+                if (populatedProd && !productList.some((p: any) => extractId(p) === extractId(populatedProd))) {
                     productList.unshift({
                         ...populatedProd,
-                        id: popId,
+                        id: extractId(populatedProd),
                         variants: (populatedProd.variants || []).map((v: any) => ({
                             ...v,
                             id: extractId(v),
@@ -271,7 +281,7 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
 
             setProducts(productList);
 
-            if (!productId && productList.length > 0) {
+            if (recipeType === "PRODUCT_LINKED" && !productId && productList.length > 0) {
                 const firstProd = productList[0];
                 const firstId = extractId(firstProd);
                 setProductId(firstId);
@@ -279,6 +289,11 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
                     setCode((prev) => prev || generateDefaultRecipeCode(firstProd, "1KG"));
                     setName((prev) => prev || generateDefaultRecipeName(firstProd, "1 kg"));
                 }
+            } else if (!initialRecipe && !code) {
+                setCode("RCP-BULK-FORMULA-10KG");
+                setName("Bulk Master Formula (10 kg)");
+                setYieldQty("10");
+                setYieldUnit("kg");
             }
         } catch (err) {
             console.error("Failed to load builder prerequisites:", err);
@@ -286,7 +301,7 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
         } finally {
             setLoading(false);
         }
-    }, [productId, initialRecipe]);
+    }, [productId, initialRecipe, recipeType, code]);
 
     useEffect(() => {
         fetchData();
@@ -371,15 +386,18 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
     };
 
     const handleAutoFillCodeAndName = () => {
-        if (!selectedProduct) {
-            toast.error("Please select a target finished product first.");
-            return;
+        const unitSuffix = (yieldUnit || "1KG").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        const unitText = `${yieldQty || 1} ${yieldUnit || "kg"}`;
+        if (recipeType === "PRODUCT_LINKED" && selectedProduct) {
+            setCode(generateDefaultRecipeCode(selectedProduct, unitSuffix));
+            setName(generateDefaultRecipeName(selectedProduct, unitText));
+            toast.success("Auto-filled Recipe Code and Name from product!");
+        } else {
+            const baseName = name.trim() || "BULK-FORMULA";
+            setCode(generateDefaultRecipeCode(baseName, unitSuffix));
+            if (!name.trim()) setName(`Bulk ${baseName} (${unitText} Master Formula)`);
+            toast.success("Auto-filled Recipe Code from formula name!");
         }
-        const unitSuffix = yieldUnit.toLowerCase() === "l" ? "1L" : "1KG";
-        const unitText = yieldUnit.toLowerCase() === "l" ? "1 L" : "1 kg";
-        setCode(generateDefaultRecipeCode(selectedProduct, unitSuffix));
-        setName(generateDefaultRecipeName(selectedProduct, unitText));
-        toast.success("Auto-filled Recipe Code and Name from product!");
     };
 
     // Filter materials by category for Ingredients vs Packaging
@@ -515,7 +533,28 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
 
         const activeUnitCost = costingStrategy === "WAC" ? unitCostWac : unitCostHighest;
         const activeTotalBatch = costingStrategy === "WAC" ? totalBatchWac : totalBatchHighest;
-        const grossMarginPercent = sellingPrice > 0 ? ((sellingPrice - activeUnitCost) / sellingPrice) * 100 : 0;
+
+        // Pack-scaled costing if a specific product variant is selected
+        let packRatio = 1;
+        let variantPackLabel = "";
+        if (selectedVariant && recipeType === "PRODUCT_LINKED") {
+            const vWeight = parseVariantWeight(selectedVariant);
+            if (vWeight) {
+                variantPackLabel = `${vWeight.value}${vWeight.unit}`;
+                const rUnit = (yieldUnit || "kg").toLowerCase();
+                if (rUnit === "kg" && vWeight.unit === "g") {
+                    packRatio = vWeight.value / 1000;
+                } else if (rUnit === "l" && vWeight.unit === "ml") {
+                    packRatio = vWeight.value / 1000;
+                } else if (rUnit === vWeight.unit) {
+                    packRatio = vWeight.value;
+                }
+            }
+        }
+
+        const packBulkFoodCost = Math.round(activeUnitCost * packRatio * 100) / 100;
+        const effectivePackCost = selectedVariant && packRatio !== 1 ? packBulkFoodCost : activeUnitCost;
+        const grossMarginPercent = sellingPrice > 0 ? ((sellingPrice - effectivePackCost) / sellingPrice) * 100 : 0;
 
         return {
             ingredientsSubtotal: costingStrategy === "WAC" ? totalIngredientsWac : totalIngredientsHighest,
@@ -525,9 +564,12 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
             unitCost: Math.round(activeUnitCost * 100) / 100,
             unitCostWac: Math.round(unitCostWac * 100) / 100,
             unitCostHighest: Math.round(unitCostHighest * 100) / 100,
+            packRatio,
+            variantPackLabel,
+            packCost: Math.round(effectivePackCost * 100) / 100,
             grossMarginPercent: Math.round(grossMarginPercent * 10) / 10,
         };
-    }, [ingredients, packaging, laborOverhead, yieldQty, materials, costingStrategy, sellingPrice]);
+    }, [ingredients, packaging, laborOverhead, yieldQty, yieldUnit, materials, costingStrategy, sellingPrice, selectedVariant, recipeType]);
 
     // Live preview recipe for the Production Batch Sheet & Scaled Slip Modal
     const previewRecipeForBatchSheet = useMemo<Recipe | null>(() => {
@@ -642,11 +684,16 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
                 unit: p.unit,
             }));
 
+        const sanitizedProductId = recipeType === "STANDALONE" || !productId ? undefined : productId;
+        const sanitizedVariantId = (recipeType !== "STANDALONE" && variantId && !variantId.startsWith("__STANDARD_")) ? variantId : undefined;
+
         setIsSaving(true);
         try {
             if (isEditing && initialRecipe) {
                 const res = await api.manufacturing.updateRecipe(initialRecipe.id, {
                     name: name.trim(),
+                    productId: sanitizedProductId,
+                    variantId: sanitizedVariantId,
                     shelfLifeDays: parseInt(shelfLifeDays, 10) || 30,
                     batchYield: {
                         quantity: parseFloat(yieldQty) || 1,
@@ -663,11 +710,10 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
                 toast.success(bumpVersion ? `Bumped recipe to v${res.version}!` : "Recipe updated successfully!");
                 router.push("/recipes");
             } else {
-                const sanitizedVariantId = (variantId && !variantId.startsWith("__STANDARD_")) ? variantId : undefined;
                 await api.manufacturing.createRecipe({
                     code: code.trim().toUpperCase(),
                     name: name.trim(),
-                    productId,
+                    productId: sanitizedProductId,
                     variantId: sanitizedVariantId,
                     shelfLifeDays: parseInt(shelfLifeDays, 10) || 30,
                     batchYield: {
@@ -681,7 +727,7 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
                     changeLog: changeLog.trim() || "Initial recipe formulation",
                 });
 
-                toast.success("Master recipe created successfully!");
+                toast.success(recipeType === "STANDALONE" ? "Master Bulk Formula created successfully!" : "Master recipe created successfully!");
                 router.push("/recipes");
             }
         } catch (err: unknown) {
@@ -699,16 +745,17 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
             return;
         }
 
+        const costToApply = calculation.packCost || calculation.unitCost;
         setIsSyncing(true);
         try {
             await api.manufacturing.syncVariantCost({
                 productId: selectedProduct.id,
                 variantId: selectedVariant.id,
-                costAmount: calculation.unitCost,
+                costAmount: costToApply,
                 currency: selectedProduct.baseCurrency || "INR",
             });
             toast.success(
-                `Synced production cost ₹${calculation.unitCost.toFixed(2)} to ${selectedProduct.title} (${selectedVariant.title})!`
+                `Synced production cost ₹${costToApply.toFixed(2)} to ${selectedProduct.title} (${selectedVariant.title})!`
             );
             setIsSyncModalOpen(false);
         } catch (err: unknown) {
@@ -795,7 +842,7 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
                         <div className="flex items-center justify-between">
                             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                                 <Layers size={16} className="text-blue-600" />
-                                <span>1. Finished Product Assignment & Base Formula</span>
+                                <span>1. Recipe Classification & Formula Base</span>
                             </h3>
                             <Button
                                 type="button"
@@ -809,36 +856,100 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
                             </Button>
                         </div>
 
-                        {/* First Row: Target Finished Product & Formula Reference Base */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <FormField label="Target Finished Product" required>
-                                <SearchableSelect
-                                    value={productId}
-                                    onChange={handleProductChange}
-                                    options={productOptions}
-                                    placeholder="-- Select finished product --"
-                                    searchPlaceholder="Search product by title, slug..."
-                                    size="sm"
-                                    pageSize={15}
-                                />
-                            </FormField>
-
-                            <FormField label="Formula Reference Base">
-                                <Select
-                                    value={variantId}
-                                    onChange={(e) => handleReferenceBaseChange(e.target.value)}
-                                    options={[
-                                        { label: "⭐ Standard 1 kg Base (Universal Master Formula - Recommended)", value: "__STANDARD_1KG__" },
-                                        { label: "⭐ Standard 1 Liter Base (Universal Master Formula - Recommended)", value: "__STANDARD_1L__" },
-                                        { label: "Generic Master / All Variants", value: "" },
-                                        ...variants.map((v: any) => ({
-                                            label: `Specific Variant: ${v.title} (SKU: ${v.sku})`,
-                                            value: extractId(v),
-                                        })),
-                                    ]}
-                                />
-                            </FormField>
+                        {/* Formula Architecture Switcher */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-1.5 bg-slate-100 dark:bg-neutral-900 rounded-xl border border-slate-200/80 dark:border-neutral-800 text-xs">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setRecipeType("STANDALONE");
+                                    setProductId("");
+                                    setVariantId("");
+                                }}
+                                className={`flex items-start gap-2.5 p-2.5 rounded-lg text-left transition-all ${
+                                    recipeType === "STANDALONE"
+                                        ? "bg-white dark:bg-neutral-800 text-blue-700 dark:text-blue-300 shadow-xs border border-slate-200/60 dark:border-neutral-700 font-semibold"
+                                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                                }`}
+                            >
+                                <span className="text-lg">🧪</span>
+                                <div>
+                                    <div className="font-bold text-xs">Master Bulk Formula</div>
+                                    <div className="text-[11px] font-normal opacity-80 mt-0.5">
+                                        Produces bulk food (e.g. 10 kg). Inwards to Bulk Raw Material Lot.
+                                    </div>
+                                </div>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setRecipeType("PRODUCT_LINKED")}
+                                className={`flex items-start gap-2.5 p-2.5 rounded-lg text-left transition-all ${
+                                    recipeType === "PRODUCT_LINKED"
+                                        ? "bg-white dark:bg-neutral-800 text-blue-700 dark:text-blue-300 shadow-xs border border-slate-200/60 dark:border-neutral-700 font-semibold"
+                                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                                }`}
+                            >
+                                <span className="text-lg">📦</span>
+                                <div>
+                                    <div className="font-bold text-xs">Direct Retail SKU Recipe</div>
+                                    <div className="text-[11px] font-normal opacity-80 mt-0.5">
+                                        Produces packaged units directly into store variant inventory.
+                                    </div>
+                                </div>
+                            </button>
                         </div>
+
+                        {/* Product / Variant Assignment (Conditional or Optional) */}
+                        {recipeType === "PRODUCT_LINKED" ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <FormField label="Target Finished Product" required>
+                                    <SearchableSelect
+                                        value={productId}
+                                        onChange={handleProductChange}
+                                        options={productOptions}
+                                        placeholder="-- Select finished product --"
+                                        searchPlaceholder="Search product by title, slug..."
+                                        size="sm"
+                                        pageSize={15}
+                                    />
+                                </FormField>
+
+                                <FormField label="Formula Reference Base">
+                                    <Select
+                                        value={variantId}
+                                        onChange={(e) => handleReferenceBaseChange(e.target.value)}
+                                        options={[
+                                            { label: "⭐ Standard 1 kg Base (Universal Master Formula - Recommended)", value: "__STANDARD_1KG__" },
+                                            { label: "⭐ Standard 1 Liter Base (Universal Master Formula - Recommended)", value: "__STANDARD_1L__" },
+                                            { label: "Generic Master / All Variants", value: "" },
+                                            ...variants.map((v: any) => ({
+                                                label: `Specific Variant: ${v.title} (SKU: ${v.sku})`,
+                                                value: extractId(v),
+                                            })),
+                                        ]}
+                                    />
+                                </FormField>
+                            </div>
+                        ) : (
+                            <div className="p-3 bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-900/50 rounded-xl text-xs text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                <div className="space-y-0.5">
+                                    <span className="font-bold">🧪 Decoupled Bulk Production Mode</span>
+                                    <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                                        No store product required. When cooked/produced, output inwards directly into a Bulk Food Lot. Packaging into sellable retail packs happens in separate Packaging Runs.
+                                    </p>
+                                </div>
+                                <div className="shrink-0 w-full sm:w-auto">
+                                    <SearchableSelect
+                                        value={productId}
+                                        onChange={handleProductChange}
+                                        options={productOptions}
+                                        placeholder="Optional: Reference Product"
+                                        searchPlaceholder="Search product..."
+                                        size="sm"
+                                        pageSize={10}
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                         {/* Second Row: Recipe Code / SKU & Recipe Name */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -868,18 +979,22 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
                             <Sparkles size={16} className="text-blue-600 shrink-0 mt-0.5" />
                             <div>
                                 <p className="text-xs text-blue-950 dark:text-blue-200 font-bold">
-                                    {variantId === "__STANDARD_1L__"
-                                        ? "Standard 1 Liter Base Mode Active"
-                                        : variantId === "__STANDARD_1KG__" || (!variantId && yieldUnit.toLowerCase() === "kg")
-                                            ? "Standard 1 kg Base Mode Active (Best Practice)"
-                                            : `Specific Variant Base Mode: ${selectedVariant?.title || "Selected Variety"}`}
+                                    {recipeType === "STANDALONE"
+                                        ? "Master Bulk Formula Mode Active"
+                                        : variantId === "__STANDARD_1L__"
+                                            ? "Standard 1 Liter Base Mode Active"
+                                            : variantId === "__STANDARD_1KG__" || (!variantId && yieldUnit.toLowerCase() === "kg")
+                                                ? "Standard 1 kg Base Mode Active (Best Practice)"
+                                                : `Specific Variant Base Mode: ${selectedVariant?.title || "Selected Variety"}`}
                                 </p>
                                 <p className="text-[11px] text-blue-700 dark:text-blue-300 mt-0.5 leading-relaxed">
-                                    {variantId === "__STANDARD_1KG__" || (!variantId && yieldUnit.toLowerCase() === "kg")
-                                        ? "Enter ingredients required to make 1 kg of finished product. You can instantly scale raw materials to any production quantity (e.g. 50 kg, 100 kg) and print production slips using the Factory Batch Slip button."
-                                        : variantId === "__STANDARD_1L__"
-                                            ? "Enter ingredients required to make 1 Liter of finished liquid product. You can instantly scale raw materials to any batch quantity and print production slips using the Factory Batch Slip button."
-                                            : `Enter ingredients for this recipe (${selectedVariant?.title || "selected"}). You can scale to any batch quantity and print production slips using the Factory Batch Slip button.`}
+                                    {recipeType === "STANDALONE"
+                                        ? "Enter ingredients required to manufacture your standard bulk batch (e.g. 1 kg or 10 kg). After bulk cooking, retail jars/pouches (500g, 750g) are packaged from this bulk lot via Packaging Runs."
+                                        : variantId === "__STANDARD_1KG__" || (!variantId && yieldUnit.toLowerCase() === "kg")
+                                            ? "Enter ingredients required to make 1 kg of finished product. You can instantly scale raw materials to any production quantity (e.g. 50 kg, 100 kg) and print production slips using the Factory Batch Slip button."
+                                            : variantId === "__STANDARD_1L__"
+                                                ? "Enter ingredients required to make 1 Liter of finished liquid product. You can instantly scale raw materials to any batch quantity and print production slips using the Factory Batch Slip button."
+                                                : `Enter ingredients for this recipe (${selectedVariant?.title || "selected"}). You can scale to any batch quantity and print production slips using the Factory Batch Slip button.`}
                                 </p>
                             </div>
                         </div>
@@ -1360,14 +1475,24 @@ export function RecipeBuilder({ initialRecipe, isEditing = false }: RecipeBuilde
 
                             {/* Profit Margin Preview */}
                             {sellingPrice > 0 && (
-                                <div className="p-3.5 bg-gradient-to-br from-emerald-50/70 to-teal-50/40 dark:from-emerald-950/30 dark:to-neutral-900 rounded-xl border border-emerald-200/80 dark:border-emerald-900/60 space-y-1.5">
+                                <div className="p-3.5 bg-gradient-to-br from-emerald-50/70 to-teal-50/40 dark:from-emerald-950/30 dark:to-neutral-900 rounded-xl border border-emerald-200/80 dark:border-emerald-900/60 space-y-2">
                                     <div className="flex items-center justify-between text-xs">
-                                        <span className="text-emerald-800 dark:text-emerald-300 font-medium">Selling Price:</span>
+                                        <span className="text-emerald-800 dark:text-emerald-300 font-medium">Selling Price ({selectedVariant?.title || "Retail"}):</span>
                                         <span className="font-mono font-bold text-emerald-950 dark:text-emerald-100">
                                             ₹{sellingPrice.toFixed(2)}
                                         </span>
                                     </div>
-                                    <div className="flex items-center justify-between text-xs">
+                                    {calculation.variantPackLabel && calculation.packRatio !== 1 && (
+                                        <div className="flex items-center justify-between text-xs pt-1.5 border-t border-emerald-200/60 dark:border-emerald-900/50">
+                                            <span className="text-emerald-800 dark:text-emerald-300 font-medium">
+                                                Pack Food Cost ({calculation.variantPackLabel}):
+                                            </span>
+                                            <span className="font-mono font-bold text-emerald-950 dark:text-emerald-100">
+                                                ₹{calculation.packCost.toFixed(2)}
+                                            </span>
+                                        </div>
+                                    )}
+                                    <div className="flex items-center justify-between text-xs pt-1.5 border-t border-emerald-200/60 dark:border-emerald-900/50">
                                         <span className="text-emerald-800 dark:text-emerald-300 font-medium">Gross Profit Margin:</span>
                                         <span className="font-mono font-extrabold text-emerald-600 text-sm">
                                             {calculation.grossMarginPercent}%

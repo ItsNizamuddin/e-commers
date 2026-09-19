@@ -12,7 +12,7 @@ export type RawMaterialCategory =
     | "PACKAGING"
     | "OTHER";
 
-export type RawMaterialSourceType = "EXTERNAL_VENDOR" | "OWN_FARM";
+export type RawMaterialSourceType = "EXTERNAL_VENDOR" | "OWN_FARM" | "MANUFACTURED";
 
 export interface FarmHarvestDetails {
     farmName: string;
@@ -136,6 +136,7 @@ export interface RawMaterialLot {
 
 export type RawMaterialStockMovementType =
     | "PURCHASE_INTAKE"
+    | "PRODUCTION_OUTPUT"
     | "MANUFACTURING_CONSUMPTION"
     | "MANUFACTURING_REVERSAL"
     | "REPACKAGING_CONSUMPTION"
@@ -199,7 +200,7 @@ export interface Recipe {
     name: string;
     version: number;
     status: "ACTIVE" | "ARCHIVED" | "DRAFT";
-    productId: string;
+    productId?: string | undefined;
     productTitle?: string | undefined;
     variantId?: string | undefined;
     variantTitle?: string | undefined;
@@ -222,7 +223,7 @@ export interface Recipe {
 export interface CreateRecipeInput {
     code: string;
     name: string;
-    productId: string;
+    productId?: string | undefined;
     variantId?: string | undefined;
     shelfLifeDays: number;
     batchYield: {
@@ -230,7 +231,7 @@ export interface CreateRecipeInput {
         unit: string;
     };
     ingredients: RecipeIngredient[];
-    packagingMaterials: RecipePackaging[];
+    packagingMaterials?: RecipePackaging[] | undefined;
     laborOverheadCost?: number | undefined;
     instructions?: string | undefined;
     changeLog?: string | undefined;
@@ -238,6 +239,8 @@ export interface CreateRecipeInput {
 
 export interface UpdateRecipeInput {
     name?: string | undefined;
+    productId?: string | null | undefined;
+    variantId?: string | null | undefined;
     shelfLifeDays?: number | undefined;
     batchYield?: {
         quantity: number;
@@ -318,10 +321,13 @@ export interface ProductionRun {
     recipeCode?: string | undefined;
     recipeName?: string | undefined;
     recipeVersion: number;
-    productId: string;
+    productId?: string | undefined;
     productTitle?: string | undefined;
     variantId?: string | undefined;
     variantTitle?: string | undefined;
+    bulkLotId?: string | undefined;
+    bulkLotNumber?: string | undefined;
+    isBulkProduction?: boolean | undefined;
     warehouseId: string;
     warehouseName?: string | undefined;
     plannedQuantity: number;
@@ -448,6 +454,8 @@ export interface RepackagingRun {
     packagingMaterialName?: string | undefined;
     packagingMaterialQuantity?: number | undefined;
     wastageQuantity?: number | undefined;
+    remainderQuantity?: number | undefined;
+    remainderDisposition?: "RETAINED" | "REWORK" | "WASTE" | undefined;
     wastageReport?: ProductionWastageReport | undefined;
     warehouseId: string;
     warehouseName?: string | undefined;
@@ -473,6 +481,8 @@ export interface CreateRepackagingRunInput {
     warehouseId: string;
     packagingMaterialId?: string | undefined;
     wastageQuantity?: number | undefined;
+    remainderQuantity?: number | undefined;
+    remainderDisposition?: "RETAINED" | "REWORK" | "WASTE" | undefined;
     expectedLossQuantity?: number | undefined;
     wastageCategory?: WastageReasonCategory | undefined;
     wastageNotes?: string | undefined;
@@ -484,3 +494,122 @@ export interface ReverseRepackagingRunInput {
     reverseQuantity?: number | undefined;
     allowPartial?: boolean | undefined;
 }
+
+export interface PackagingSpecificationMaterial {
+    rawMaterialId: string;
+    rawMaterialName?: string | undefined;
+    quantity: number;
+    unit: RawMaterialUnit;
+}
+
+export interface PackagingSpecification {
+    id: string;
+    name: string;
+    code: string;
+    masterFormulaId?: string | undefined;
+    masterFormulaCode?: string | undefined;
+    productId: string;
+    productTitle?: string | undefined;
+    variantId: string;
+    variantTitle?: string | undefined;
+    variantSku?: string | undefined;
+    bulkConsumedPerUnit: number;
+    bulkUnit: RawMaterialUnit;
+    packagingMaterials: PackagingSpecificationMaterial[];
+    laborOverheadCost?: number | undefined;
+    isActive: boolean;
+    createdAt?: string | undefined;
+    updatedAt?: string | undefined;
+}
+
+export interface CreatePackagingSpecificationInput {
+    name: string;
+    code: string;
+    masterFormulaId?: string | undefined;
+    productId: string;
+    variantId: string;
+    bulkConsumedPerUnit: number;
+    bulkUnit: RawMaterialUnit;
+    packagingMaterials: PackagingSpecificationMaterial[];
+    laborOverheadCost?: number | undefined;
+}
+
+export interface UpdatePackagingSpecificationInput {
+    name?: string | undefined;
+    masterFormulaId?: string | undefined;
+    bulkConsumedPerUnit?: number | undefined;
+    bulkUnit?: RawMaterialUnit | undefined;
+    packagingMaterials?: PackagingSpecificationMaterial[] | undefined;
+    laborOverheadCost?: number | undefined;
+    isActive?: boolean | undefined;
+}
+
+export type PackUnit = "g" | "kg" | "ml" | "l" | "pcs" | "pack";
+export type TaxTreatment = "TAX_INCLUSIVE" | "TAX_EXCLUSIVE";
+
+export interface PackagingMatrixItemInput {
+    variantId?: string | undefined;
+    title: string;
+    sku: string;
+    barcode?: string | undefined;
+    packQuantity: number;
+    packUnit: PackUnit;
+    masterFormulaId?: string | undefined; // Optional per-row formula override
+    packagingMaterials: PackagingSpecificationMaterial[];
+    laborOverheadCostMinor?: number | undefined;
+    targetMarginPercent?: number | undefined;
+    customerSellingPriceMinor: number;
+    compareAtPriceMinor?: number | undefined;
+    taxRatePercent?: number | undefined;
+    taxTreatment?: TaxTreatment | undefined;
+}
+
+export interface SyncPackagingMatrixInput {
+    productId: string;
+    defaultMasterFormulaId: string;
+    currency?: string | undefined;
+    taxTreatment?: TaxTreatment | undefined;
+    defaultTaxRatePercent?: number | undefined;
+    items: PackagingMatrixItemInput[];
+}
+
+export interface PackagingMatrixItemCalculated {
+    variantId?: string | undefined;
+    title: string;
+    sku: string;
+    barcode?: string | undefined;
+    packQuantity: number;
+    packUnit: PackUnit;
+    masterFormulaId: string;
+    masterFormulaCode: string;
+    packagingSpecificationId?: string | undefined;
+    packagingMaterials: PackagingSpecificationMaterial[];
+    foodCostMinor: number;
+    packagingCostMinor: number;
+    laborOverheadCostMinor: number;
+    totalCogsMinor: number;
+    targetMarginPercent: number;
+    suggestedNetPriceMinor: number;
+    suggestedCustomerPriceMinor: number;
+    netSellingPriceMinor: number;
+    taxAmountMinor: number;
+    customerSellingPriceMinor: number;
+    compareAtPriceMinor?: number | undefined;
+    grossProfitMinor: number;
+    grossMarginPercent: number;
+}
+
+export interface PackagingMatrixResponse {
+    productId: string;
+    productTitle: string;
+    defaultMasterFormulaId?: string | undefined;
+    defaultMasterFormulaCode?: string | undefined;
+    defaultMasterFormulaUnitCostMinor?: number | undefined;
+    defaultMasterFormulaYieldUnit?: RawMaterialUnit | undefined;
+    currency: string;
+    taxTreatment: TaxTreatment;
+    defaultTaxRatePercent: number;
+    items: PackagingMatrixItemCalculated[];
+}
+
+

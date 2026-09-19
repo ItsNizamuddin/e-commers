@@ -60,6 +60,25 @@ function convertQuantity(qty: number, fromUnit: string, toUnit: string): number 
     return qty;
 }
 
+function parseVariantUnitSize(v: ProductVariant | undefined): { qty: number; unit: RawMaterialUnit } | null {
+    if (!v) return null;
+    const text = `${v.title || ""} ${v.sku || ""}`.toLowerCase();
+    const match = text.match(/(\d+(?:\.\d+)?)\s*(kg|g|gm|gms|l|ltr|liter|liters|ml|pcs|pack)/i);
+    if (match) {
+        const val = parseFloat(match[1]);
+        const uRaw = match[2].toLowerCase();
+        let u: RawMaterialUnit = "kg";
+        if (uRaw === "kg") u = "kg";
+        else if (uRaw === "g" || uRaw === "gm" || uRaw === "gms") u = "g";
+        else if (uRaw === "l" || uRaw === "ltr" || uRaw === "liter" || uRaw === "liters") u = "l";
+        else if (uRaw === "ml") u = "ml";
+        else if (uRaw === "pcs") u = "pcs";
+        else if (uRaw === "pack") u = "pack";
+        return { qty: val, unit: u };
+    }
+    return null;
+}
+
 export default function NewRepackagingRunPage() {
     const router = useRouter();
 
@@ -148,7 +167,10 @@ export default function NewRepackagingRunPage() {
                 setSelectedVariantId(currentMat.linkedVariantId);
             }
         }
-    }, [selectedMaterialId, materials]);
+        if (currentMat?.unit && !selectedVariantId) {
+            setUnitSizeUnit(currentMat.unit);
+        }
+    }, [selectedMaterialId, materials, selectedVariantId]);
 
     // Selected entities
     const selectedMaterial = useMemo(() => {
@@ -236,6 +258,17 @@ export default function NewRepackagingRunPage() {
     const selectedVariant = useMemo(() => {
         return availableVariants.find((v) => (v.id || (v as any)._id) === selectedVariantId);
     }, [availableVariants, selectedVariantId]);
+
+    // Auto-fill Unit Size Quantity and Unit of Measure from variant title (e.g. 500g, 1kg, 250ml)
+    useEffect(() => {
+        if (selectedVariant) {
+            const parsed = parseVariantUnitSize(selectedVariant);
+            if (parsed) {
+                setUnitSizeQuantity(parsed.qty);
+                setUnitSizeUnit(parsed.unit);
+            }
+        }
+    }, [selectedVariant]);
 
     const selectedPackagingMaterial = useMemo(() => {
         return packagingMaterials.find((m) => (m.id || (m as any)._id) === selectedPackagingMaterialId);

@@ -32,6 +32,7 @@ import {
     Star,
     RefreshCw,
     Globe,
+    Layers,
 } from "lucide-react";
 
 export default function ProductsPage() {
@@ -291,7 +292,17 @@ export default function ProductsPage() {
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>{getStatusBadge(p.status)}</TableCell>
-                                                <TableCell>{p.variants?.length || 1} variants</TableCell>
+                                                <TableCell>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => router.push(`/products/packaging-matrix?product=${p.id}`)}
+                                                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200/60 dark:border-blue-800/40 transition-colors text-xs font-semibold cursor-pointer"
+                                                        title="Open Dedicated Packaging & Pricing Matrix"
+                                                    >
+                                                        <Layers size={12} className="text-blue-600 dark:text-blue-400" />
+                                                        <span>{p.variants?.length || 0} packs (Matrix)</span>
+                                                    </button>
+                                                </TableCell>
                                                 <TableCell>
                                                     <div className="flex items-center gap-1 text-xs font-semibold">
                                                         <Star size={12} className="fill-amber-400 text-amber-400" />
@@ -303,9 +314,15 @@ export default function ProductsPage() {
                                                 <TableCell className="text-right">
                                                     <TableActionGroup>
                                                         <TableAction
+                                                            icon={<Layers size={14} />}
+                                                            label="Matrix"
+                                                            variant="primary"
+                                                            onClick={() => router.push(`/products/packaging-matrix?product=${p.id}`)}
+                                                        />
+                                                        <TableAction
                                                             icon={<Edit size={14} />}
                                                             label="Edit"
-                                                            variant="primary"
+                                                            variant="default"
                                                             onClick={() => router.push(`/products/${p.id}`)}
                                                         />
                                                         <TableAction

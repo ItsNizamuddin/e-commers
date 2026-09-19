@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "../../lib/api";
 import type {
     ProductResponse,
@@ -43,9 +43,11 @@ import {
     Plus,
     X,
     Sparkles,
+    ExternalLink,
 } from "lucide-react";
 import { ImageGalleryManager } from "../media/image-gallery-manager";
 import { VariantMatrixManager } from "./variant-matrix-manager";
+import { PackagingPricingMatrix } from "./packaging-pricing-matrix";
 import { GenericSeoCard, AvailableLocationOption } from "../seo/generic-seo-card";
 import { GenericSocialCard } from "../seo/generic-social-card";
 
@@ -120,7 +122,7 @@ export function ProductForm({
     const [categoryId, setCategoryId] = useState(
         initialProduct?.categoryId || (categories.length > 0 ? categories[0].id : "")
     );
-    const [status, setStatus] = useState<ProductStatus>(initialProduct?.status || "PUBLISHED");
+    const [status, setStatus] = useState<ProductStatus>(initialProduct?.status || "DRAFT");
     const [shortDescription, setShortDescription] = useState(initialProduct?.shortDescription || "");
     const [description, setDescription] = useState(initialProduct?.description || "");
     const [tags, setTags] = useState<string[]>(initialProduct?.tags || []);
@@ -333,21 +335,23 @@ export function ProductForm({
             return;
         }
 
-        if (variants.length === 0) {
-            setLocalError("At least one product variant / pack size is required.");
+        if (status === "PUBLISHED" && variants.length === 0) {
+            setLocalError("A published product must have at least one active pack size / variant. Configure your pack sizes in the Packaging & Pricing Matrix, or save as DRAFT first.");
             return;
         }
 
-        // Validate variants
-        for (let i = 0; i < variants.length; i++) {
-            const v = variants[i];
-            if (!v.title.trim()) {
-                setLocalError(`Variant #${i + 1} must have a pack title (e.g. 500 g).`);
-                return;
-            }
-            if (!v.prices || v.prices.length === 0 || v.prices.some((p) => isNaN(p.amount) || p.amount < 0)) {
-                setLocalError(`Variant "${v.title}" must have valid pricing tiers.`);
-                return;
+        // Validate variants if any exist
+        if (variants.length > 0) {
+            for (let i = 0; i < variants.length; i++) {
+                const v = variants[i];
+                if (!v.title.trim()) {
+                    setLocalError(`Variant #${i + 1} must have a pack title (e.g. 500 g).`);
+                    return;
+                }
+                if (!v.prices || v.prices.length === 0 || v.prices.some((p) => isNaN(p.amount) || p.amount < 0)) {
+                    setLocalError(`Variant "${v.title}" must have valid pricing tiers.`);
+                    return;
+                }
             }
         }
 
@@ -485,7 +489,14 @@ export function ProductForm({
 
     // Tab definitions: on create show SEO, on edit hide SEO as it is managed in dedicated SEO table
     type ProductFormTab = "seo" | "basic" | "media" | "pricing" | "locations";
-    const [activeTab, setActiveTab] = useState<ProductFormTab>(mode === "edit" ? "basic" : "seo");
+    const searchParams = useSearchParams();
+    const tabParam = searchParams?.get("tab") as ProductFormTab | null;
+    const [activeTab, setActiveTab] = useState<ProductFormTab>(() => {
+        if (tabParam && ["seo", "basic", "media", "pricing", "locations"].includes(tabParam)) {
+            return tabParam;
+        }
+        return mode === "edit" ? "basic" : "seo";
+    });
 
     const tabsConfig = [
         ...(mode === "create"
@@ -518,11 +529,11 @@ export function ProductForm({
         },
         {
             id: "pricing" as const,
-            label: "Pack Sizes & Multi-Currency Pricing",
-            shortLabel: "Variants & Pricing",
+            label: "Packaging & Pricing Matrix",
+            shortLabel: "Packaging Matrix",
             icon: Layers,
-            sectionHeader: "Pack Sizes, Weights, SKUs & Tiered Pricing",
-            badge: variants.length > 0 ? `${variants.length} packs` : "None added",
+            sectionHeader: "Pack Sizes, Packaging BOM, Live COGS & Commercial Pricing",
+            badge: initialProduct?.id ? `${variants.length} packs` : "Step 2",
         },
         {
             id: "locations" as const,
@@ -1210,15 +1221,101 @@ export function ProductForm({
                 {/* TAB 4: PACK SIZES & MULTI-CURRENCY PRICING */}
                 {/* ---------------------------------------------------- */}
                 {activeTab === "pricing" && (
-                    <div className="space-y-4 animate-in fade-in-50 duration-150">
-                        <VariantMatrixManager
-                            variants={variants}
-                            onChange={setVariants}
-                            productTitle={title}
-                            baseCurrency="INR"
-                            disabled={isSubmitting}
-                            availableLocations={locations}
-                        />
+                    <div className="space-y-6 animate-in fade-in-50 duration-150">
+                        {mode === "edit" && initialProduct?.id ? (
+                            <>
+                                <div className="p-3.5 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50/60 dark:from-blue-950/30 dark:to-indigo-950/20 border border-blue-200/60 dark:border-blue-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0">
+                                            <Layers size={16} />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                                                Dedicated Packaging &amp; Pricing Workspace Available
+                                            </h4>
+                                            <p className="text-[11px] text-slate-500 dark:text-neutral-400">
+                                                Manage packaging recipes, container BOMs, and live profit margins in the dedicated full-screen hub.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => router.push(`/products/packaging-matrix?product=${initialProduct.id}`)}
+                                        className="text-xs shrink-0 gap-1.5 bg-white dark:bg-neutral-900 border-blue-300 dark:border-blue-800 text-blue-600 dark:text-blue-400 font-semibold cursor-pointer shadow-xs"
+                                    >
+                                        <span>Open Standalone Hub</span>
+                                        <ExternalLink size={12} />
+                                    </Button>
+                                </div>
+
+                                <PackagingPricingMatrix
+                                    productId={initialProduct.id}
+                                    productTitle={title}
+                                    baseCurrency="INR"
+                                    onVariantsSynced={() => {
+                                        router.refresh();
+                                    }}
+                                />
+
+                                {/* Advanced Manual Variant Override */}
+                                <div className="border-t border-slate-200 dark:border-neutral-800 pt-6">
+                                    <details className="group">
+                                        <summary className="cursor-pointer text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-neutral-200 flex items-center justify-between py-2">
+                                            <span>Direct Catalog Variant Overrides (Advanced)</span>
+                                            <span className="text-[11px] text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+                                        </summary>
+                                        <div className="pt-4">
+                                            <VariantMatrixManager
+                                                variants={variants}
+                                                onChange={setVariants}
+                                                productTitle={title}
+                                                baseCurrency="INR"
+                                                disabled={isSubmitting}
+                                                availableLocations={locations}
+                                            />
+                                        </div>
+                                    </details>
+                                </div>
+                            </>
+                        ) : (
+                            <Card className="p-6 bg-white dark:bg-[#111111] border-slate-200 dark:border-neutral-800 shadow-xs">
+                                <div className="flex items-start gap-4">
+                                    <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 flex items-center justify-center shrink-0">
+                                        <Layers size={24} />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                                                Catalog Master Creation Mode
+                                            </h3>
+                                            <Badge variant="primary" size="sm">
+                                                Master Formula Workflow
+                                            </Badge>
+                                        </div>
+                                        <p className="text-xs text-slate-600 dark:text-neutral-300 leading-relaxed max-w-xl">
+                                            You are currently creating the catalog master root (title, images, category, dietary tags, and SEO). In ShopSphere, retail pack variants are backed by Master Production Formulas and Packaging BOMs.
+                                        </p>
+                                        <p className="text-xs text-slate-500 dark:text-neutral-400 leading-relaxed max-w-xl">
+                                            Save this product as <strong>DRAFT</strong>. Once saved, the <strong>Packaging &amp; Pricing Matrix</strong> will activate automatically, allowing you to select your Bulk Recipe (e.g. Avakaya Pickle @ ₹209.10/kg), attach containers/labels, and configure live retail pricing with margin protection.
+                                        </p>
+                                        <div className="pt-2">
+                                            <Button
+                                                type="submit"
+                                                variant="primary"
+                                                size="sm"
+                                                disabled={isSubmitting}
+                                                className="gap-2 shadow-xs"
+                                            >
+                                                <Sparkles size={14} />
+                                                <span>Save Draft &amp; Activate Packaging Matrix</span>
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </Card>
+                        )}
                     </div>
                 )}
 

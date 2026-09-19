@@ -16,6 +16,7 @@ import {
     Select,
     SearchableSelect,
     Pagination,
+    toast,
 } from "@ecommers/ui";
 import {
     Layers,
@@ -27,6 +28,11 @@ import {
     AlertOctagon,
     Sliders,
     Search,
+    Copy,
+    Check,
+    ArrowUpRight,
+    ArrowDownRight,
+    Clock,
 } from "lucide-react";
 
 function RawMaterialLedgerContent() {
@@ -34,6 +40,7 @@ function RawMaterialLedgerContent() {
     const initialRawMaterialId = searchParams.get("rawMaterialId") || "";
 
     const [selectedMaterialId, setSelectedMaterialId] = useState(initialRawMaterialId);
+    const [copiedRefId, setCopiedRefId] = useState<string | null>(null);
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(15);
 
@@ -64,6 +71,14 @@ function RawMaterialLedgerContent() {
     const handleMaterialChange = (newId: string) => {
         setSelectedMaterialId(newId);
         setPage(1);
+    };
+
+    const handleCopyRef = (e: React.MouseEvent, refId: string) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(refId);
+        setCopiedRefId(refId);
+        toast.success("Reference ID copied to clipboard");
+        setTimeout(() => setCopiedRefId(null), 1500);
     };
 
     const totalItems = movements.length;
@@ -200,13 +215,10 @@ function RawMaterialLedgerContent() {
                             <table className="w-full text-left border-collapse text-xs">
                                 <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-neutral-900/95 backdrop-blur-xs border-b border-slate-200 dark:border-neutral-800 shadow-xs">
                                     <tr className="text-slate-500 font-semibold">
-                                        <th className="py-3 px-4">Date & Time</th>
-                                        <th className="py-3 px-3">Raw Material</th>
+                                        <th className="py-3 px-4">Raw Material & Date</th>
                                         <th className="py-3 px-3">Movement Type</th>
-                                        <th className="py-3 px-3 text-right">Quantity Delta</th>
-                                        <th className="py-3 px-3 text-right">Stock Transition</th>
-                                        <th className="py-3 px-3">Reference ID</th>
-                                        <th className="py-3 px-4">Reason / Notes</th>
+                                        <th className="py-3 px-3 text-right">Stock Impact (Delta & Transition)</th>
+                                        <th className="py-3 px-4">Reference & Notes</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-neutral-800/80">
@@ -215,35 +227,71 @@ function RawMaterialLedgerContent() {
 
                                         return (
                                             <tr key={mov.id} className="hover:bg-slate-50/60 dark:hover:bg-neutral-800/30 transition-colors">
-                                                <td className="py-3 px-4 font-mono text-slate-500">
-                                                    {new Date(mov.createdAt).toLocaleString("en-IN", {
-                                                        day: "2-digit",
-                                                        month: "short",
-                                                        hour: "2-digit",
-                                                        minute: "2-digit",
-                                                    })}
+                                                {/* Column 1: Raw Material & Date */}
+                                                <td className="py-3 px-4">
+                                                    <span className="font-bold text-slate-900 dark:text-white block text-xs">
+                                                        {(mov as any).rawMaterialId?.name || "Raw Material"}
+                                                    </span>
+                                                    <div className="flex items-center gap-1.5 mt-0.5 text-slate-400 dark:text-neutral-500 font-mono text-[11px]">
+                                                        <Clock size={11} className="shrink-0" />
+                                                        <span>
+                                                            {new Date(mov.createdAt).toLocaleString("en-IN", {
+                                                                day: "2-digit",
+                                                                month: "short",
+                                                                year: "numeric",
+                                                                hour: "2-digit",
+                                                                minute: "2-digit",
+                                                            })}
+                                                        </span>
+                                                    </div>
                                                 </td>
-                                                <td className="py-3 px-3 font-semibold text-slate-900 dark:text-white">
-                                                    {(mov as any).rawMaterialId?.name || "Raw Material"}
-                                                </td>
+
+                                                {/* Column 2: Movement Type */}
                                                 <td className="py-3 px-3">
                                                     {getTypeBadge(mov.type)}
                                                 </td>
-                                                <td className="py-3 px-3 text-right font-mono font-bold">
-                                                    <span className={isPositive ? "text-emerald-600" : "text-rose-600"}>
-                                                        {isPositive ? `+${mov.quantityDelta}` : mov.quantityDelta} {mov.unit}
-                                                    </span>
+
+                                                {/* Column 3: Stock Transition + Delta Combined */}
+                                                <td className="py-3 px-3 text-right font-mono">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <div className="text-right">
+                                                            <div className="text-slate-600 dark:text-neutral-300 font-semibold text-xs">
+                                                                <span>{mov.previousStock}</span>
+                                                                <span className="mx-1 text-slate-400">→</span>
+                                                                <span className="font-bold text-slate-900 dark:text-white">
+                                                                    {mov.newStock} {mov.unit}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                                                            isPositive
+                                                                ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400"
+                                                                : "bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400"
+                                                        }`}>
+                                                            {isPositive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                                                            {isPositive ? `+${mov.quantityDelta}` : mov.quantityDelta} {mov.unit}
+                                                        </span>
+                                                    </div>
                                                 </td>
-                                                <td className="py-3 px-3 text-right font-mono text-slate-500">
-                                                    <span>{mov.previousStock}</span>
-                                                    <span className="mx-1 text-slate-300">→</span>
-                                                    <span className="font-bold text-slate-800 dark:text-slate-200">{mov.newStock} {mov.unit}</span>
-                                                </td>
-                                                <td className="py-3 px-3 font-mono text-blue-600 dark:text-blue-400 font-semibold">
-                                                    {mov.referenceId}
-                                                </td>
-                                                <td className="py-3 px-4 text-slate-600 dark:text-neutral-300 truncate max-w-[250px]">
-                                                    {mov.reason || "—"}
+
+                                                {/* Column 4: Reference ID & Notes */}
+                                                <td className="py-3 px-4">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="font-mono text-[11px] text-blue-600 dark:text-blue-400 font-semibold truncate max-w-[220px]" title={mov.referenceId}>
+                                                            {mov.referenceId}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => handleCopyRef(e, mov.referenceId)}
+                                                            className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors p-0.5 rounded"
+                                                            title="Copy Reference ID"
+                                                        >
+                                                            {copiedRefId === mov.referenceId ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-[11px] text-slate-500 dark:text-neutral-400 mt-0.5 truncate max-w-[320px]" title={mov.reason}>
+                                                        {mov.reason || "—"}
+                                                    </p>
                                                 </td>
                                             </tr>
                                         );

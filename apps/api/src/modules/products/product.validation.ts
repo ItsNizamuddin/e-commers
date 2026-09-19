@@ -91,9 +91,7 @@ export const createProductSchema = z
             .length(3, "baseCurrency must be a 3-letter ISO code")
             .default("USD")
             .transform((s) => s.toUpperCase()),
-        variants: z
-            .array(productVariantSchema)
-            .min(1, "A product must have at least one variant"),
+        variants: z.array(productVariantSchema).default([]),
         images: z.array(z.string()).optional(),
         thumbnail: z.string().optional(),
         tags: z.array(z.string().trim()).optional(),
@@ -106,6 +104,14 @@ export const createProductSchema = z
         metadata: z.record(z.string(), z.unknown()).optional(),
     })
     .superRefine((data, ctx) => {
+        if (data.status === "PUBLISHED" && (!data.variants || data.variants.length === 0)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "A published product must have at least one variant",
+                path: ["variants"],
+            });
+        }
+
         const seen = new Set<string>();
         for (let i = 0; i < data.variants.length; i++) {
             const variant = data.variants[i];
@@ -147,7 +153,7 @@ export const updateProductSchema = z
             .length(3)
             .transform((s) => s.toUpperCase())
             .optional(),
-        variants: z.array(productVariantSchema).min(1).optional(),
+        variants: z.array(productVariantSchema).optional(),
         images: z.array(z.string()).optional(),
         thumbnail: z.string().optional(),
         tags: z.array(z.string().trim()).optional(),
@@ -161,6 +167,13 @@ export const updateProductSchema = z
         expectedVersion: z.number().int().positive().optional(),
     })
     .superRefine((data, ctx) => {
+        if (data.status === "PUBLISHED" && data.variants !== undefined && data.variants.length === 0) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "A published product must have at least one variant",
+                path: ["variants"],
+            });
+        }
         if (data.variants) {
             const seen = new Set<string>();
             for (let i = 0; i < data.variants.length; i++) {
@@ -181,7 +194,7 @@ export const updateProductSchema = z
 
 export const productQuerySchema = z.object({
     page: z.coerce.number().int().min(1).default(1),
-    limit: z.coerce.number().int().min(1).max(100).default(20),
+    limit: z.coerce.number().int().min(1).max(500).default(20),
     search: z.string().trim().optional(),
     categoryId: z.string().regex(objectIdRegex).optional(),
     status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).optional(),

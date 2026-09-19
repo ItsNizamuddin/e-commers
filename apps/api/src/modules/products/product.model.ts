@@ -74,10 +74,15 @@ const ProductSchema = new Schema<ProductDocument>(
         },
         variants: {
             type: [ProductVariantSchema],
-            required: true,
+            default: [],
             validate: {
-                validator: (v: unknown[]) => Array.isArray(v) && v.length > 0,
-                message: "A product must have at least one variant",
+                validator: function (this: any, v: unknown[]) {
+                    if (this.status === "PUBLISHED") {
+                        return Array.isArray(v) && v.length > 0;
+                    }
+                    return Array.isArray(v);
+                },
+                message: "A published product must have at least one variant",
             },
         },
         images: {

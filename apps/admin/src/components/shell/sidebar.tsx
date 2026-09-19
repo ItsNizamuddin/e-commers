@@ -104,6 +104,7 @@ const NAV_SECTIONS: NavSection[] = [
                 allowedRoles: ["SUPER_ADMIN", "ADMIN", "PUBLISHER", "SALES", "SUPPORT_AGENT"],
                 subItems: [
                     { label: "All Products", href: "/products", icon: Package },
+                    { label: "Packaging & Pricing", href: "/products/packaging-matrix", icon: Layers },
                     { label: "Add Product", href: "/products/new", icon: PlusCircle },
                 ],
             },

@@ -1,4 +1,4 @@
-import { RawMaterialUnit } from "@ecommers/types";
+import type { RawMaterialUnit } from "@ecommers/types";
 
 /**
  * Standard Unit of Measure (UoM) Conversion Matrix
@@ -15,9 +15,11 @@ const VOLUME_CONVERSIONS: Record<string, number> = {
     ml: 1,
 };
 
-export class UnitConversionError extends Error {
+import { AppError } from "../../utils/app-error.js";
+
+export class UnitConversionError extends AppError {
     constructor(message: string) {
-        super(message);
+        super(message, 400, "INCOMPATIBLE_UNITS");
         this.name = "UnitConversionError";
     }
 }
@@ -32,6 +34,13 @@ export function areUnitsCompatible(fromUnit: RawMaterialUnit, toUnit: RawMateria
     if (from === to) return true;
     if (from in MASS_CONVERSIONS && to in MASS_CONVERSIONS) return true;
     if (from in VOLUME_CONVERSIONS && to in VOLUME_CONVERSIONS) return true;
+    // Cross conversion: Mass <-> Volume (standard food density: 1 g = 1 ml, 1 kg = 1 L)
+    if (
+        (from in MASS_CONVERSIONS && to in VOLUME_CONVERSIONS) ||
+        (from in VOLUME_CONVERSIONS && to in MASS_CONVERSIONS)
+    ) {
+        return true;
+    }
 
     return false;
 }
@@ -41,8 +50,15 @@ export function areUnitsCompatible(fromUnit: RawMaterialUnit, toUnit: RawMateria
  * E.g., convertUnits(500, "g", "kg") => 0.5
  *       convertUnits(1.5, "kg", "g") => 1500
  *       convertUnits(250, "ml", "l") => 0.25
+ *       convertUnits(500, "g", "l")  => 0.5 (standard food density: 1 g = 1 ml)
+ *       convertUnits(1, "l", "kg")   => 1.0 (standard food density: 1 L = 1 kg)
  */
-export function convertUnits(quantity: number, fromUnit: RawMaterialUnit, toUnit: RawMaterialUnit): number {
+export function convertUnits(
+    quantity: number,
+    fromUnit: RawMaterialUnit,
+    toUnit: RawMaterialUnit,
+    densityGPerMl: number = 1.0
+): number {
     const from = fromUnit.toLowerCase();
     const to = toUnit.toLowerCase();
 
@@ -60,6 +76,20 @@ export function convertUnits(quantity: number, fromUnit: RawMaterialUnit, toUnit
     if (from in VOLUME_CONVERSIONS && to in VOLUME_CONVERSIONS) {
         const inMilliliters = quantity * VOLUME_CONVERSIONS[from]!;
         return inMilliliters / VOLUME_CONVERSIONS[to]!;
+    }
+
+    // Cross conversion: Mass -> Volume (V = M / density)
+    if (from in MASS_CONVERSIONS && to in VOLUME_CONVERSIONS) {
+        const inGrams = quantity * MASS_CONVERSIONS[from]!;
+        const inMilliliters = inGrams / (densityGPerMl || 1.0);
+        return inMilliliters / VOLUME_CONVERSIONS[to]!;
+    }
+
+    // Cross conversion: Volume -> Mass (M = V * density)
+    if (from in VOLUME_CONVERSIONS && to in MASS_CONVERSIONS) {
+        const inMilliliters = quantity * VOLUME_CONVERSIONS[from]!;
+        const inGrams = inMilliliters * (densityGPerMl || 1.0);
+        return inGrams / MASS_CONVERSIONS[to]!;
     }
 
     throw new UnitConversionError(

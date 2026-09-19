@@ -106,7 +106,7 @@ const recipePackagingSchema = z.object({
 export const createRecipeSchema = z.object({
     code: z.string().min(2).max(50).trim().toUpperCase(),
     name: z.string().min(2).max(150).trim(),
-    productId: z.string().min(1),
+    productId: z.string().trim().optional().nullable(),
     variantId: z.string().optional(),
     shelfLifeDays: z.number().int().min(1),
     batchYield: z.object({
@@ -122,6 +122,8 @@ export const createRecipeSchema = z.object({
 
 export const updateRecipeSchema = z.object({
     name: z.string().min(2).max(150).trim().optional(),
+    productId: z.string().trim().optional().nullable(),
+    variantId: z.string().optional().nullable(),
     shelfLifeDays: z.number().int().min(1).optional(),
     batchYield: z
         .object({
@@ -144,12 +146,44 @@ export const wastageCategoryEnum = z.enum([
     "DAMAGE_HANDLING",
 ]);
 
+export const packagingSpecMaterialSchema = z.object({
+    rawMaterialId: z.string().min(1),
+    quantity: z.number().positive(),
+    unit: unitEnum,
+});
+
+export const createPackagingSpecificationSchema = z.object({
+    name: z.string().min(2).max(150).trim(),
+    code: z.string().min(2).max(50).trim().toUpperCase(),
+    masterFormulaId: z.string().trim().optional().nullable(),
+    productId: z.string().min(1),
+    variantId: z.string().min(1),
+    bulkConsumedPerUnit: z.number().positive("Bulk consumed per unit must be greater than 0"),
+    bulkUnit: unitEnum,
+    packagingMaterials: z.array(packagingSpecMaterialSchema).optional().default([]),
+    laborOverheadCost: z.number().min(0).optional(),
+});
+
+export const updatePackagingSpecificationSchema = z.object({
+    name: z.string().min(2).max(150).trim().optional(),
+    masterFormulaId: z.string().trim().optional().nullable(),
+    bulkConsumedPerUnit: z.number().positive().optional(),
+    bulkUnit: unitEnum.optional(),
+    packagingMaterials: z.array(packagingSpecMaterialSchema).optional(),
+    laborOverheadCost: z.number().min(0).optional(),
+    isActive: z.boolean().optional(),
+});
+
 export const executeProductionSchema = z.object({
     recipeId: z.string().min(1),
     warehouseId: z.string().min(1),
     plannedQuantity: z.number().positive(),
     actualQuantity: z.number().positive(),
-    manufacturingDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}/)).optional(),
+    manufacturingDate: z
+        .string()
+        .datetime()
+        .or(z.string().regex(/^\d{4}-\d{2}-\d{2}/))
+        .optional(),
     manualLotAllocations: z
         .array(
             z.object({
@@ -162,7 +196,11 @@ export const executeProductionSchema = z.object({
     actualLossQuantity: z.number().min(0).optional(),
     wastageCategory: wastageCategoryEnum.optional(),
     wastageNotes: z.string().trim().optional(),
-    customExpiryDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}/)).optional(),
+    customExpiryDate: z
+        .string()
+        .datetime()
+        .or(z.string().regex(/^\d{4}-\d{2}-\d{2}/))
+        .optional(),
     qaApprovalNotes: z.string().trim().optional(),
     notes: z.string().trim().optional(),
 });
@@ -178,7 +216,7 @@ export const syncVariantCostSchema = z.object({
     variantId: z.string().min(1),
     costAmount: z.number().min(0),
     sellingPrice: z.number().min(0).optional(),
-    currency: z.string().trim().optional(),
+    currency: z.string().trim().default("INR"),
     locationCode: z.string().trim().optional(),
 });
 
@@ -212,6 +250,9 @@ export const createRepackagingRunSchema = z.object({
     warehouseId: z.string().min(1),
     packagingMaterialId: z.string().optional(),
     wastageQuantity: z.number().min(0).optional(),
+    remainderQuantity: z.number().min(0).optional(),
+    remainderDisposition: z.enum(["RETAINED", "REWORK", "WASTE"]).optional(),
+    expectedLossQuantity: z.number().min(0).optional(),
     wastageCategory: wastageCategoryEnum.optional(),
     wastageNotes: z.string().trim().optional(),
     notes: z.string().trim().optional(),
@@ -222,3 +263,36 @@ export const reverseRepackagingRunSchema = z.object({
     reverseQuantity: z.number().int().positive().optional(),
     allowPartial: z.boolean().optional(),
 });
+
+export const syncPackagingMatrixSchema = z.object({
+    productId: z.string().min(1, "productId is required"),
+    defaultMasterFormulaId: z.string().min(1, "defaultMasterFormulaId is required"),
+    currency: z.string().trim().default("INR"),
+    taxTreatment: z.enum(["TAX_INCLUSIVE", "TAX_EXCLUSIVE"]).default("TAX_INCLUSIVE"),
+    defaultTaxRatePercent: z.number().min(0).max(100).default(0),
+    items: z.array(
+        z.object({
+            variantId: z.string().optional(),
+            title: z.string().trim().min(1, "Variety title is required"),
+            sku: z.string().trim().min(1, "Variety SKU is required"),
+            barcode: z.string().trim().optional(),
+            packQuantity: z.number().positive("Pack quantity must be greater than 0"),
+            packUnit: z.enum(["g", "kg", "ml", "l", "pcs", "pack"]),
+            masterFormulaId: z.string().optional(),
+            packagingMaterials: z.array(
+                z.object({
+                    rawMaterialId: z.string().min(1),
+                    quantity: z.number().positive(),
+                    unit: unitEnum,
+                })
+            ).default([]),
+            laborOverheadCostMinor: z.number().min(0).optional(),
+            targetMarginPercent: z.number().min(0).max(99).optional(),
+            customerSellingPriceMinor: z.number().min(0),
+            compareAtPriceMinor: z.number().min(0).optional(),
+            taxRatePercent: z.number().min(0).max(100).optional(),
+            taxTreatment: z.enum(["TAX_INCLUSIVE", "TAX_EXCLUSIVE"]).optional(),
+        })
+    ).min(1, "At least one packaging variety must be configured in the matrix"),
+});
+

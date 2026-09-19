@@ -6,8 +6,8 @@ export interface RecipeDocument extends Document {
     name: string;
     version: number;
     status: "ACTIVE" | "ARCHIVED" | "DRAFT";
-    productId: mongoose.Types.ObjectId;
-    variantId?: mongoose.Types.ObjectId;
+    productId?: mongoose.Types.ObjectId | undefined;
+    variantId?: mongoose.Types.ObjectId | undefined;
     shelfLifeDays: number;
     batchYield: {
         quantity: number;
@@ -87,7 +87,6 @@ const RecipeSchema = new Schema<RecipeDocument>(
             required: true,
             uppercase: true,
             trim: true,
-            index: true,
         },
         name: {
             type: String,
@@ -110,7 +109,8 @@ const RecipeSchema = new Schema<RecipeDocument>(
         productId: {
             type: Schema.Types.ObjectId,
             ref: "Product",
-            required: true,
+            required: false,
+            default: undefined,
             index: true,
         },
         variantId: {

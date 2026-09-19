@@ -17,6 +17,8 @@ import {
     AuditActor,
     CreateVendorInput,
     UpdateVendorInput,
+    CreatePackagingSpecificationInput,
+    UpdatePackagingSpecificationInput,
 } from "@ecommers/types";
 import { RawMaterialModel, RawMaterialDocument } from "./raw-material.model.js";
 import { RawMaterialLotModel, RawMaterialLotDocument } from "./raw-material-lot.model.js";
@@ -25,6 +27,7 @@ import { VendorModel, VendorDocument } from "./vendor.model.js";
 import { RecipeModel, RecipeDocument } from "./recipe.model.js";
 import { ProductionRunModel, ProductionRunDocument } from "./production-run.model.js";
 import { RepackagingRunModel, RepackagingRunDocument } from "./repackaging-run.model.js";
+import { PackagingSpecificationModel, PackagingSpecificationDocument } from "./packaging-specification.model.js";
 import { InventoryModel } from "../inventory/models/inventory.model.js";
 import { StockMovementModel } from "../inventory/models/stock-movement.model.js";
 import { ProductModel } from "../products/product.model.js";
@@ -561,9 +564,18 @@ export class ManufacturingService {
             throw new Error(`Recipe with code '${input.code}' (v1) already exists.`);
         }
 
-        const product = await ProductModel.findById(input.productId);
-        if (!product) {
-            throw new Error(`Product with ID '${input.productId}' not found.`);
+        let productId: Types.ObjectId | undefined = undefined;
+        let variantId: Types.ObjectId | undefined = undefined;
+
+        if (input.productId) {
+            const product = await ProductModel.findById(input.productId);
+            if (!product) {
+                throw new Error(`Product with ID '${input.productId}' not found.`);
+            }
+            productId = product._id as Types.ObjectId;
+            if (input.variantId) {
+                variantId = new Types.ObjectId(input.variantId);
+            }
         }
 
         const recipe = new RecipeModel({
@@ -571,8 +583,8 @@ export class ManufacturingService {
             name: input.name.trim(),
             version: 1,
             status: "ACTIVE",
-            productId: product._id,
-            variantId: input.variantId ? new Types.ObjectId(input.variantId) : undefined,
+            productId,
+            variantId,
             shelfLifeDays: input.shelfLifeDays,
             batchYield: input.batchYield,
             ingredients: input.ingredients.map((i) => ({
@@ -611,14 +623,28 @@ export class ManufacturingService {
             recipe.status = "ARCHIVED";
             await recipe.save();
 
+            let nextProductId = recipe.productId;
+            let nextVariantId = recipe.variantId;
+            if (input.productId !== undefined) {
+                if (input.productId) {
+                    const prod = await ProductModel.findById(input.productId);
+                    if (!prod) throw new Error(`Product with ID '${input.productId}' not found.`);
+                    nextProductId = prod._id as Types.ObjectId;
+                    nextVariantId = input.variantId ? new Types.ObjectId(input.variantId) : undefined;
+                } else {
+                    nextProductId = undefined;
+                    nextVariantId = undefined;
+                }
+            }
+
             const nextVersion = recipe.version + 1;
             const newRecipe = new RecipeModel({
                 code: recipe.code,
                 name: input.name?.trim() || recipe.name,
                 version: nextVersion,
                 status: "ACTIVE",
-                productId: recipe.productId,
-                variantId: recipe.variantId,
+                productId: nextProductId,
+                variantId: nextVariantId,
                 shelfLifeDays: input.shelfLifeDays ?? recipe.shelfLifeDays,
                 batchYield: input.batchYield ?? recipe.batchYield,
                 ingredients: input.ingredients
@@ -650,6 +676,17 @@ export class ManufacturingService {
         }
 
         // In-place update of current draft/active version
+        if (input.productId !== undefined) {
+            if (input.productId) {
+                const prod = await ProductModel.findById(input.productId);
+                if (!prod) throw new Error(`Product with ID '${input.productId}' not found.`);
+                recipe.productId = prod._id as Types.ObjectId;
+                recipe.variantId = input.variantId ? new Types.ObjectId(input.variantId) : undefined;
+            } else {
+                recipe.productId = undefined;
+                recipe.variantId = undefined;
+            }
+        }
         if (input.name !== undefined) recipe.name = input.name.trim();
         if (input.shelfLifeDays !== undefined) recipe.shelfLifeDays = input.shelfLifeDays;
         if (input.batchYield !== undefined) recipe.batchYield = input.batchYield;
@@ -703,17 +740,24 @@ export class ManufacturingService {
         let shortestPerishableExpiry: Date | null = null;
         let perishableWarningMessage: string | undefined = undefined;
 
-        // Combine ingredients and packaging into required material checklist
         // Consolidate demand by rawMaterialId in base units so duplicates or multi-phase uses do not double-allocate the same lot!
         const consolidatedMap = new Map<string, {
             rm: any;
             neededInBase: number;
         }>();
 
+        const allRmIds = [
+            ...recipe.ingredients.map((i) => (i.rawMaterialId as any)?._id || i.rawMaterialId),
+            ...(recipe.packagingMaterials || []).map((p) => (p.rawMaterialId as any)?._id || p.rawMaterialId),
+        ].filter(Boolean);
+
+        const rmDocs = await RawMaterialModel.find({ _id: { $in: allRmIds } }).lean();
+        const rmMap = new Map(rmDocs.map((r) => [r._id.toString(), r]));
+
         for (const ing of recipe.ingredients) {
             const wastageFactor = 1 + (ing.wastagePercent || 0) / 100;
-            const rmId = (ing.rawMaterialId as any)?._id || ing.rawMaterialId;
-            const rm = await RawMaterialModel.findById(rmId);
+            const rmId = ((ing.rawMaterialId as any)?._id || ing.rawMaterialId)?.toString();
+            const rm = rmMap.get(rmId);
             if (!rm) continue;
 
             const neededInBase = normalizeToBaseUnit(ing.quantity * multiplier * wastageFactor, ing.unit, rm.unit);
@@ -727,8 +771,8 @@ export class ManufacturingService {
         }
 
         for (const pkg of recipe.packagingMaterials || []) {
-            const rmId = (pkg.rawMaterialId as any)?._id || pkg.rawMaterialId;
-            const rm = await RawMaterialModel.findById(rmId);
+            const rmId = ((pkg.rawMaterialId as any)?._id || pkg.rawMaterialId)?.toString();
+            const rm = rmMap.get(rmId);
             if (!rm) continue;
 
             const neededInBase = normalizeToBaseUnit(pkg.quantity * multiplier, pkg.unit, rm.unit);
@@ -741,17 +785,30 @@ export class ManufacturingService {
             }
         }
 
-        for (const { rm, neededInBase } of consolidatedMap.values()) {
-            // Fetch active lots sorted FEFO (nearest expiry date first)
-            // NATIVE QUERY GUARD: only allocate lots with status AVAILABLE and expiryDate > mfgDate
-            const lots = await RawMaterialLotModel.find({
-                rawMaterialId: rm._id,
-                status: "AVAILABLE",
-                isDepleted: false,
-                availableQuantity: { $gt: 0 },
-                expiryDate: { $gt: mfgDate },
-            }).sort({ expiryDate: 1 });
+        // Batch fetch all active lots for all needed materials sorted by expiryDate ascending
+        const neededRmIds = Array.from(consolidatedMap.keys());
+        const allLots = await RawMaterialLotModel.find({
+            rawMaterialId: { $in: neededRmIds },
+            status: "AVAILABLE",
+            isDepleted: false,
+            availableQuantity: { $gt: 0 },
+            expiryDate: { $gt: mfgDate },
+        }).sort({ expiryDate: 1 }).lean();
 
+        // Group lots by rawMaterialId
+        const lotsByRmId = new Map<string, typeof allLots>();
+        for (const lot of allLots) {
+            const rId = lot.rawMaterialId.toString();
+            const arr = lotsByRmId.get(rId);
+            if (arr) {
+                arr.push(lot);
+            } else {
+                lotsByRmId.set(rId, [lot]);
+            }
+        }
+
+        for (const [rmIdStr, { rm, neededInBase }] of consolidatedMap.entries()) {
+            const lots = lotsByRmId.get(rmIdStr) || [];
             let remainingToAllocate = neededInBase;
 
             for (const lot of lots) {
@@ -770,7 +827,7 @@ export class ManufacturingService {
                     rawMaterialName: rm.name,
                     lotId: lot._id.toString(),
                     lotNumber: lot.lotNumber,
-                    expiryDate: lot.expiryDate.toISOString(),
+                    expiryDate: new Date(lot.expiryDate).toISOString(),
                     allocatedQuantity: Math.round(take * 1000) / 1000,
                     unit: rm.unit,
                     costPerUnit: lot.costPerUnit,
@@ -830,8 +887,8 @@ export class ManufacturingService {
             throw new Error(`Recipe with ID '${input.recipeId}' not found.`);
         }
 
-        const product = await ProductModel.findById(recipe.productId);
-        if (!product) {
+        const product = recipe.productId ? await ProductModel.findById(recipe.productId) : null;
+        if (recipe.productId && !product) {
             throw new Error(`Finished Product with ID '${recipe.productId}' not found.`);
         }
 
@@ -1064,68 +1121,141 @@ export class ManufacturingService {
             qaApprovalNotes: input.qaApprovalNotes || undefined,
         };
 
-        // 4. Record Finished Goods into Store Inventory Ledger
-        const variantId = recipe.variantId || (product.variants[0] as any)?._id || product.variants[0]?.id;
+        // 4. Record Finished Goods or Inward Bulk Lot
+        const isBulk = !product || !recipe.variantId || !["pcs", "pack"].includes((recipe.batchYield.unit || "").toLowerCase());
         const warehouseId = new Types.ObjectId(input.warehouseId);
 
-        const invQuery: Record<string, any> = {
-            productId: product._id,
-            warehouseId,
-        };
-        if (variantId) {
-            invQuery.variantId = new Types.ObjectId(variantId);
-        }
+        let bulkLot: any = null;
 
-        let inventory = await InventoryModel.findOne(invQuery);
+        if (isBulk) {
+            // Bulk Production: inward into Bulk Lot in RawMaterialLotModel, NOT Store Variant Inventory!
+            const bulkCode = recipe.code.startsWith("RM-") ? recipe.code : `BLK-${recipe.code}`;
+            let bulkRm = await RawMaterialModel.findOne({
+                $or: [{ code: bulkCode }, { code: recipe.code }, { name: `${recipe.name} (Bulk)` }, { name: recipe.name }],
+            });
 
-        const prevOnHand = inventory ? inventory.onHand : 0;
-        const newOnHand = prevOnHand + input.actualQuantity;
-
-        if (!inventory) {
-            const invPayload: Record<string, any> = {
-                productId: product._id,
-                variantId: variantId ? new Types.ObjectId(variantId) : new Types.ObjectId(),
-                warehouseId,
-                onHand: newOnHand,
-                reserved: 0,
-                backordered: 0,
-                safetyStock: 5,
-                reorderThreshold: 10,
-                allowBackorder: false,
-            };
-            if (resolvedActor) invPayload.updatedBy = resolvedActor;
-            inventory = new InventoryModel(invPayload);
-        } else {
-            inventory.onHand = newOnHand;
-            if (resolvedActor) {
-                inventory.updatedBy = resolvedActor;
+            if (!bulkRm) {
+                bulkRm = new RawMaterialModel({
+                    code: bulkCode,
+                    name: `${recipe.name} (Bulk)`,
+                    category: "INGREDIENT",
+                    usage: "RAW_MATERIAL",
+                    linkedProductId: product ? product._id : undefined,
+                    linkedVariantId: recipe.variantId || undefined,
+                    unit: (recipe.batchYield.unit || "kg") as RawMaterialUnit,
+                    currentStock: 0,
+                    reorderThreshold: 10,
+                    averageCost: actualUnitCost,
+                    lastPurchasePrice: actualUnitCost,
+                    warehouseId,
+                    isActive: true,
+                });
+                await bulkRm.save();
             }
-        }
-        await inventory.save();
 
-        // Write immutable StockMovement for finished product
-        const finishedMovement = new StockMovementModel({
-            inventoryId: inventory._id,
-            productId: product._id,
-            variantId: inventory.variantId,
-            warehouseId,
-            type: "STOCK_RECEIPT",
-            quantityDelta: input.actualQuantity,
-            previousOnHand: prevOnHand,
-            newOnHand: newOnHand,
-            previousReserved: inventory.reserved,
-            newReserved: inventory.reserved,
-            previousBackordered: inventory.backordered,
-            newBackordered: inventory.backordered,
-            referenceType: "MANUAL_ADJUSTMENT",
-            referenceId: batchNumber,
-            reason: `Manufactured batch ${batchNumber} (${recipe.name} v${recipe.version}, Best Before: ${finalExpiryDate.slice(0, 10)})`,
-            actor: resolvedActor,
-        });
-        await finishedMovement.save();
+            bulkLot = new RawMaterialLotModel({
+                rawMaterialId: bulkRm._id,
+                lotNumber: batchNumber,
+                expiryDate: new Date(finalExpiryDate),
+                receivedDate: mfgDate,
+                initialQuantity: input.actualQuantity,
+                availableQuantity: input.actualQuantity,
+                unit: (recipe.batchYield.unit || "kg") as RawMaterialUnit,
+                costPerUnit: actualUnitCost,
+                sourceType: "MANUFACTURED",
+                status: "AVAILABLE",
+                isDepleted: false,
+                notes: `Manufactured bulk food via Recipe ${recipe.name} (v${recipe.version})`,
+            });
+            await bulkLot.save();
+
+            const prevStock = bulkRm.currentStock;
+            bulkRm.currentStock += input.actualQuantity;
+            bulkRm.averageCost = Math.round(
+                ((prevStock * bulkRm.averageCost + input.actualQuantity * actualUnitCost) / bulkRm.currentStock) * 100
+            ) / 100;
+            bulkRm.lastPurchasePrice = actualUnitCost;
+            await bulkRm.save();
+
+            const bulkMovement = new RawMaterialStockMovementModel({
+                rawMaterialId: bulkRm._id,
+                lotId: bulkLot._id,
+                lotNumber: bulkLot.lotNumber,
+                type: "PRODUCTION_OUTPUT",
+                quantityDelta: input.actualQuantity,
+                unit: bulkRm.unit,
+                previousStock: prevStock,
+                newStock: bulkRm.currentStock,
+                referenceType: "PRODUCTION_RUN",
+                referenceId: batchNumber,
+                reason: `Manufactured bulk batch ${batchNumber} (${recipe.name} v${recipe.version}, Best Before: ${finalExpiryDate.slice(0, 10)})`,
+                actor: resolvedActor,
+            });
+            await bulkMovement.save();
+        } else {
+            // Single-stage direct finished goods production (e.g. bakery loaf, piece goods)
+            const variantId = recipe.variantId || (product!.variants[0] as any)?._id || product!.variants[0]?.id;
+
+            const invQuery: Record<string, any> = {
+                productId: product!._id,
+                warehouseId,
+            };
+            if (variantId) {
+                invQuery.variantId = new Types.ObjectId(variantId);
+            }
+
+            let inventory = await InventoryModel.findOne(invQuery);
+
+            const prevOnHand = inventory ? inventory.onHand : 0;
+            const newOnHand = prevOnHand + input.actualQuantity;
+
+            if (!inventory) {
+                const invPayload: Record<string, any> = {
+                    productId: product!._id,
+                    variantId: variantId ? new Types.ObjectId(variantId) : new Types.ObjectId(),
+                    warehouseId,
+                    onHand: newOnHand,
+                    reserved: 0,
+                    backordered: 0,
+                    safetyStock: 5,
+                    reorderThreshold: 10,
+                    allowBackorder: false,
+                };
+                if (resolvedActor) invPayload.updatedBy = resolvedActor;
+                inventory = new InventoryModel(invPayload);
+            } else {
+                inventory.onHand = newOnHand;
+                if (resolvedActor) {
+                    inventory.updatedBy = resolvedActor;
+                }
+            }
+            await inventory.save();
+
+            // Write immutable StockMovement for finished product
+            const finishedMovement = new StockMovementModel({
+                inventoryId: inventory._id,
+                productId: product!._id,
+                variantId: inventory.variantId,
+                warehouseId,
+                type: "STOCK_RECEIPT",
+                quantityDelta: input.actualQuantity,
+                previousOnHand: prevOnHand,
+                newOnHand: newOnHand,
+                previousReserved: inventory.reserved,
+                newReserved: inventory.reserved,
+                previousBackordered: inventory.backordered,
+                newBackordered: inventory.backordered,
+                referenceType: "MANUAL_ADJUSTMENT",
+                referenceId: batchNumber,
+                reason: `Manufactured batch ${batchNumber} (${recipe.name} v${recipe.version}, Best Before: ${finalExpiryDate.slice(0, 10)})`,
+                actor: resolvedActor,
+            });
+            await finishedMovement.save();
+        }
 
         // 5. Create ProductionRun record
-        const variantObj = product.variants.find((v: any) => v.id === variantId?.toString() || (v as any)._id?.toString() === variantId?.toString());
+        const variantId = recipe.variantId || (product ? ((product.variants[0] as any)?._id || product.variants[0]?.id) : undefined);
+        const variantObj = product && variantId ? product.variants.find((v: any) => v.id === variantId?.toString() || (v as any)._id?.toString() === variantId?.toString()) : undefined;
 
         const productionRun = new ProductionRunModel({
             batchNumber,
@@ -1133,10 +1263,13 @@ export class ManufacturingService {
             recipeCode: recipe.code,
             recipeName: recipe.name,
             recipeVersion: recipe.version,
-            productId: product._id,
-            productTitle: product.title,
+            productId: product?._id,
+            productTitle: product?.title,
             variantId: variantId ? new Types.ObjectId(variantId) : undefined,
             variantTitle: variantObj ? variantObj.title : undefined,
+            bulkLotId: bulkLot ? bulkLot._id : undefined,
+            bulkLotNumber: bulkLot ? bulkLot.lotNumber : undefined,
+            isBulkProduction: isBulk,
             warehouseId,
             plannedQuantity: input.plannedQuantity,
             actualQuantity: input.actualQuantity,
@@ -1164,8 +1297,10 @@ export class ManufacturingService {
             payload: {
                 productionRunId: productionRun._id.toString(),
                 batchNumber: productionRun.batchNumber,
-                productId: productionRun.productId.toString(),
+                productId: productionRun.productId ? productionRun.productId.toString() : undefined,
                 productTitle: productionRun.productTitle,
+                isBulkProduction: productionRun.isBulkProduction,
+                bulkLotNumber: productionRun.bulkLotNumber,
                 actualQuantity: productionRun.actualQuantity,
                 yieldUnit: productionRun.yieldUnit,
                 expiryDate: productionRun.expiryDate.toISOString(),
@@ -1194,20 +1329,7 @@ export class ManufacturingService {
             throw new AppError(`Production run '${run.batchNumber}' has already been fully reversed.`, 400, "ALREADY_REVERSED");
         }
 
-        // 1. Verify finished inventory has not already been dispatched
-        const invFilter: Record<string, any> = {
-            productId: run.productId,
-            warehouseId: run.warehouseId,
-        };
-        if (run.variantId) {
-            invFilter.variantId = run.variantId;
-        }
-        const inventory = await InventoryModel.findOne(invFilter);
-
-        const currentOnHand = inventory ? inventory.onHand : 0;
         const targetReverseQty = input.reverseQuantity !== undefined ? input.reverseQuantity : remainingBatchUnits;
-        const soldOrReserved = Math.max(0, remainingBatchUnits - currentOnHand);
-
         if (targetReverseQty <= 0) {
             throw new AppError("Reversal quantity must be greater than 0.", 400, "INVALID_QUANTITY");
         }
@@ -1215,90 +1337,209 @@ export class ManufacturingService {
             throw new AppError(`Cannot reverse ${targetReverseQty} units: only ${remainingBatchUnits} units remain unreversed in batch ${run.batchNumber}.`, 400, "INVALID_QUANTITY");
         }
 
-        if (!inventory || currentOnHand < targetReverseQty) {
-            throw new AppError(
-                `Cannot reverse production run '${run.batchNumber}': ${run.actualQuantity} units were produced, but ${soldOrReserved} units have already been sold or reserved from warehouse inventory. Currently available on hand: ${currentOnHand} units. Maximum reversible quantity: ${currentOnHand}. To reverse the remaining available stock, specify reverseQuantity: ${currentOnHand}.`,
-                400,
-                "CANNOT_REVERSE_SOLD_UNITS"
-            );
-        }
-
-        // 1b. Atomic conditional claim on unreversed batch units (prevents concurrent double reversals)
-        const lockedRun = await ProductionRunModel.findOneAndUpdate(
-            {
-                _id: run._id,
-                status: { $ne: "REVERSED" },
-                $expr: {
-                    $gte: [
-                        { $subtract: ["$actualQuantity", { $ifNull: ["$reversedQuantity", 0] }] },
-                        targetReverseQty,
-                    ],
-                },
-            },
-            {
-                $inc: { reversedQuantity: targetReverseQty },
-            },
-            { returnDocument: "after" }
-        );
-
-        if (!lockedRun) {
-            throw new AppError(
-                `Production run '${run.batchNumber}' cannot be reversed: already reversed or concurrent reversal in progress.`,
-                409,
-                "CONCURRENCY_CONFLICT"
-            );
-        }
-
-        // 2. Decrement Finished Inventory Atomically
-        const prevOnHand = inventory.onHand;
-        const updatedInventory = await InventoryModel.findOneAndUpdate(
-            {
-                _id: inventory._id,
-                onHand: { $gte: targetReverseQty },
-            },
-            {
-                $inc: { onHand: -targetReverseQty },
-                ...(resolvedActor ? { $set: { updatedBy: resolvedActor } } : {}),
-            },
-            { returnDocument: "after" }
-        );
-
-        if (!updatedInventory) {
-            await ProductionRunModel.findByIdAndUpdate(run._id, {
-                $inc: { reversedQuantity: -targetReverseQty },
-            });
-            throw new AppError(
-                `Cannot reverse production run '${run.batchNumber}': finished inventory was already consumed or reserved.`,
-                400,
-                "CANNOT_REVERSE_SOLD_UNITS"
-            );
-        }
-
-        const newOnHand = updatedInventory.onHand;
-        const ratio = targetReverseQty / run.actualQuantity;
-
         const revIndex = run.status === "PARTIALLY_REVERSED" ? 2 : 1;
         const reversalRef = `${run.batchNumber}-REV-00${revIndex}`;
+        let soldOrReserved = 0;
+        let lockedRun: any = null;
+        let ratio = targetReverseQty / run.actualQuantity;
 
-        const finishedMovement = new StockMovementModel({
-            inventoryId: inventory._id,
-            productId: run.productId,
-            variantId: run.variantId || inventory.variantId,
-            warehouseId: run.warehouseId,
-            type: "DAMAGE_WRITE_OFF",
-            quantityDelta: -targetReverseQty,
-            previousOnHand: prevOnHand,
-            newOnHand: newOnHand,
-            previousReserved: inventory.reserved,
-            newReserved: inventory.reserved,
-            previousBackordered: inventory.backordered,
-            newBackordered: inventory.backordered,
-            referenceType: "MANUAL_ADJUSTMENT",
-            referenceId: reversalRef,
-            reason: `Reversal of ${targetReverseQty} units of batch ${run.batchNumber}: ${input.reason}`,
-            actor: resolvedActor,
-        });
-        await finishedMovement.save();
+        if (run.isBulkProduction || run.bulkLotId) {
+            // 1. Verify bulk lot has not been consumed in packaging runs
+            const bulkLot = run.bulkLotId
+                ? await RawMaterialLotModel.findById(run.bulkLotId)
+                : await RawMaterialLotModel.findOne({ lotNumber: run.batchNumber });
+            if (!bulkLot) {
+                throw new AppError(`Bulk lot for batch '${run.batchNumber}' not found.`, 404, "NOT_FOUND");
+            }
+
+            const currentOnHand = bulkLot.availableQuantity;
+            soldOrReserved = Math.max(0, remainingBatchUnits - currentOnHand);
+
+            if (currentOnHand < targetReverseQty) {
+                throw new AppError(
+                    `Cannot reverse production run '${run.batchNumber}': ${run.actualQuantity} ${run.yieldUnit} were produced, but ${soldOrReserved} ${run.yieldUnit} have already been consumed in packaging runs. Currently available in bulk lot: ${currentOnHand} ${run.yieldUnit}. Maximum reversible quantity: ${currentOnHand}. To reverse the remaining available stock, specify reverseQuantity: ${currentOnHand}.`,
+                    400,
+                    "CANNOT_REVERSE_SOLD_UNITS"
+                );
+            }
+
+            // 1b. Atomic conditional claim on unreversed batch units
+            lockedRun = await ProductionRunModel.findOneAndUpdate(
+                {
+                    _id: run._id,
+                    status: { $ne: "REVERSED" },
+                    $expr: {
+                        $gte: [
+                            { $subtract: ["$actualQuantity", { $ifNull: ["$reversedQuantity", 0] }] },
+                            targetReverseQty,
+                        ],
+                    },
+                },
+                {
+                    $inc: { reversedQuantity: targetReverseQty },
+                },
+                { returnDocument: "after" }
+            );
+
+            if (!lockedRun) {
+                throw new AppError(
+                    `Production run '${run.batchNumber}' cannot be reversed: already reversed or concurrent reversal in progress.`,
+                    409,
+                    "CONCURRENCY_CONFLICT"
+                );
+            }
+
+            // 2. Decrement Bulk Lot Atomically
+            const updatedBulkLot = await RawMaterialLotModel.findOneAndUpdate(
+                {
+                    _id: bulkLot._id,
+                    availableQuantity: { $gte: targetReverseQty },
+                },
+                {
+                    $inc: { availableQuantity: -targetReverseQty },
+                    $set: { updatedAt: new Date() },
+                },
+                { returnDocument: "after" }
+            );
+
+            if (!updatedBulkLot) {
+                await ProductionRunModel.findByIdAndUpdate(run._id, {
+                    $inc: { reversedQuantity: -targetReverseQty },
+                });
+                throw new AppError(
+                    `Cannot reverse production run '${run.batchNumber}': bulk lot stock was concurrently allocated.`,
+                    400,
+                    "CANNOT_REVERSE_SOLD_UNITS"
+                );
+            }
+
+            if (updatedBulkLot.availableQuantity <= 0.0001) {
+                updatedBulkLot.availableQuantity = 0;
+                updatedBulkLot.isDepleted = true;
+                updatedBulkLot.status = "DEPLETED";
+                await updatedBulkLot.save();
+            }
+
+            // Deduct from bulk raw material aggregate currentStock
+            const updatedBulkRm = await RawMaterialModel.findOneAndUpdate(
+                { _id: bulkLot.rawMaterialId, currentStock: { $gte: targetReverseQty } },
+                { $inc: { currentStock: -targetReverseQty }, $set: { updatedAt: new Date() } },
+                { returnDocument: "after" }
+            );
+
+            if (updatedBulkRm) {
+                const prevStock = updatedBulkRm.currentStock + targetReverseQty;
+                const revMovement = new RawMaterialStockMovementModel({
+                    rawMaterialId: updatedBulkRm._id,
+                    lotId: bulkLot._id,
+                    lotNumber: bulkLot.lotNumber,
+                    type: "MANUFACTURING_REVERSAL",
+                    quantityDelta: -targetReverseQty,
+                    unit: updatedBulkRm.unit,
+                    previousStock: prevStock,
+                    newStock: updatedBulkRm.currentStock,
+                    referenceType: "PRODUCTION_RUN",
+                    referenceId: reversalRef,
+                    reason: `Reversal of ${targetReverseQty} ${run.yieldUnit} from bulk batch ${run.batchNumber}: ${input.reason}`,
+                    actor: resolvedActor,
+                });
+                await revMovement.save();
+            }
+        } else {
+            // 1. Verify finished store inventory has not already been dispatched
+            const invFilter: Record<string, any> = {
+                productId: run.productId,
+                warehouseId: run.warehouseId,
+            };
+            if (run.variantId) {
+                invFilter.variantId = run.variantId;
+            }
+            const inventory = await InventoryModel.findOne(invFilter);
+
+            const currentOnHand = inventory ? inventory.onHand : 0;
+            soldOrReserved = Math.max(0, remainingBatchUnits - currentOnHand);
+
+            if (!inventory || currentOnHand < targetReverseQty) {
+                throw new AppError(
+                    `Cannot reverse production run '${run.batchNumber}': ${run.actualQuantity} units were produced, but ${soldOrReserved} units have already been sold or reserved from warehouse inventory. Currently available on hand: ${currentOnHand} units. Maximum reversible quantity: ${currentOnHand}. To reverse the remaining available stock, specify reverseQuantity: ${currentOnHand}.`,
+                    400,
+                    "CANNOT_REVERSE_SOLD_UNITS"
+                );
+            }
+
+            // 1b. Atomic conditional claim on unreversed batch units (prevents concurrent double reversals)
+            lockedRun = await ProductionRunModel.findOneAndUpdate(
+                {
+                    _id: run._id,
+                    status: { $ne: "REVERSED" },
+                    $expr: {
+                        $gte: [
+                            { $subtract: ["$actualQuantity", { $ifNull: ["$reversedQuantity", 0] }] },
+                            targetReverseQty,
+                        ],
+                    },
+                },
+                {
+                    $inc: { reversedQuantity: targetReverseQty },
+                },
+                { returnDocument: "after" }
+            );
+
+            if (!lockedRun) {
+                throw new AppError(
+                    `Production run '${run.batchNumber}' cannot be reversed: already reversed or concurrent reversal in progress.`,
+                    409,
+                    "CONCURRENCY_CONFLICT"
+                );
+            }
+
+            // 2. Decrement Finished Inventory Atomically
+            const prevOnHand = inventory.onHand;
+            const updatedInventory = await InventoryModel.findOneAndUpdate(
+                {
+                    _id: inventory._id,
+                    onHand: { $gte: targetReverseQty },
+                },
+                {
+                    $inc: { onHand: -targetReverseQty },
+                    ...(resolvedActor ? { $set: { updatedBy: resolvedActor } } : {}),
+                },
+                { returnDocument: "after" }
+            );
+
+            if (!updatedInventory) {
+                await ProductionRunModel.findByIdAndUpdate(run._id, {
+                    $inc: { reversedQuantity: -targetReverseQty },
+                });
+                throw new AppError(
+                    `Cannot reverse production run '${run.batchNumber}': finished inventory was already consumed or reserved.`,
+                    400,
+                    "CANNOT_REVERSE_SOLD_UNITS"
+                );
+            }
+
+            const newOnHand = updatedInventory.onHand;
+
+            const finishedMovement = new StockMovementModel({
+                inventoryId: inventory._id,
+                productId: run.productId,
+                variantId: run.variantId || inventory.variantId,
+                warehouseId: run.warehouseId,
+                type: "DAMAGE_WRITE_OFF",
+                quantityDelta: -targetReverseQty,
+                previousOnHand: prevOnHand,
+                newOnHand: newOnHand,
+                previousReserved: inventory.reserved,
+                newReserved: inventory.reserved,
+                previousBackordered: inventory.backordered,
+                newBackordered: inventory.backordered,
+                referenceType: "MANUAL_ADJUSTMENT",
+                referenceId: reversalRef,
+                reason: `Reversal of ${targetReverseQty} units of batch ${run.batchNumber}: ${input.reason}`,
+                actor: resolvedActor,
+            });
+            await finishedMovement.save();
+        }
 
         // 3. Restore Raw Material Lots & Raw Material Stock Ledger Proportionally
         for (const item of run.lotsConsumed) {
@@ -1937,6 +2178,8 @@ export class ManufacturingService {
             warehouseId,
             totalCost,
             unitCost,
+            remainderQuantity: input.remainderQuantity,
+            remainderDisposition: input.remainderDisposition,
             status: "COMPLETED",
             expiryDate: sourceLot.expiryDate,
             notes: input.notes?.trim(),
@@ -2305,6 +2548,112 @@ export class ManufacturingService {
             ...l,
             id: l._id?.toString() || (l as any).id,
         }));
+    }
+
+    // -------------------------------------------------------------------------
+    // 10. PACKAGING SPECIFICATIONS (BOM FOR FINISHED PACKS)
+    // -------------------------------------------------------------------------
+
+    async createPackagingSpecification(input: CreatePackagingSpecificationInput) {
+        const existing = await PackagingSpecificationModel.findOne({
+            code: input.code.trim().toUpperCase(),
+        });
+        if (existing) {
+            throw new AppError(`Packaging specification with code '${input.code}' already exists.`, 400, "DUPLICATE_CODE");
+        }
+
+        const product = await ProductModel.findById(input.productId);
+        if (!product) {
+            throw new AppError(`Product with ID '${input.productId}' not found.`, 404, "NOT_FOUND");
+        }
+
+        const variant = product.variants.find((v: any) => v.id === input.variantId || (v as any)._id?.toString() === input.variantId);
+        if (!variant) {
+            throw new AppError(`Variant with ID '${input.variantId}' not found on product '${product.title}'.`, 404, "NOT_FOUND");
+        }
+
+        const spec = new PackagingSpecificationModel({
+            name: input.name.trim(),
+            code: input.code.trim().toUpperCase(),
+            masterFormulaId: input.masterFormulaId ? new Types.ObjectId(input.masterFormulaId) : undefined,
+            productId: product._id,
+            variantId: new Types.ObjectId(input.variantId),
+            bulkConsumedPerUnit: input.bulkConsumedPerUnit,
+            bulkUnit: input.bulkUnit,
+            packagingMaterials: (input.packagingMaterials || []).map((p: any) => ({
+                rawMaterialId: new Types.ObjectId(p.rawMaterialId),
+                quantity: p.quantity,
+                unit: p.unit,
+            })),
+            laborOverheadCost: input.laborOverheadCost || 0,
+            isActive: true,
+        });
+
+        await spec.save();
+        return spec.toObject();
+    }
+
+    async getPackagingSpecification(id: string) {
+        const spec = await PackagingSpecificationModel.findById(id)
+            .populate("productId", "title code sku")
+            .populate("masterFormulaId", "name code version")
+            .populate("packagingMaterials.rawMaterialId", "name code unit category averageCost");
+        if (!spec) {
+            throw new AppError(`Packaging specification with ID '${id}' not found.`, 404, "NOT_FOUND");
+        }
+        return spec.toObject();
+    }
+
+    async listPackagingSpecifications(filter: { productId?: string | undefined; variantId?: string | undefined; masterFormulaId?: string | undefined; isActive?: boolean | undefined } = {}) {
+        const query: Record<string, any> = {};
+        if (filter.productId) query.productId = new Types.ObjectId(filter.productId);
+        if (filter.variantId) query.variantId = new Types.ObjectId(filter.variantId);
+        if (filter.masterFormulaId) query.masterFormulaId = new Types.ObjectId(filter.masterFormulaId);
+        if (filter.isActive !== undefined) query.isActive = filter.isActive;
+
+        const specs = await PackagingSpecificationModel.find(query)
+            .populate("productId", "title code sku")
+            .populate("masterFormulaId", "name code version")
+            .populate("packagingMaterials.rawMaterialId", "name code unit category averageCost")
+            .sort({ createdAt: -1 });
+
+        return specs.map((s) => s.toObject());
+    }
+
+    async updatePackagingSpecification(id: string, input: UpdatePackagingSpecificationInput) {
+        const spec = await PackagingSpecificationModel.findById(id);
+        if (!spec) {
+            throw new AppError(`Packaging specification with ID '${id}' not found.`, 404, "NOT_FOUND");
+        }
+
+        if (input.name !== undefined) spec.name = input.name.trim();
+        if (input.masterFormulaId !== undefined) {
+            spec.masterFormulaId = input.masterFormulaId ? new Types.ObjectId(input.masterFormulaId) : (undefined as any);
+        }
+        if (input.bulkConsumedPerUnit !== undefined) spec.bulkConsumedPerUnit = input.bulkConsumedPerUnit;
+        if (input.bulkUnit !== undefined) spec.bulkUnit = input.bulkUnit;
+        if (input.packagingMaterials !== undefined) {
+            spec.packagingMaterials = input.packagingMaterials.map((p: any) => ({
+                rawMaterialId: new Types.ObjectId(p.rawMaterialId),
+                quantity: p.quantity,
+                unit: p.unit,
+            })) as any;
+        }
+        if (input.laborOverheadCost !== undefined) spec.laborOverheadCost = input.laborOverheadCost;
+        if (input.isActive !== undefined) spec.isActive = input.isActive;
+
+        await spec.save();
+        return spec.toObject();
+    }
+
+    async deletePackagingSpecification(id: string) {
+        const spec = await PackagingSpecificationModel.findById(id);
+        if (!spec) {
+            throw new AppError(`Packaging specification with ID '${id}' not found.`, 404, "NOT_FOUND");
+        }
+        spec.isActive = false;
+        await spec.save();
+        return { success: true };
     }
 }
 

@@ -40,6 +40,7 @@ const RawMaterialStockMovementSchema = new Schema<RawMaterialStockMovementDocume
             type: String,
             enum: [
                 "PURCHASE_INTAKE",
+                "PRODUCTION_OUTPUT",
                 "MANUFACTURING_CONSUMPTION",
                 "MANUFACTURING_REVERSAL",
                 "REPACKAGING_CONSUMPTION",

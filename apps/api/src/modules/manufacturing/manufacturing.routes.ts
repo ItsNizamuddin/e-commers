@@ -18,6 +18,9 @@ import {
     autoGenerateVariantRecipesSchema,
     createVendorSchema,
     updateVendorSchema,
+    createPackagingSpecificationSchema,
+    updatePackagingSpecificationSchema,
+    syncPackagingMatrixSchema,
 } from "./manufacturing.validation.js";
 
 export const adminManufacturingRouter = Router();
@@ -173,5 +176,41 @@ adminManufacturingRouter.patch(
 adminManufacturingRouter.get(
     "/vendors/:id/purchases",
     manufacturingController.getVendorPurchases.bind(manufacturingController)
+);
+
+// Packaging Specifications (BOM for Finished Packs)
+adminManufacturingRouter.get(
+    "/packaging-specifications",
+    manufacturingController.listPackagingSpecifications.bind(manufacturingController)
+);
+adminManufacturingRouter.post(
+    "/packaging-specifications",
+    validate(createPackagingSpecificationSchema, "body"),
+    manufacturingController.createPackagingSpecification.bind(manufacturingController)
+);
+adminManufacturingRouter.get(
+    "/packaging-specifications/:id",
+    manufacturingController.getPackagingSpecificationById.bind(manufacturingController)
+);
+adminManufacturingRouter.patch(
+    "/packaging-specifications/:id",
+    validate(updatePackagingSpecificationSchema, "body"),
+    manufacturingController.updatePackagingSpecification.bind(manufacturingController)
+);
+adminManufacturingRouter.delete(
+    "/packaging-specifications/:id",
+    manufacturingController.deletePackagingSpecification.bind(manufacturingController)
+);
+
+// Packaging & Pricing Matrix (Hub)
+adminManufacturingRouter.get(
+    "/products/:id/packaging-matrix",
+    manufacturingController.getPackagingMatrix.bind(manufacturingController)
+);
+adminManufacturingRouter.post(
+    "/products/:id/packaging-matrix/sync",
+    idempotency(),
+    validate(syncPackagingMatrixSchema, "body"),
+    manufacturingController.syncPackagingMatrix.bind(manufacturingController)
 );
 

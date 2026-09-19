@@ -19,6 +19,8 @@ import type {
     Vendor,
     CreateVendorInput,
     UpdateVendorInput,
+    PackagingMatrixResponse,
+    SyncPackagingMatrixInput,
 } from "@ecommers/types";
 
 function normalizeItem<T>(item: any): T {
@@ -386,6 +388,33 @@ export const manufacturingApi = adminApi.injectEndpoints({
                 { type: "Inventory", id: "LIST" },
             ],
         }),
+
+        // Packaging & Pricing Matrix Hub
+        getPackagingMatrix: builder.query<PackagingMatrixResponse, string>({
+            query: (productId) => ({
+                url: `/admin/manufacturing/products/${productId}/packaging-matrix`,
+                method: "GET",
+            }),
+            transformResponse: (response: any) => extractData<PackagingMatrixResponse>(response),
+            providesTags: (_res, _err, productId) => [
+                { type: "Manufacturing", id: `MATRIX_${productId}` },
+                { type: "Products", id: productId },
+            ],
+        }),
+
+        syncPackagingMatrix: builder.mutation<PackagingMatrixResponse, { productId: string; body: SyncPackagingMatrixInput }>({
+            query: ({ productId, body }) => ({
+                url: `/admin/manufacturing/products/${productId}/packaging-matrix/sync`,
+                method: "POST",
+                body,
+            }),
+            transformResponse: (response: any) => extractData<PackagingMatrixResponse>(response),
+            invalidatesTags: (_res, _err, { productId }) => [
+                { type: "Manufacturing", id: `MATRIX_${productId}` },
+                { type: "Products", id: productId },
+                { type: "Products", id: "LIST" },
+            ],
+        }),
     }),
 });
 
@@ -418,4 +447,6 @@ export const {
     useGetRepackagingRunByIdQuery,
     useCreateRepackagingRunMutation,
     useReverseRepackagingRunMutation,
+    useGetPackagingMatrixQuery,
+    useSyncPackagingMatrixMutation,
 } = manufacturingApi;

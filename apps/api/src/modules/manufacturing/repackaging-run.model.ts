@@ -21,6 +21,8 @@ export interface RepackagingRunDocument extends Document {
     packagingMaterialName?: string | undefined;
     packagingMaterialQuantity?: number | undefined;
     wastageQuantity?: number | undefined;
+    remainderQuantity?: number | undefined;
+    remainderDisposition?: "RETAINED" | "REWORK" | "WASTE" | undefined;
     warehouseId: mongoose.Types.ObjectId;
     warehouseName?: string | undefined;
     totalCost: number;
@@ -176,6 +178,15 @@ const RepackagingRunSchema = new Schema<RepackagingRunDocument>(
         wastageQuantity: {
             type: Number,
             default: 0,
+        },
+        remainderQuantity: {
+            type: Number,
+            default: 0,
+        },
+        remainderDisposition: {
+            type: String,
+            enum: ["RETAINED", "REWORK", "WASTE"],
+            default: undefined,
         },
         warehouseId: {
             type: Schema.Types.ObjectId,

@@ -102,7 +102,7 @@ const RawMaterialLotSchema = new Schema<RawMaterialLotDocument>(
         },
         sourceType: {
             type: String,
-            enum: ["EXTERNAL_VENDOR", "OWN_FARM"],
+            enum: ["EXTERNAL_VENDOR", "OWN_FARM", "MANUFACTURED"],
             required: true,
             default: "EXTERNAL_VENDOR",
         },
