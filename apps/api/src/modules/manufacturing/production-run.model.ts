@@ -46,6 +46,10 @@ export interface ProductionRunDocument extends Document {
     actualUnitCost: number;
     estimatedUnitCost: number;
     costVariance: number;
+    rawMaterialLotIds?: mongoose.Types.ObjectId[];
+    yieldVariance?: number;
+    wasteQuantity?: number;
+    createdBy?: any;
     wastageReport?: {
         expectedLossQuantity: number;
         actualLossQuantity: number;
@@ -293,6 +297,10 @@ const ProductionRunSchema = new Schema<ProductionRunDocument>(
             required: true,
             default: 0,
         },
+        rawMaterialLotIds: [{ type: Schema.Types.ObjectId, ref: "RawMaterialLot" }],
+        yieldVariance: { type: Number, default: 0 },
+        wasteQuantity: { type: Number, default: 0 },
+        createdBy: { type: AuditActorSchema, default: undefined },
         wastageReport: {
             type: WastageReportSubSchema,
             default: undefined,

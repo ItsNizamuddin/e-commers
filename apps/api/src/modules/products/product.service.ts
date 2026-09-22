@@ -328,6 +328,25 @@ export class ProductService {
             }
         }
 
+        if (input.status === "PUBLISHED") {
+            const effectiveVariants = input.variants !== undefined ? input.variants : existing.variants;
+            const activeVariants = (effectiveVariants || []).filter((v: any) => v.isActive !== false);
+            if (activeVariants.length === 0) {
+                throw new AppError("Cannot publish product with no active variants", 400, "NO_ACTIVE_VARIANTS");
+            }
+            const baseCurrency = (input.baseCurrency || existing.baseCurrency || "USD").toUpperCase();
+            for (const variant of activeVariants) {
+                const basePrice = (variant.prices || []).find((p: any) => p.currency === baseCurrency);
+                if (!basePrice || basePrice.amount <= 0) {
+                    throw new AppError(
+                        `Variant '${variant.title}' must have a base price greater than 0 in '${baseCurrency}' to publish`,
+                        400,
+                        "INVALID_PRICE"
+                    );
+                }
+            }
+        }
+
         let newSlug: string | undefined = undefined;
         if (input.slug !== undefined || input.title !== undefined) {
             newSlug = await this.generateUniqueSlug(

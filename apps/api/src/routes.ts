@@ -25,6 +25,7 @@ router.use("/admin", adminRoutes);
 router.use("/admin/locations", adminLocationRouter);
 router.use("/admin/seo", adminSeoRouter);
 router.use("/admin/manufacturing", adminManufacturingRouter);
+router.use("/manufacturing", adminManufacturingRouter);
 router.use("/admin/jobs", adminJobsRouter);
 router.use("/categories", categoryRoutes);
 router.use("/products", productRoutes);

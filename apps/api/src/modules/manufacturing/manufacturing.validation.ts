@@ -240,13 +240,27 @@ export const autoGenerateVariantRecipesSchema = z.object({
 });
 
 export const createRepackagingRunSchema = z.object({
-    sourceRawMaterialId: z.string().min(1),
-    sourceLotId: z.string().min(1),
+    sourceRawMaterialId: z.string().optional(),
+    sourceLotId: z.string().optional(),
+    bulkLotId: z.string().optional(),
     targetProductId: z.string().min(1),
     targetVariantId: z.string().min(1),
-    packageUnitsProduced: z.number().int().positive("Package units produced must be at least 1"),
-    unitSizeQuantity: z.number().positive("Unit size quantity must be greater than 0"),
-    unitSizeUnit: unitEnum,
+    packageUnitsProduced: z.number().int().positive("Package units produced must be at least 1").optional(),
+    actualUnits: z.number().int().positive().optional(),
+    unitSizeQuantity: z.number().positive("Unit size quantity must be greater than 0").optional(),
+    packQuantity: z.number().positive().optional(),
+    unitSizeUnit: unitEnum.optional(),
+    packUnit: unitEnum.optional(),
+    packagingSpecificationId: z.string().optional(),
+    packagingMaterials: z
+        .array(
+            z.object({
+                rawMaterialId: z.string().min(1),
+                quantity: z.number().positive(),
+                unit: unitEnum,
+            })
+        )
+        .optional(),
     warehouseId: z.string().min(1),
     packagingMaterialId: z.string().optional(),
     wastageQuantity: z.number().min(0).optional(),
@@ -256,13 +270,23 @@ export const createRepackagingRunSchema = z.object({
     wastageCategory: wastageCategoryEnum.optional(),
     wastageNotes: z.string().trim().optional(),
     notes: z.string().trim().optional(),
-});
+}).refine(
+    (data) => Boolean(data.sourceLotId || data.bulkLotId),
+    { message: "Either sourceLotId or bulkLotId must be provided", path: ["bulkLotId"] }
+).refine(
+    (data) => Boolean(data.packageUnitsProduced || data.actualUnits),
+    { message: "Either packageUnitsProduced or actualUnits must be provided", path: ["actualUnits"] }
+);
+
+export const createPackagingRunSchema = createRepackagingRunSchema;
 
 export const reverseRepackagingRunSchema = z.object({
     reason: z.string().min(3, "Please provide a reason for reversal").trim(),
     reverseQuantity: z.number().int().positive().optional(),
     allowPartial: z.boolean().optional(),
 });
+
+export const reversePackagingRunSchema = reverseRepackagingRunSchema;
 
 export const syncPackagingMatrixSchema = z.object({
     productId: z.string().min(1, "productId is required"),

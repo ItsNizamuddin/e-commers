@@ -19,6 +19,7 @@ import {
     UpdateVendorInput,
     CreatePackagingSpecificationInput,
     UpdatePackagingSpecificationInput,
+    LotTraceabilityReport,
 } from "@ecommers/types";
 import { RawMaterialModel, RawMaterialDocument } from "./raw-material.model.js";
 import { RawMaterialLotModel, RawMaterialLotDocument } from "./raw-material-lot.model.js";
@@ -36,6 +37,7 @@ import { resolveActor } from "../../utils/audit.js";
 import { AppError } from "../../utils/app-error.js";
 import { outboxService } from "../outbox/outbox.service.js";
 import { outboxDispatcher } from "../outbox/outbox.dispatcher.js";
+import { withTransaction } from "../../database/transaction.js";
 
 async function getActorSnapshot(actor?: any): Promise<AuditActor | undefined> {
     if (!actor) return undefined;
@@ -561,7 +563,7 @@ export class ManufacturingService {
             version: 1,
         });
         if (existing) {
-            throw new Error(`Recipe with code '${input.code}' (v1) already exists.`);
+            throw new AppError(`Recipe with code '${input.code}' (v1) already exists.`, 400, "DUPLICATE_RECIPE");
         }
 
         let productId: Types.ObjectId | undefined = undefined;
@@ -570,7 +572,7 @@ export class ManufacturingService {
         if (input.productId) {
             const product = await ProductModel.findById(input.productId);
             if (!product) {
-                throw new Error(`Product with ID '${input.productId}' not found.`);
+                throw new AppError(`Product with ID '${input.productId}' not found.`, 404, "NOT_FOUND");
             }
             productId = product._id as Types.ObjectId;
             if (input.variantId) {
@@ -1121,14 +1123,14 @@ export class ManufacturingService {
             qaApprovalNotes: input.qaApprovalNotes || undefined,
         };
 
-        // 4. Record Finished Goods or Inward Bulk Lot
-        const isBulk = !product || !recipe.variantId || !["pcs", "pack"].includes((recipe.batchYield.unit || "").toLowerCase());
+        // 4. Record Bulk Lot or Finished Goods Inventory
         const warehouseId = new Types.ObjectId(input.warehouseId);
+        const isBulk = input.isBulkProduction === true || (input.isBulkProduction !== false && (recipe.batchYield.unit !== "pcs" || !recipe.variantId || !product));
 
         let bulkLot: any = null;
 
         if (isBulk) {
-            // Bulk Production: inward into Bulk Lot in RawMaterialLotModel, NOT Store Variant Inventory!
+            // INVARIANT: Bulk production strictly inwards into a Bulk Lot, NEVER directly into retail variant inventory!
             const bulkCode = recipe.code.startsWith("RM-") ? recipe.code : `BLK-${recipe.code}`;
             let bulkRm = await RawMaterialModel.findOne({
                 $or: [{ code: bulkCode }, { code: recipe.code }, { name: `${recipe.name} (Bulk)` }, { name: recipe.name }],
@@ -1192,68 +1194,51 @@ export class ManufacturingService {
                 actor: resolvedActor,
             });
             await bulkMovement.save();
-        } else {
-            // Single-stage direct finished goods production (e.g. bakery loaf, piece goods)
-            const variantId = recipe.variantId || (product!.variants[0] as any)?._id || product!.variants[0]?.id;
-
-            const invQuery: Record<string, any> = {
-                productId: product!._id,
+        } else if (product && recipe.variantId) {
+            // Direct finished goods variant deposition (e.g. single-stage artisan piece production)
+            let inventory = await InventoryModel.findOne({
+                productId: product._id,
+                variantId: recipe.variantId,
                 warehouseId,
-            };
-            if (variantId) {
-                invQuery.variantId = new Types.ObjectId(variantId);
-            }
-
-            let inventory = await InventoryModel.findOne(invQuery);
-
-            const prevOnHand = inventory ? inventory.onHand : 0;
-            const newOnHand = prevOnHand + input.actualQuantity;
+            });
 
             if (!inventory) {
-                const invPayload: Record<string, any> = {
-                    productId: product!._id,
-                    variantId: variantId ? new Types.ObjectId(variantId) : new Types.ObjectId(),
+                inventory = new InventoryModel({
+                    productId: product._id,
+                    variantId: recipe.variantId,
                     warehouseId,
-                    onHand: newOnHand,
+                    onHand: 0,
                     reserved: 0,
                     backordered: 0,
-                    safetyStock: 5,
-                    reorderThreshold: 10,
-                    allowBackorder: false,
-                };
-                if (resolvedActor) invPayload.updatedBy = resolvedActor;
-                inventory = new InventoryModel(invPayload);
-            } else {
-                inventory.onHand = newOnHand;
-                if (resolvedActor) {
-                    inventory.updatedBy = resolvedActor;
-                }
+                });
             }
+
+            const prevOnHand = inventory.onHand;
+            inventory.onHand += input.actualQuantity;
             await inventory.save();
 
-            // Write immutable StockMovement for finished product
-            const finishedMovement = new StockMovementModel({
+            const stockMovement = new StockMovementModel({
                 inventoryId: inventory._id,
-                productId: product!._id,
-                variantId: inventory.variantId,
+                productId: product._id,
+                variantId: recipe.variantId,
                 warehouseId,
                 type: "STOCK_RECEIPT",
                 quantityDelta: input.actualQuantity,
                 previousOnHand: prevOnHand,
-                newOnHand: newOnHand,
+                newOnHand: inventory.onHand,
                 previousReserved: inventory.reserved,
                 newReserved: inventory.reserved,
                 previousBackordered: inventory.backordered,
                 newBackordered: inventory.backordered,
                 referenceType: "MANUAL_ADJUSTMENT",
                 referenceId: batchNumber,
-                reason: `Manufactured batch ${batchNumber} (${recipe.name} v${recipe.version}, Best Before: ${finalExpiryDate.slice(0, 10)})`,
+                reason: `Batch production run ${batchNumber} (${recipe.name} v${recipe.version}) completed`,
                 actor: resolvedActor,
             });
-            await finishedMovement.save();
+            await stockMovement.save();
         }
 
-        // 5. Create ProductionRun record
+        // 5. Create ProductionRun record with full traceability
         const variantId = recipe.variantId || (product ? ((product.variants[0] as any)?._id || product.variants[0]?.id) : undefined);
         const variantObj = product && variantId ? product.variants.find((v: any) => v.id === variantId?.toString() || (v as any)._id?.toString() === variantId?.toString()) : undefined;
 
@@ -1267,13 +1252,16 @@ export class ManufacturingService {
             productTitle: product?.title,
             variantId: variantId ? new Types.ObjectId(variantId) : undefined,
             variantTitle: variantObj ? variantObj.title : undefined,
-            bulkLotId: bulkLot ? bulkLot._id : undefined,
-            bulkLotNumber: bulkLot ? bulkLot.lotNumber : undefined,
+            bulkLotId: isBulk && bulkLot ? bulkLot._id : undefined,
+            bulkLotNumber: isBulk && bulkLot ? bulkLot.lotNumber : undefined,
             isBulkProduction: isBulk,
             warehouseId,
             plannedQuantity: input.plannedQuantity,
             actualQuantity: input.actualQuantity,
             yieldUnit: recipe.batchYield.unit,
+            yieldVariance: Math.round((input.actualQuantity - input.plannedQuantity) * 1000) / 1000,
+            wasteQuantity: wastageReport ? wastageReport.actualLossQuantity : 0,
+            rawMaterialLotIds: lotsConsumed.map((l) => l.lotId),
             status: "COMPLETED",
             manufacturingDate: mfgDate,
             expiryDate: new Date(finalExpiryDate),
@@ -1284,6 +1272,7 @@ export class ManufacturingService {
             actualUnitCost,
             estimatedUnitCost,
             costVariance,
+            createdBy: resolvedActor,
             notes: input.notes?.trim(),
         });
         await productionRun.save();
@@ -1634,6 +1623,45 @@ export class ManufacturingService {
         }));
     }
 
+    async getProductionRunById(id: string) {
+        if (!Types.ObjectId.isValid(id)) {
+            throw new AppError("Invalid production run ID.", 400, "INVALID_ID");
+        }
+        const run = await ProductionRunModel.findById(id)
+            .populate("warehouseId", "name code")
+            .populate("bulkLotId")
+            .lean();
+        if (!run) {
+            throw new AppError(`Production run with ID '${id}' not found.`, 404, "NOT_FOUND");
+        }
+        return {
+            ...run,
+            id: (run as any)._id?.toString() || (run as any).id,
+        };
+    }
+
+    async completeProductionRun(id: string, input?: any, actor?: any) {
+        if (!Types.ObjectId.isValid(id)) {
+            throw new AppError("Invalid production run ID.", 400, "INVALID_ID");
+        }
+        const run = await ProductionRunModel.findById(id);
+        if (!run) {
+            throw new AppError(`Production run with ID '${id}' not found.`, 404, "NOT_FOUND");
+        }
+        if (run.status === "COMPLETED") {
+            return run.toObject();
+        }
+        run.status = "COMPLETED";
+        if (input?.actualQuantity) run.actualQuantity = input.actualQuantity;
+        if (input?.wasteQuantity) run.wasteQuantity = input.wasteQuantity;
+        if (actor) {
+            const resolvedActor = await getActorSnapshot(actor);
+            if (resolvedActor) run.createdBy = resolvedActor;
+        }
+        await run.save();
+        return run.toObject();
+    }
+
     // -------------------------------------------------------------------------
     // 7. SYNC VARIANT COST (DYNAMIC MATCHING, NO HARDCODED prices[0])
     // -------------------------------------------------------------------------
@@ -1932,43 +1960,127 @@ export class ManufacturingService {
         }));
     }
 
-    async createRepackagingRun(input: CreateRepackagingRunInput, actor?: any) {
+    async getRepackagingRunById(id: string) {
+        if (!Types.ObjectId.isValid(id)) {
+            throw new AppError("Invalid packaging run ID.", 400, "INVALID_ID");
+        }
+        const run = await RepackagingRunModel.findById(id)
+            .populate("warehouseId", "name code")
+            .populate("bulkLotId")
+            .populate("sourceLotId")
+            .populate("packagingSpecificationId")
+            .lean();
+        if (!run) {
+            throw new AppError(`Packaging run with ID '${id}' not found.`, 404, "NOT_FOUND");
+        }
+        return {
+            ...run,
+            id: (run as any)._id?.toString() || (run as any).id,
+        };
+    }
+
+    // Packaging Run Aliases (Domain-clean methods)
+    async executePackagingRun(input: CreateRepackagingRunInput & Record<string, any>, actor?: any) {
+        return this.createRepackagingRun(input, actor);
+    }
+
+    async listPackagingRuns(query?: {
+        sourceRawMaterialId?: string | undefined;
+        targetProductId?: string | undefined;
+        status?: string | undefined;
+    }) {
+        return this.listRepackagingRuns(query);
+    }
+
+    async getPackagingRunById(id: string) {
+        return this.getRepackagingRunById(id);
+    }
+
+    async reversePackagingRun(runId: string, input: ReverseRepackagingRunInput, actor?: any) {
+        return this.reverseRepackagingRun(runId, input, actor);
+    }
+
+    async completePackagingRun(id: string, _input?: any, _actor?: any) {
+        return this.getRepackagingRunById(id);
+    }
+
+    async createRepackagingRun(input: CreateRepackagingRunInput & Record<string, any>, actor?: any) {
         const resolvedActor = await getActorSnapshot(actor);
 
-        // 1. Validate Source Raw Material & Lot
-        const sourceMaterial = await RawMaterialModel.findById(input.sourceRawMaterialId);
-        if (!sourceMaterial) {
-            throw new Error(`Source bulk material with ID '${input.sourceRawMaterialId}' not found.`);
+        // 1. Validate and resolve Source Raw Material & Lot (Bulk Lot)
+        const lotId = input.sourceLotId || input.bulkLotId;
+        if (!lotId) {
+            throw new AppError("Source bulk lot ID is required", 400, "BAD_REQUEST");
         }
 
-        const sourceLot = await RawMaterialLotModel.findById(input.sourceLotId);
+        const sourceLot = await RawMaterialLotModel.findById(lotId);
         if (!sourceLot) {
-            throw new Error(`Source lot with ID '${input.sourceLotId}' not found.`);
+            throw new AppError(`Source lot with ID '${lotId}' not found.`, 404, "NOT_FOUND");
+        }
+
+        const sourceMaterialId = input.sourceRawMaterialId || sourceLot.rawMaterialId;
+        const sourceMaterial = await RawMaterialModel.findById(sourceMaterialId);
+        if (!sourceMaterial) {
+            throw new AppError(`Source bulk material with ID '${sourceMaterialId}' not found.`, 404, "NOT_FOUND");
         }
 
         if (sourceLot.rawMaterialId.toString() !== sourceMaterial._id.toString()) {
-            throw new Error(`Lot '${sourceLot.lotNumber}' does not belong to raw material '${sourceMaterial.name}'.`);
+            throw new AppError(`Lot '${sourceLot.lotNumber}' does not belong to raw material '${sourceMaterial.name}'.`, 400, "BAD_REQUEST");
+        }
+
+        // Food Safety & QA Inspection Guard
+        if (sourceLot.status === "QUARANTINED" || sourceLot.status === "REJECTED") {
+            throw new AppError(
+                `Cannot package bulk lot '${sourceLot.lotNumber}': lot quality status is '${sourceLot.status}'. Only QA-approved lots can be packaged.`,
+                400,
+                "LOT_NOT_APPROVED"
+            );
+        }
+
+        if (sourceLot.expiryDate && new Date(sourceLot.expiryDate).getTime() < Date.now()) {
+            throw new AppError(
+                `Cannot package bulk lot '${sourceLot.lotNumber}': lot expired on ${new Date(sourceLot.expiryDate).toISOString().slice(0, 10)}. Expired bulk food cannot be packaged into sellable inventory.`,
+                400,
+                "LOT_EXPIRED"
+            );
         }
 
         // 2. Validate Target Product & Variant
         const targetProduct = await ProductModel.findById(input.targetProductId);
         if (!targetProduct) {
-            throw new Error(`Target retail product with ID '${input.targetProductId}' not found.`);
+            throw new AppError(`Target retail product with ID '${input.targetProductId}' not found.`, 404, "NOT_FOUND");
         }
 
-        const targetVariant = targetProduct.variants.find((v: any) => v.id === input.targetVariantId);
+        const targetVariant = targetProduct.variants.find(
+            (v: any) => v.id === input.targetVariantId || (v as any)._id?.toString() === input.targetVariantId
+        );
         if (!targetVariant) {
-            throw new Error(`Variant with ID '${input.targetVariantId}' not found on product '${targetProduct.title}'.`);
+            throw new AppError(`Variant with ID '${input.targetVariantId}' not found on product '${targetProduct.title}'.`, 404, "NOT_FOUND");
         }
+
+        const packageUnitsProduced = input.packageUnitsProduced || input.actualUnits;
+        if (!packageUnitsProduced || packageUnitsProduced <= 0) {
+            throw new AppError("Package units produced must be at least 1", 400, "BAD_REQUEST");
+        }
+
+        const unitSizeQuantity = input.unitSizeQuantity || input.packQuantity || targetVariant.weight || 500;
+        const unitSizeUnit = (input.unitSizeUnit || input.packUnit || targetVariant.weightUnit || "g") as RawMaterialUnit;
 
         // 3. Compute bulk quantity required from source lot
         const totalNetContentInSourceUnit = convertUnits(
-            input.packageUnitsProduced * input.unitSizeQuantity,
-            input.unitSizeUnit,
+            packageUnitsProduced * unitSizeQuantity,
+            unitSizeUnit,
             sourceMaterial.unit
         );
+
         const wastage = input.wastageQuantity || 0;
-        const totalSourceQuantityNeeded = Math.round((totalNetContentInSourceUnit + wastage) * 1000) / 1000;
+        const remainder = input.remainderQuantity || 0;
+        const remainderDisp = input.remainderDisposition || "RETAINED";
+
+        // If remainder is WASTE or REWORK, it is drawn from source lot. If RETAINED, it remains in the bulk lot.
+        const additionalSourceDeduction = remainderDisp === "RETAINED" ? 0 : remainder;
+        const totalSourceQuantityNeeded = Math.round((totalNetContentInSourceUnit + wastage + additionalSourceDeduction) * 1000) / 1000;
+
         const expectedLoss = input.expectedLossQuantity !== undefined ? input.expectedLossQuantity : wastage;
         const variance = Math.round((wastage - expectedLoss) * 1000) / 1000;
 
@@ -1982,104 +2094,212 @@ export class ManufacturingService {
         } : undefined;
 
         if (sourceLot.availableQuantity < totalSourceQuantityNeeded) {
-            throw new Error(
-                `Insufficient stock in source lot '${sourceLot.lotNumber}'. Required: ${totalSourceQuantityNeeded} ${sourceMaterial.unit}, Available: ${sourceLot.availableQuantity} ${sourceMaterial.unit}.`
+            throw new AppError(
+                `Insufficient stock in source lot '${sourceLot.lotNumber}'. Required: ${totalSourceQuantityNeeded} ${sourceMaterial.unit}, Available: ${sourceLot.availableQuantity} ${sourceMaterial.unit}.`,
+                400,
+                "INSUFFICIENT_BULK_STOCK"
             );
         }
 
-        // 4. Generate Unique Run Number: RPK-YYYYMMDD-XXXX
+        // 4. Resolve Packaging Specification & BOM
+        const specId = input.packagingSpecificationId;
+        const spec = specId
+            ? await PackagingSpecificationModel.findById(specId)
+            : await PackagingSpecificationModel.findOne({
+                  productId: targetProduct._id,
+                  variantId: new Types.ObjectId(targetVariant.id),
+                  isActive: true,
+              });
+
+        const bomItems = input.packagingMaterials && input.packagingMaterials.length > 0
+            ? input.packagingMaterials
+            : spec?.packagingMaterials || [];
+
+        // Verify stock for all packaging BOM items before deduction
+        for (const bomItem of bomItems) {
+            const pkgRmId = (bomItem.rawMaterialId as any)?._id || bomItem.rawMaterialId;
+            const pkgRm = await RawMaterialModel.findById(pkgRmId);
+            if (!pkgRm) {
+                throw new AppError(`Packaging raw material '${pkgRmId}' not found.`, 404, "NOT_FOUND");
+            }
+            const requiredPkgQty = Math.round((bomItem.quantity * packageUnitsProduced) * 1000) / 1000;
+            if (pkgRm.currentStock < requiredPkgQty) {
+                throw new AppError(
+                    `Insufficient stock for packaging material '${pkgRm.name}'. Required: ${requiredPkgQty} ${pkgRm.unit}, Available: ${pkgRm.currentStock} ${pkgRm.unit}.`,
+                    400,
+                    "INSUFFICIENT_PACKAGING_STOCK"
+                );
+            }
+        }
+
+        // Check legacy single packagingMaterialId if bomItems is empty
+        if (bomItems.length === 0 && input.packagingMaterialId) {
+            const singleRm = await RawMaterialModel.findById(input.packagingMaterialId);
+            if (!singleRm) {
+                throw new AppError(`Packaging raw material '${input.packagingMaterialId}' not found.`, 404, "NOT_FOUND");
+            }
+            if (singleRm.currentStock < packageUnitsProduced) {
+                throw new AppError(
+                    `Insufficient stock for packaging material '${singleRm.name}'. Required: ${packageUnitsProduced} ${singleRm.unit}, Available: ${singleRm.currentStock} ${singleRm.unit}.`,
+                    400,
+                    "INSUFFICIENT_PACKAGING_STOCK"
+                );
+            }
+        }
+
+        // 5. Generate Unique Run Number: RPK-YYYYMMDD-XXXX
         const now = new Date();
         const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
         const randStr = Math.floor(1000 + Math.random() * 9000);
         const runNumber = `RPK-${dateStr}-${randStr}`;
 
-        // 5. Concurrency-Safe Atomic Deduct from Source Lot
-        const updatedSourceLot = await RawMaterialLotModel.findOneAndUpdate(
-            { _id: sourceLot._id, availableQuantity: { $gte: totalSourceQuantityNeeded } },
-            {
-                $inc: { availableQuantity: -totalSourceQuantityNeeded },
-                $set: { updatedAt: new Date() },
-            },
-            { returnDocument: "after" }
-        );
-
-        if (!updatedSourceLot) {
-            throw new AppError(
-                `Concurrency Conflict: Source lot '${sourceLot.lotNumber}' does not have sufficient available stock (${totalSourceQuantityNeeded} ${sourceMaterial.unit} required). Another concurrent operation may have allocated this stock.`,
-                409,
-                "CONCURRENCY_CONFLICT"
+        // 6. Execute atomic deduction and inventory creation inside withTransaction
+        return await withTransaction(async (session) => {
+            const updatedSourceLot = await RawMaterialLotModel.findOneAndUpdate(
+                { _id: sourceLot._id, availableQuantity: { $gte: totalSourceQuantityNeeded } },
+                {
+                    $inc: { availableQuantity: -totalSourceQuantityNeeded },
+                    $set: { updatedAt: new Date() },
+                },
+                { returnDocument: "after", session }
             );
-        }
 
-        if (updatedSourceLot.availableQuantity <= 0.0001) {
-            updatedSourceLot.availableQuantity = 0;
-            updatedSourceLot.isDepleted = true;
-            await updatedSourceLot.save();
-        }
+            if (!updatedSourceLot) {
+                throw new AppError(
+                    `Concurrency Conflict: Source lot '${sourceLot.lotNumber}' has insufficient stock. Another concurrent process may have consumed it.`,
+                    409,
+                    "CONCURRENCY_CONFLICT"
+                );
+            }
 
-        // 6. Deduct from Source Raw Material currentStock & log ledger
-        const updatedSourceMaterial = await RawMaterialModel.findOneAndUpdate(
-            { _id: sourceMaterial._id, currentStock: { $gte: totalSourceQuantityNeeded } },
-            {
-                $inc: { currentStock: -totalSourceQuantityNeeded },
-                $set: { updatedAt: new Date() },
-            },
-            { returnDocument: "after" }
-        );
+            if (updatedSourceLot.availableQuantity <= 0.0001) {
+                updatedSourceLot.availableQuantity = 0;
+                updatedSourceLot.isDepleted = true;
+                updatedSourceLot.status = "DEPLETED";
+                await updatedSourceLot.save({ session });
+            }
 
-        if (!updatedSourceMaterial) {
-            // Rollback lot deduction if material stock was unexpectedly lower
-            await RawMaterialLotModel.updateOne(
-                { _id: sourceLot._id },
-                { $inc: { availableQuantity: totalSourceQuantityNeeded }, $set: { isDepleted: false } }
+            const updatedSourceMaterial = await RawMaterialModel.findOneAndUpdate(
+                { _id: sourceMaterial._id, currentStock: { $gte: totalSourceQuantityNeeded } },
+                {
+                    $inc: { currentStock: -totalSourceQuantityNeeded },
+                    $set: { updatedAt: new Date() },
+                },
+                { returnDocument: "after", session }
             );
-            throw new AppError(
-                `Concurrency Conflict: Source raw material '${sourceMaterial.name}' does not have sufficient aggregate stock (${totalSourceQuantityNeeded} ${sourceMaterial.unit} required).`,
-                409,
-                "CONCURRENCY_CONFLICT"
-            );
-        }
 
-        const prevStock = updatedSourceMaterial.currentStock + totalSourceQuantityNeeded;
-        const newStock = updatedSourceMaterial.currentStock;
+            if (!updatedSourceMaterial) {
+                throw new AppError(
+                    `Concurrency Conflict: Source material '${sourceMaterial.name}' stock modified concurrently.`,
+                    409,
+                    "CONCURRENCY_CONFLICT"
+                );
+            }
 
-        const rawMovement = new RawMaterialStockMovementModel({
-            rawMaterialId: sourceMaterial._id,
-            lotId: sourceLot._id,
-            lotNumber: sourceLot.lotNumber,
-            type: "REPACKAGING_CONSUMPTION",
-            quantityDelta: -totalSourceQuantityNeeded,
-            unit: sourceMaterial.unit,
-            previousStock: prevStock,
-            newStock: newStock,
-            referenceType: "REPACKAGING_RUN",
-            referenceId: runNumber,
-            reason: `Repackaged into ${input.packageUnitsProduced} × ${input.unitSizeQuantity}${input.unitSizeUnit} packs of ${targetProduct.title} (${targetVariant.title})`,
-            actor: resolvedActor,
-        });
-        await rawMovement.save();
+            const prevStock = updatedSourceMaterial.currentStock + totalSourceQuantityNeeded;
+            const newStock = updatedSourceMaterial.currentStock;
 
-        // 7. Handle optional packaging material deduction
-        let packagingCost = 0;
-        let packagingRmName: string | undefined = undefined;
-        let packagingQty: number | undefined = undefined;
+            const rawMovement = new RawMaterialStockMovementModel({
+                rawMaterialId: sourceMaterial._id,
+                lotId: sourceLot._id,
+                lotNumber: sourceLot.lotNumber,
+                type: "REPACKAGING_CONSUMPTION",
+                quantityDelta: -totalSourceQuantityNeeded,
+                unit: sourceMaterial.unit,
+                previousStock: prevStock,
+                newStock: newStock,
+                referenceType: "REPACKAGING_RUN",
+                referenceId: runNumber,
+                reason: `Repackaged into ${packageUnitsProduced} × ${unitSizeQuantity}${unitSizeUnit} packs of ${targetProduct.title} (${targetVariant.title})`,
+                actor: resolvedActor,
+            });
+            await rawMovement.save({ session });
 
-        if (input.packagingMaterialId) {
-            const packagingRm = await RawMaterialModel.findById(input.packagingMaterialId);
-            if (packagingRm) {
-                packagingRmName = packagingRm.name;
-                packagingQty = input.packageUnitsProduced; // 1 packaging unit per produced retail pack
-                if (packagingRm.currentStock >= packagingQty) {
+            if (remainder > 0 && remainderDisp === "WASTE") {
+                const wasteMovement = new RawMaterialStockMovementModel({
+                    rawMaterialId: sourceMaterial._id,
+                    lotId: sourceLot._id,
+                    lotNumber: sourceLot.lotNumber,
+                    type: "WASTAGE_SCRAP",
+                    quantityDelta: -remainder,
+                    unit: sourceMaterial.unit,
+                    previousStock: newStock,
+                    newStock: newStock,
+                    referenceType: "REPACKAGING_RUN",
+                    referenceId: runNumber,
+                    reason: `Packaging run scrap / remainder written off (${remainder} ${sourceMaterial.unit})`,
+                    actor: resolvedActor,
+                });
+                await wasteMovement.save({ session });
+            }
+
+            let packagingCost = 0;
+            const packagingMaterialsConsumed: Array<{
+                rawMaterialId: Types.ObjectId;
+                rawMaterialName: string;
+                quantity: number;
+                unit: RawMaterialUnit;
+                costPerUnit: number;
+            }> = [];
+
+            for (const bomItem of bomItems) {
+                const pkgRmId = (bomItem.rawMaterialId as any)?._id || bomItem.rawMaterialId;
+                const pkgRm = await RawMaterialModel.findById(pkgRmId).session(session);
+                if (!pkgRm) continue;
+
+                const requiredPkgQty = Math.round((bomItem.quantity * packageUnitsProduced) * 1000) / 1000;
+                const prevPackStock = pkgRm.currentStock;
+                pkgRm.currentStock = Math.max(0, prevPackStock - requiredPkgQty);
+                await pkgRm.save({ session });
+
+                const itemCost = requiredPkgQty * (pkgRm.averageCost || 0);
+                packagingCost += itemCost;
+
+                packagingMaterialsConsumed.push({
+                    rawMaterialId: pkgRm._id as Types.ObjectId,
+                    rawMaterialName: pkgRm.name,
+                    quantity: requiredPkgQty,
+                    unit: pkgRm.unit,
+                    costPerUnit: pkgRm.averageCost || 0,
+                });
+
+                const packagingMovement = new RawMaterialStockMovementModel({
+                    rawMaterialId: pkgRm._id,
+                    type: "REPACKAGING_CONSUMPTION",
+                    quantityDelta: -requiredPkgQty,
+                    unit: pkgRm.unit,
+                    previousStock: prevPackStock,
+                    newStock: pkgRm.currentStock,
+                    referenceType: "REPACKAGING_RUN",
+                    referenceId: runNumber,
+                    reason: `Packaging components consumed for run ${runNumber} (${pkgRm.name})`,
+                    actor: resolvedActor,
+                });
+                await packagingMovement.save({ session });
+            }
+
+            if (bomItems.length === 0 && input.packagingMaterialId) {
+                const packagingRm = await RawMaterialModel.findById(input.packagingMaterialId).session(session);
+                if (packagingRm && packagingRm.currentStock >= packageUnitsProduced) {
                     const prevPackStock = packagingRm.currentStock;
-                    packagingRm.currentStock = Math.max(0, prevPackStock - packagingQty);
-                    await packagingRm.save();
+                    packagingRm.currentStock = Math.max(0, prevPackStock - packageUnitsProduced);
+                    await packagingRm.save({ session });
 
-                    packagingCost = packagingQty * packagingRm.averageCost;
+                    const itemCost = packageUnitsProduced * (packagingRm.averageCost || 0);
+                    packagingCost += itemCost;
+
+                    packagingMaterialsConsumed.push({
+                        rawMaterialId: packagingRm._id as Types.ObjectId,
+                        rawMaterialName: packagingRm.name,
+                        quantity: packageUnitsProduced,
+                        unit: packagingRm.unit,
+                        costPerUnit: packagingRm.averageCost || 0,
+                    });
 
                     const packagingMovement = new RawMaterialStockMovementModel({
                         rawMaterialId: packagingRm._id,
                         type: "REPACKAGING_CONSUMPTION",
-                        quantityDelta: -packagingQty,
+                        quantityDelta: -packageUnitsProduced,
                         unit: packagingRm.unit,
                         previousStock: prevPackStock,
                         newStock: packagingRm.currentStock,
@@ -2088,121 +2308,127 @@ export class ManufacturingService {
                         reason: `Packaging pouches/containers consumed for repackaging run ${runNumber}`,
                         actor: resolvedActor,
                     });
-                    await packagingMovement.save();
+                    await packagingMovement.save({ session });
                 }
             }
-        }
 
-        // 8. Calculate Financial Costs
-        const bulkMaterialCost = totalSourceQuantityNeeded * sourceLot.costPerUnit;
-        const totalCost = Math.round((bulkMaterialCost + packagingCost) * 100) / 100;
-        const unitCost = Math.round((totalCost / input.packageUnitsProduced) * 100) / 100;
+            const bulkMaterialCost = totalSourceQuantityNeeded * sourceLot.costPerUnit;
+            const totalCost = Math.round((bulkMaterialCost + packagingCost) * 100) / 100;
+            const unitCost = Math.round((totalCost / packageUnitsProduced) * 100) / 100;
 
-        // 9. Deposit Finished Goods into Store Inventory
-        const warehouseId = new Types.ObjectId(input.warehouseId);
-        const invQuery = {
-            productId: targetProduct._id,
-            variantId: new Types.ObjectId(targetVariant.id),
-            warehouseId,
-        };
-
-        let inventory = await InventoryModel.findOne(invQuery);
-        const prevOnHand = inventory ? inventory.onHand : 0;
-        const newOnHand = prevOnHand + input.packageUnitsProduced;
-
-        if (!inventory) {
-            const invPayload: Record<string, any> = {
+            const warehouseId = new Types.ObjectId(input.warehouseId);
+            const invQuery = {
                 productId: targetProduct._id,
                 variantId: new Types.ObjectId(targetVariant.id),
                 warehouseId,
-                onHand: newOnHand,
-                reserved: 0,
-                backordered: 0,
-                safetyStock: 5,
-                reorderThreshold: 10,
-                allowBackorder: false,
             };
-            if (resolvedActor) invPayload.updatedBy = resolvedActor;
-            inventory = new InventoryModel(invPayload);
-        } else {
-            inventory.onHand = newOnHand;
-            if (resolvedActor) {
-                inventory.updatedBy = resolvedActor;
+
+            let inventory = await InventoryModel.findOne(invQuery).session(session);
+            const prevOnHand = inventory ? inventory.onHand : 0;
+            const newOnHand = prevOnHand + packageUnitsProduced;
+
+            if (!inventory) {
+                const invPayload: Record<string, any> = {
+                    productId: targetProduct._id,
+                    variantId: new Types.ObjectId(targetVariant.id),
+                    warehouseId,
+                    onHand: newOnHand,
+                    reserved: 0,
+                    backordered: 0,
+                    safetyStock: 5,
+                    reorderThreshold: 10,
+                    allowBackorder: false,
+                };
+                if (resolvedActor) invPayload.updatedBy = resolvedActor;
+                inventory = new InventoryModel(invPayload);
+            } else {
+                inventory.onHand = newOnHand;
+                if (resolvedActor) inventory.updatedBy = resolvedActor;
             }
-        }
-        await inventory.save();
+            await inventory.save({ session });
 
-        // 10. Record Store Stock Movement (Traceability: references sourceLotNumber)
-        const expiryDateStr = sourceLot.expiryDate ? new Date(sourceLot.expiryDate).toISOString().slice(0, 10) : "N/A";
-        const stockMovement = new StockMovementModel({
-            inventoryId: inventory._id,
-            productId: targetProduct._id,
-            variantId: inventory.variantId,
-            warehouseId,
-            type: "STOCK_RECEIPT",
-            quantityDelta: input.packageUnitsProduced,
-            previousOnHand: prevOnHand,
-            newOnHand: newOnHand,
-            previousReserved: inventory.reserved,
-            newReserved: inventory.reserved,
-            previousBackordered: inventory.backordered,
-            newBackordered: inventory.backordered,
-            referenceType: "MANUAL_ADJUSTMENT",
-            referenceId: runNumber,
-            reason: `Repackaged run ${runNumber} from Bulk Lot ${sourceLot.lotNumber} (${sourceMaterial.name}, Best Before: ${expiryDateStr})`,
-            actor: resolvedActor,
+            const expiryDateStr = sourceLot.expiryDate ? new Date(sourceLot.expiryDate).toISOString().slice(0, 10) : "N/A";
+            const stockMovement = new StockMovementModel({
+                inventoryId: inventory._id,
+                productId: targetProduct._id,
+                variantId: inventory.variantId,
+                warehouseId,
+                type: "STOCK_RECEIPT",
+                quantityDelta: packageUnitsProduced,
+                previousOnHand: prevOnHand,
+                newOnHand: newOnHand,
+                previousReserved: inventory.reserved,
+                newReserved: inventory.reserved,
+                previousBackordered: inventory.backordered,
+                newBackordered: inventory.backordered,
+                referenceType: "MANUAL_ADJUSTMENT",
+                referenceId: runNumber,
+                reason: `Repackaged run ${runNumber} (${packageUnitsProduced} × ${unitSizeQuantity}${unitSizeUnit}) from Bulk Lot ${sourceLot.lotNumber} (${sourceMaterial.name}, Best Before: ${expiryDateStr})`,
+                actor: resolvedActor,
+            });
+            await stockMovement.save({ session });
+
+            const repackagingRun = new RepackagingRunModel({
+                runNumber,
+                sourceRawMaterialId: sourceMaterial._id,
+                sourceRawMaterialName: sourceMaterial.name,
+                sourceLotId: sourceLot._id,
+                sourceLotNumber: sourceLot.lotNumber,
+                bulkLotId: sourceLot._id,
+                targetProductId: targetProduct._id,
+                targetProductTitle: targetProduct.title,
+                targetVariantId: new Types.ObjectId(targetVariant.id),
+                targetVariantTitle: targetVariant.title,
+                variantId: new Types.ObjectId(targetVariant.id),
+                packagingSpecificationId: spec ? spec._id : undefined,
+                packageUnitsProduced,
+                actualUnits: packageUnitsProduced,
+                plannedUnits: input.plannedUnits || packageUnitsProduced,
+                unitSizeQuantity,
+                packQuantity: unitSizeQuantity,
+                unitSizeUnit,
+                packUnit: unitSizeUnit,
+                sourceQuantity: totalSourceQuantityNeeded,
+                bulkConsumed: totalNetContentInSourceUnit,
+                sourceUnit: sourceMaterial.unit,
+                packagingMaterialsConsumed,
+                packagingMaterialId: input.packagingMaterialId ? new Types.ObjectId(input.packagingMaterialId) : undefined,
+                packagingMaterialName: packagingMaterialsConsumed[0]?.rawMaterialName,
+                packagingMaterialQuantity: packagingMaterialsConsumed[0]?.quantity,
+                wastageQuantity: wastage,
+                waste: wastage,
+                wastageReport,
+                warehouseId,
+                totalCost,
+                unitCost,
+                remainderQuantity: remainder,
+                remainingBulk: remainder,
+                remainderDisposition: remainderDisp,
+                status: "COMPLETED",
+                expiryDate: sourceLot.expiryDate,
+                createdBy: resolvedActor,
+                notes: input.notes?.trim(),
+            });
+
+            await repackagingRun.save({ session });
+
+            await outboxService.recordEvent({
+                eventType: "REPACKAGING_COMPLETED",
+                aggregateType: "RepackagingRun",
+                aggregateId: repackagingRun._id,
+                deduplicationKey: `REPACKAGING_COMPLETED:${repackagingRun._id.toString()}`,
+                payload: {
+                    repackagingRunId: repackagingRun._id.toString(),
+                    runNumber: repackagingRun.runNumber,
+                    packageUnitsProduced: repackagingRun.packageUnitsProduced,
+                    targetVariantSku: targetVariant.sku,
+                    bulkLotNumber: sourceLot.lotNumber,
+                },
+            });
+            outboxDispatcher.triggerImmediate();
+
+            return repackagingRun.toObject();
         });
-        await stockMovement.save();
-
-        // 11. Create RepackagingRun document
-        const repackagingRun = new RepackagingRunModel({
-            runNumber,
-            sourceRawMaterialId: sourceMaterial._id,
-            sourceRawMaterialName: sourceMaterial.name,
-            sourceLotId: sourceLot._id,
-            sourceLotNumber: sourceLot.lotNumber,
-            sourceQuantity: totalSourceQuantityNeeded,
-            sourceUnit: sourceMaterial.unit,
-            targetProductId: targetProduct._id,
-            targetProductTitle: targetProduct.title,
-            targetVariantId: new Types.ObjectId(targetVariant.id),
-            targetVariantTitle: targetVariant.title,
-            packageUnitsProduced: input.packageUnitsProduced,
-            unitSizeQuantity: input.unitSizeQuantity,
-            unitSizeUnit: input.unitSizeUnit,
-            packagingMaterialId: input.packagingMaterialId ? new Types.ObjectId(input.packagingMaterialId) : undefined,
-            packagingMaterialName: packagingRmName,
-            packagingMaterialQuantity: packagingQty,
-            wastageQuantity: wastage,
-            wastageReport,
-            warehouseId,
-            totalCost,
-            unitCost,
-            remainderQuantity: input.remainderQuantity,
-            remainderDisposition: input.remainderDisposition,
-            status: "COMPLETED",
-            expiryDate: sourceLot.expiryDate,
-            notes: input.notes?.trim(),
-        });
-
-        await repackagingRun.save();
-
-        // 12. Record Outbox Event for Repackaging Completion
-        await outboxService.recordEvent({
-            eventType: "REPACKAGING_COMPLETED",
-            aggregateType: "RepackagingRun",
-            aggregateId: repackagingRun._id,
-            deduplicationKey: `REPACKAGING_COMPLETED:${repackagingRun._id.toString()}`,
-            payload: {
-                repackagingRunId: repackagingRun._id.toString(),
-                runNumber: repackagingRun.runNumber,
-                packageUnitsProduced: repackagingRun.packageUnitsProduced,
-                targetVariantSku: targetVariant.sku,
-            },
-        });
-        outboxDispatcher.triggerImmediate();
-
-        return repackagingRun.toObject();
     }
 
     async reverseRepackagingRun(runId: string, input: ReverseRepackagingRunInput, actor?: any) {
@@ -2358,7 +2584,33 @@ export class ManufacturingService {
         }
 
         // 5. If packaging materials were used, restore them proportionally
-        if (run.packagingMaterialId && run.packagingMaterialQuantity) {
+        if (run.packagingMaterialsConsumed && run.packagingMaterialsConsumed.length > 0) {
+            for (const pmItem of run.packagingMaterialsConsumed) {
+                const packRm = await RawMaterialModel.findById(pmItem.rawMaterialId);
+                if (packRm) {
+                    const restorePackQty = Math.round(pmItem.quantity * ratio * 1000) / 1000;
+                    if (restorePackQty > 0) {
+                        const prevPackStock = packRm.currentStock;
+                        packRm.currentStock = Math.round((prevPackStock + restorePackQty) * 1000) / 1000;
+                        await packRm.save();
+
+                        const contraPackaging = new RawMaterialStockMovementModel({
+                            rawMaterialId: packRm._id,
+                            type: "REPACKAGING_REVERSAL",
+                            quantityDelta: restorePackQty,
+                            unit: packRm.unit,
+                            previousStock: prevPackStock,
+                            newStock: packRm.currentStock,
+                            referenceType: "REPACKAGING_RUN",
+                            referenceId: reversalRef,
+                            reason: `Reversal of ${restorePackQty} ${packRm.unit} of packaging component ${pmItem.rawMaterialName} from run ${run.runNumber}: ${input.reason}`,
+                            actor: resolvedActor,
+                        });
+                        await contraPackaging.save();
+                    }
+                }
+            }
+        } else if (run.packagingMaterialId && run.packagingMaterialQuantity) {
             const packRm = await RawMaterialModel.findById(run.packagingMaterialId);
             if (packRm) {
                 const restorePackQty = Math.round(run.packagingMaterialQuantity * ratio);
@@ -2654,6 +2906,233 @@ export class ManufacturingService {
         spec.isActive = false;
         await spec.save();
         return { success: true };
+    }
+
+    // -------------------------------------------------------------------------
+    // 12. TWO-WAY LOT TRACEABILITY & RAPID RECALL GENEALOGY ENGINE
+    // -------------------------------------------------------------------------
+
+    async getLotTraceability(identifier: string): Promise<LotTraceabilityReport> {
+        const query = identifier.trim();
+
+        // 1. Try finding as RepackagingRun (Finished Pack Lot / Run Number)
+        const repackagingRun = await RepackagingRunModel.findOne({
+            $or: [{ runNumber: query }, ...(Types.ObjectId.isValid(query) ? [{ _id: new Types.ObjectId(query) }] : [])],
+        });
+
+        if (repackagingRun) {
+            const bulkLot = await RawMaterialLotModel.findById(repackagingRun.bulkLotId || repackagingRun.sourceLotId);
+            const sourceMaterial = await RawMaterialModel.findById(repackagingRun.sourceRawMaterialId);
+
+            let bulkProduction: any = null;
+            if (bulkLot) {
+                bulkProduction = await ProductionRunModel.findOne({
+                    $or: [{ bulkLotId: bulkLot._id }, { batchNumber: bulkLot.lotNumber }],
+                });
+            }
+
+            const ingredientsConsumed: any[] = [];
+            if (bulkProduction && bulkProduction.lotsConsumed && bulkProduction.lotsConsumed.length > 0) {
+                for (const lotConsumed of bulkProduction.lotsConsumed) {
+                    const ingLot = await RawMaterialLotModel.findById(lotConsumed.lotId);
+                    const ingRm = await RawMaterialModel.findById(lotConsumed.rawMaterialId);
+                    let supplierName: string | undefined;
+                    let farmName: string | undefined;
+                    if (ingLot) {
+                        if (ingLot.vendorId) {
+                            const vendor = await VendorModel.findById(ingLot.vendorId);
+                            supplierName = vendor?.name;
+                        }
+                        if (ingLot.farmDetails) {
+                            farmName = ingLot.farmDetails.farmName;
+                        }
+                    }
+                    ingredientsConsumed.push({
+                        rawMaterialCode: ingRm?.code || "",
+                        rawMaterialName: ingRm?.name || lotConsumed.rawMaterialName,
+                        lotNumber: lotConsumed.lotNumber,
+                        quantityConsumed: lotConsumed.quantityConsumed,
+                        unit: lotConsumed.unit,
+                        supplierName,
+                        farmName,
+                        expiryDate: ingLot?.expiryDate ? new Date(ingLot.expiryDate).toISOString() : undefined,
+                    });
+                }
+            }
+
+            return {
+                queryIdentifier: query,
+                entityType: "FINISHED_PACKAGING_RUN",
+                entitySummary: {
+                    id: repackagingRun._id.toString(),
+                    codeOrNumber: repackagingRun.runNumber,
+                    nameOrTitle: `${repackagingRun.targetProductTitle} - ${repackagingRun.targetVariantTitle}`,
+                    date: new Date((repackagingRun as any).packagingDate || (repackagingRun as any).createdAt || Date.now()).toISOString(),
+                    expiryDate: repackagingRun.expiryDate ? new Date(repackagingRun.expiryDate).toISOString() : undefined,
+                    status: repackagingRun.status,
+                },
+                backwardTrace: {
+                    packagingRun: {
+                        runNumber: repackagingRun.runNumber,
+                        date: new Date((repackagingRun as any).packagingDate || (repackagingRun as any).createdAt || Date.now()).toISOString(),
+                        unitsProduced: repackagingRun.packageUnitsProduced,
+                        variantTitle: repackagingRun.targetVariantTitle,
+                    },
+                    bulkProduction: bulkProduction ? {
+                        batchNumber: bulkProduction.batchNumber,
+                        recipeCode: bulkProduction.recipeCode,
+                        recipeName: bulkProduction.recipeName,
+                        version: bulkProduction.recipeVersion,
+                        actualQuantity: bulkProduction.actualQuantity,
+                        yieldUnit: bulkProduction.yieldUnit,
+                        manufacturingDate: new Date(bulkProduction.manufacturingDate).toISOString(),
+                        expiryDate: new Date(bulkProduction.expiryDate).toISOString(),
+                    } : undefined,
+                    bulkLot: bulkLot ? {
+                        lotNumber: bulkLot.lotNumber,
+                        materialName: sourceMaterial?.name || bulkLot.lotNumber,
+                        unit: bulkLot.unit,
+                        availableQuantity: bulkLot.availableQuantity,
+                        expiryDate: new Date(bulkLot.expiryDate).toISOString(),
+                    } : undefined,
+                    ingredientsConsumed: ingredientsConsumed.length > 0 ? ingredientsConsumed : undefined,
+                    packagingMaterialsConsumed: repackagingRun.packagingMaterialsConsumed?.map((p: any) => ({
+                        packagingMaterialName: p.name || "Packaging Material",
+                        quantityConsumed: p.quantityConsumed,
+                        unit: p.unit,
+                    })),
+                },
+            };
+        }
+
+        // 2. Try finding as Bulk Production Run
+        const productionRun = await ProductionRunModel.findOne({
+            $or: [{ batchNumber: query }, { bulkLotNumber: query }, ...(Types.ObjectId.isValid(query) ? [{ _id: new Types.ObjectId(query) }] : [])],
+        });
+
+        if (productionRun) {
+            const orConditions: any[] = [];
+            if (productionRun.bulkLotId) {
+                orConditions.push({ bulkLotId: productionRun.bulkLotId });
+            }
+            if (productionRun.bulkLotNumber || productionRun.batchNumber) {
+                orConditions.push({ sourceLotNumber: productionRun.bulkLotNumber || productionRun.batchNumber });
+            }
+            const packagingRuns = orConditions.length > 0 ? await RepackagingRunModel.find({ $or: orConditions }) : [];
+
+            const ingredientsConsumed: any[] = [];
+            for (const lotConsumed of productionRun.lotsConsumed || []) {
+                const ingLot = await RawMaterialLotModel.findById(lotConsumed.lotId);
+                const ingRm = await RawMaterialModel.findById(lotConsumed.rawMaterialId);
+                let supplierName: string | undefined;
+                let farmName: string | undefined;
+                if (ingLot) {
+                    if (ingLot.vendorId) {
+                        const vendor = await VendorModel.findById(ingLot.vendorId);
+                        supplierName = vendor?.name;
+                    }
+                    if (ingLot.farmDetails) {
+                        farmName = ingLot.farmDetails.farmName;
+                    }
+                }
+                ingredientsConsumed.push({
+                    rawMaterialCode: ingRm?.code || "",
+                    rawMaterialName: ingRm?.name || lotConsumed.rawMaterialName,
+                    lotNumber: lotConsumed.lotNumber,
+                    quantityConsumed: lotConsumed.quantity,
+                    unit: lotConsumed.unit,
+                    supplierName,
+                    farmName,
+                    expiryDate: ingLot?.expiryDate ? new Date(ingLot.expiryDate).toISOString() : undefined,
+                });
+            }
+
+            return {
+                queryIdentifier: query,
+                entityType: "BULK_PRODUCTION_RUN",
+                entitySummary: {
+                    id: productionRun._id.toString(),
+                    codeOrNumber: productionRun.batchNumber,
+                    nameOrTitle: productionRun.recipeName,
+                    date: new Date(productionRun.manufacturingDate).toISOString(),
+                    expiryDate: new Date(productionRun.expiryDate).toISOString(),
+                    status: productionRun.status,
+                },
+                backwardTrace: {
+                    bulkProduction: {
+                        batchNumber: productionRun.batchNumber,
+                        recipeCode: productionRun.recipeCode,
+                        recipeName: productionRun.recipeName,
+                        version: productionRun.recipeVersion,
+                        actualQuantity: productionRun.actualQuantity,
+                        yieldUnit: productionRun.yieldUnit,
+                        manufacturingDate: new Date(productionRun.manufacturingDate).toISOString(),
+                        expiryDate: new Date(productionRun.expiryDate).toISOString(),
+                    },
+                    ingredientsConsumed,
+                },
+                forwardTrace: {
+                    packagingRuns: packagingRuns.map((pkg) => ({
+                        runNumber: pkg.runNumber,
+                        productTitle: pkg.targetProductTitle,
+                        variantTitle: pkg.targetVariantTitle,
+                        unitsProduced: pkg.packageUnitsProduced,
+                        packagingDate: new Date((pkg as any).packagingDate || (pkg as any).createdAt || Date.now()).toISOString(),
+                        expiryDate: pkg.expiryDate ? new Date(pkg.expiryDate).toISOString() : "",
+                    })),
+                },
+            };
+        }
+
+        // 3. Try finding as Raw Material Lot (Ingredient or Bulk Lot)
+        const rawLot = await RawMaterialLotModel.findOne({
+            $or: [{ lotNumber: query }, ...(Types.ObjectId.isValid(query) ? [{ _id: new Types.ObjectId(query) }] : [])],
+        });
+
+        if (!rawLot) {
+            throw new AppError(`No manufacturing batch, packaging run, or lot found matching identifier '${query}'.`, 404, "NOT_FOUND");
+        }
+
+        const rm = await RawMaterialModel.findById(rawLot.rawMaterialId);
+        const isBulk = rawLot.sourceType === "MANUFACTURED";
+
+        const runsConsumedIn = await ProductionRunModel.find({
+            "lotsConsumed.lotId": rawLot._id,
+        });
+
+        const packagingRunsFromThisLot = await RepackagingRunModel.find({
+            $or: [{ sourceLotId: rawLot._id }, { bulkLotId: rawLot._id }, { sourceLotNumber: rawLot.lotNumber }],
+        });
+
+        return {
+            queryIdentifier: query,
+            entityType: isBulk ? "BULK_LOT" : "INGREDIENT_LOT",
+            entitySummary: {
+                id: rawLot._id.toString(),
+                codeOrNumber: rawLot.lotNumber,
+                nameOrTitle: rm?.name || rawLot.lotNumber,
+                date: new Date(rawLot.receivedDate).toISOString(),
+                expiryDate: new Date(rawLot.expiryDate).toISOString(),
+                status: rawLot.status,
+            },
+            forwardTrace: {
+                bulkBatchesProduced: runsConsumedIn.map((r) => ({
+                    batchNumber: r.batchNumber,
+                    recipeName: r.recipeName,
+                    actualQuantity: r.actualQuantity,
+                    yieldUnit: r.yieldUnit,
+                    date: new Date(r.manufacturingDate).toISOString(),
+                })),
+                packagingRuns: packagingRunsFromThisLot.map((p) => ({
+                    runNumber: p.runNumber,
+                    productTitle: p.targetProductTitle,
+                    variantTitle: p.targetVariantTitle,
+                    unitsProduced: p.packageUnitsProduced,
+                    packagingDate: new Date((p as any).packagingDate || (p as any).createdAt || Date.now()).toISOString(),
+                    expiryDate: p.expiryDate ? new Date(p.expiryDate).toISOString() : "",
+                })),
+            },
+        };
     }
 }
 

@@ -118,6 +118,14 @@ adminManufacturingRouter.get(
     ["/production-runs", "/runs"],
     manufacturingController.listProductionRuns.bind(manufacturingController)
 );
+adminManufacturingRouter.get(
+    ["/production-runs/:id", "/runs/:id"],
+    manufacturingController.getProductionRunById.bind(manufacturingController)
+);
+adminManufacturingRouter.post(
+    ["/production-runs/:id/complete", "/runs/:id/complete"],
+    manufacturingController.completeProductionRun.bind(manufacturingController)
+);
 
 // Sync Variant Cost & Multi-Variant Pricing
 adminManufacturingRouter.post(
@@ -136,22 +144,30 @@ adminManufacturingRouter.post(
     manufacturingController.autoGenerateVariantRecipes.bind(manufacturingController)
 );
 
-// Stock Repackaging (Bulk to Retail transformation)
+// Stock Packaging & Repackaging (Bulk to Retail transformation)
 adminManufacturingRouter.get(
-    "/repackaging",
-    manufacturingController.listRepackagingRuns.bind(manufacturingController)
+    ["/repackaging", "/packaging-runs"],
+    manufacturingController.listPackagingRuns.bind(manufacturingController)
 );
 adminManufacturingRouter.post(
-    "/repackaging",
+    ["/repackaging", "/packaging-runs"],
     idempotency(),
     validate(createRepackagingRunSchema, "body"),
-    manufacturingController.createRepackagingRun.bind(manufacturingController)
+    manufacturingController.createPackagingRun.bind(manufacturingController)
+);
+adminManufacturingRouter.get(
+    ["/repackaging/:id", "/packaging-runs/:id"],
+    manufacturingController.getPackagingRunById.bind(manufacturingController)
 );
 adminManufacturingRouter.post(
-    "/repackaging/:id/reverse",
+    ["/repackaging/:id/complete", "/packaging-runs/:id/complete"],
+    manufacturingController.completePackagingRun.bind(manufacturingController)
+);
+adminManufacturingRouter.post(
+    ["/repackaging/:id/reverse", "/packaging-runs/:id/reverse"],
     idempotency(),
     validate(reverseRepackagingRunSchema, "body"),
-    manufacturingController.reverseRepackagingRun.bind(manufacturingController)
+    manufacturingController.reversePackagingRun.bind(manufacturingController)
 );
 
 // Vendors & Suppliers Master
@@ -212,5 +228,11 @@ adminManufacturingRouter.post(
     idempotency(),
     validate(syncPackagingMatrixSchema, "body"),
     manufacturingController.syncPackagingMatrix.bind(manufacturingController)
+);
+
+// Two-Way Lot Traceability & Rapid Recall
+adminManufacturingRouter.get(
+    "/traceability/:identifier",
+    manufacturingController.getLotTraceability.bind(manufacturingController)
 );
 

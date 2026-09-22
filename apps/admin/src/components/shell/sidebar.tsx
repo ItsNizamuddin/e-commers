@@ -33,6 +33,7 @@ import {
     ClipboardList,
     CalendarCheck,
     Cpu,
+    ShieldAlert,
 } from "lucide-react";
 import { useAppSelector, useAppDispatch } from "../../store";
 import { clearSession } from "../../store/auth-slice";
@@ -179,6 +180,12 @@ const NAV_SECTIONS: NavSection[] = [
                 icon: Layers,
                 allowedRoles: ["SUPER_ADMIN", "ADMIN"],
             },
+            {
+                label: "Lot Traceability & Recall",
+                href: "/manufacturing/traceability",
+                icon: ShieldAlert,
+                allowedRoles: ["SUPER_ADMIN", "ADMIN"],
+            },
         ],
     },
     {
@@ -244,9 +251,8 @@ function NavBadge({
 
     return (
         <span
-            className={`text-[9px] font-semibold px-1 py-0.2 rounded-md border leading-none inline-flex items-center ${
-                colorClasses[color] || colorClasses.blue
-            }`}
+            className={`text-[9px] font-semibold px-1 py-0.2 rounded-md border leading-none inline-flex items-center ${colorClasses[color] || colorClasses.blue
+                }`}
         >
             {text}
         </span>
@@ -407,11 +413,10 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                                     <div key={item.href} className="relative">
                                         {/* Main item row */}
                                         <div
-                                            className={`flex items-center rounded-md transition-colors relative ${
-                                                isParentActive
+                                            className={`flex items-center rounded-md transition-colors relative ${isParentActive
                                                     ? "bg-gray-100 dark:bg-neutral-800 text-slate-900 dark:text-white font-medium"
                                                     : "text-slate-600 dark:text-neutral-400 hover:bg-slate-50 dark:hover:bg-neutral-800/60 hover:text-slate-900 dark:hover:text-white font-normal"
-                                            }`}
+                                                }`}
                                         >
                                             <Link
                                                 href={item.href}
@@ -420,11 +425,10 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                                             >
                                                 <Icon
                                                     size={16}
-                                                    className={`shrink-0 transition-colors ${
-                                                        isParentActive
+                                                    className={`shrink-0 transition-colors ${isParentActive
                                                             ? "text-blue-600 dark:text-blue-400"
                                                             : "text-slate-400 dark:text-neutral-500"
-                                                    }`}
+                                                        }`}
                                                     strokeWidth={isParentActive ? 2.2 : 1.8}
                                                 />
                                                 <span className="truncate flex-1">
@@ -450,9 +454,8 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                                                 >
                                                     <ChevronDown
                                                         size={13}
-                                                        className={`transition-transform duration-150 ${
-                                                            isOpenSection ? "rotate-180" : ""
-                                                        }`}
+                                                        className={`transition-transform duration-150 ${isOpenSection ? "rotate-180" : ""
+                                                            }`}
                                                     />
                                                 </button>
                                             )}
@@ -470,11 +473,10 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                                                             key={sub.href}
                                                             href={sub.href}
                                                             onClick={onClose}
-                                                            className={`flex items-center justify-between px-2 py-1 rounded-md text-xs transition-colors ${
-                                                                activeSub
+                                                            className={`flex items-center justify-between px-2 py-1 rounded-md text-xs transition-colors ${activeSub
                                                                     ? "text-blue-600 dark:text-blue-400 bg-blue-50/70 dark:bg-blue-950/40 font-medium"
                                                                     : "text-slate-500 dark:text-neutral-400 hover:bg-slate-50 dark:hover:bg-neutral-800/50 hover:text-slate-900 dark:hover:text-white"
-                                                            }`}
+                                                                }`}
                                                         >
                                                             <div className="flex items-center gap-2 overflow-hidden">
                                                                 {SubIcon ? (
@@ -484,9 +486,8 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                                                                     />
                                                                 ) : (
                                                                     <span
-                                                                        className={`w-1 h-1 rounded-full ${
-                                                                            activeSub ? "bg-blue-600" : "bg-slate-300 dark:bg-neutral-600"
-                                                                        }`}
+                                                                        className={`w-1 h-1 rounded-full ${activeSub ? "bg-blue-600" : "bg-slate-300 dark:bg-neutral-600"
+                                                                            }`}
                                                                     />
                                                                 )}
                                                                 <span className="truncate text-[12px]">

@@ -5,6 +5,7 @@ import { RawMaterialModel } from "./raw-material.model.js";
 import { PackagingSpecificationModel } from "./packaging-specification.model.js";
 import { convertUnits } from "./unit-conversion.js";
 import { AppError } from "../../utils/app-error.js";
+import { withTransaction } from "../../database/transaction.js";
 import type {
     PackUnit,
     TaxTreatment,
@@ -288,122 +289,117 @@ export class PackagingMatrixService {
         const updatedVariants: any[] = [];
         const syncedItems: PackagingMatrixItemCalculated[] = [];
 
-        const session = await mongoose.startSession();
-        try {
-            await session.withTransaction(async () => {
-                for (const item of items) {
-                    const rowFormulaId = item.masterFormulaId || defaultMasterFormulaId;
-                    const rowRecipe = recipeMap.get(rowFormulaId) || defaultRecipe;
-                    const recipeCostMinor = Math.round((rowRecipe.estimatedCostWac || 0) * 100);
-                    const recipeYieldQty = rowRecipe.batchYield.quantity || 1;
-                    const recipeYieldUnit = (rowRecipe.batchYield.unit as RawMaterialUnit) || "kg";
+        await withTransaction(async (session) => {
+            for (const item of items) {
+                const rowFormulaId = item.masterFormulaId || defaultMasterFormulaId;
+                const rowRecipe = recipeMap.get(rowFormulaId) || defaultRecipe;
+                const recipeCostMinor = Math.round((rowRecipe.estimatedCostWac || 0) * 100);
+                const recipeYieldQty = rowRecipe.batchYield.quantity || 1;
+                const recipeYieldUnit = (rowRecipe.batchYield.unit as RawMaterialUnit) || "kg";
 
-                    const bomWithCosts = item.packagingMaterials.map((p) => ({
-                        rawMaterialId: p.rawMaterialId,
-                        quantity: p.quantity,
-                        unit: p.unit,
-                        costPerUnitMinor: rmCostMap.get(p.rawMaterialId) || 0,
-                    }));
+                const bomWithCosts = item.packagingMaterials.map((p) => ({
+                    rawMaterialId: p.rawMaterialId,
+                    quantity: p.quantity,
+                    unit: p.unit,
+                    costPerUnitMinor: rmCostMap.get(p.rawMaterialId) || 0,
+                }));
 
-                    const calc = this.calculateRowCOGS({
-                        packQuantity: item.packQuantity,
-                        packUnit: item.packUnit,
-                        masterFormulaYieldQty: recipeYieldQty,
-                        masterFormulaYieldUnit: recipeYieldUnit,
-                        masterFormulaCostPerUnitMinor: recipeCostMinor,
-                        packagingMaterials: bomWithCosts,
-                        laborOverheadCostMinor: item.laborOverheadCostMinor || 0,
-                        targetMarginPercent: item.targetMarginPercent || 65,
-                        customerSellingPriceMinor: item.customerSellingPriceMinor,
-                        taxTreatment: item.taxTreatment || taxTreatment,
-                        taxRatePercent: item.taxRatePercent !== undefined ? item.taxRatePercent : defaultTaxRatePercent,
-                    });
+                const calc = this.calculateRowCOGS({
+                    packQuantity: item.packQuantity,
+                    packUnit: item.packUnit,
+                    masterFormulaYieldQty: recipeYieldQty,
+                    masterFormulaYieldUnit: recipeYieldUnit,
+                    masterFormulaCostPerUnitMinor: recipeCostMinor,
+                    packagingMaterials: bomWithCosts,
+                    laborOverheadCostMinor: item.laborOverheadCostMinor || 0,
+                    targetMarginPercent: item.targetMarginPercent || 65,
+                    customerSellingPriceMinor: item.customerSellingPriceMinor,
+                    taxTreatment: item.taxTreatment || taxTreatment,
+                    taxRatePercent: item.taxRatePercent !== undefined ? item.taxRatePercent : defaultTaxRatePercent,
+                });
 
-                    // 1. Prepare Product Variant (Commercial)
-                    const variantId = item.variantId || new mongoose.Types.ObjectId().toString();
-                    const customerPriceMajor = Math.round(calc.customerSellingPriceMinor) / 100;
-                    const costAmountMajor = Math.round(calc.totalCogsMinor) / 100;
-                    const compareAtMajor = item.compareAtPriceMinor ? Math.round(item.compareAtPriceMinor) / 100 : undefined;
+                // 1. Prepare Product Variant (Commercial)
+                const variantId = item.variantId || new mongoose.Types.ObjectId().toString();
+                const customerPriceMajor = Math.round(calc.customerSellingPriceMinor) / 100;
+                const costAmountMajor = Math.round(calc.totalCogsMinor) / 100;
+                const compareAtMajor = item.compareAtPriceMinor ? Math.round(item.compareAtPriceMinor) / 100 : undefined;
 
-                    const variantDoc = {
-                        id: variantId,
-                        sku: item.sku.trim().toUpperCase(),
-                        title: item.title.trim(),
-                        barcode: item.barcode?.trim() || undefined,
-                        weight: item.packQuantity,
-                        weightUnit: item.packUnit,
-                        prices: [
-                            {
-                                currency: targetCurrency,
-                                amount: customerPriceMajor,
-                                costAmount: costAmountMajor,
-                                compareAtAmount: compareAtMajor,
-                            },
-                        ],
-                        isActive: true,
-                    };
-
-                    updatedVariants.push(variantDoc);
-
-                    // 2. Prepare & Upsert Packaging Specification (Operational Manufacturing)
-                    const specCode = `SPEC-${variantDoc.sku}`;
-                    const specDoc = await PackagingSpecificationModel.findOneAndUpdate(
-                        { productId: product._id, variantId: new mongoose.Types.ObjectId(variantId) },
+                const variantDoc = {
+                    id: variantId,
+                    sku: item.sku.trim().toUpperCase(),
+                    title: item.title.trim(),
+                    barcode: item.barcode?.trim() || undefined,
+                    weight: item.packQuantity,
+                    weightUnit: item.packUnit,
+                    prices: [
                         {
-                            $set: {
-                                name: `${product.title} - ${item.title}`,
-                                code: specCode,
-                                masterFormulaId: new mongoose.Types.ObjectId(rowFormulaId),
-                                productId: product._id,
-                                variantId: new mongoose.Types.ObjectId(variantId),
-                                bulkConsumedPerUnit: calc.bulkConsumed,
-                                bulkUnit: recipeYieldUnit,
-                                packagingMaterials: item.packagingMaterials.map((p) => ({
-                                    rawMaterialId: new mongoose.Types.ObjectId(p.rawMaterialId),
-                                    quantity: p.quantity,
-                                    unit: p.unit,
-                                })),
-                                laborOverheadCost: (item.laborOverheadCostMinor || 0) / 100,
-                                isActive: true,
-                            },
+                            currency: targetCurrency,
+                            amount: customerPriceMajor,
+                            costAmount: costAmountMajor,
+                            compareAtAmount: compareAtMajor,
                         },
-                        { upsert: true, returnDocument: "after", session }
-                    );
+                    ],
+                    isActive: true,
+                };
 
-                    syncedItems.push({
-                        variantId,
-                        title: variantDoc.title,
-                        sku: variantDoc.sku,
-                        barcode: variantDoc.barcode,
-                        packQuantity: item.packQuantity,
-                        packUnit: item.packUnit,
-                        masterFormulaId: rowFormulaId,
-                        masterFormulaCode: rowRecipe.code,
-                        packagingSpecificationId: specDoc._id.toString(),
-                        packagingMaterials: item.packagingMaterials,
-                        foodCostMinor: calc.foodCostMinor,
-                        packagingCostMinor: calc.packagingCostMinor,
-                        laborOverheadCostMinor: calc.laborOverheadCostMinor,
-                        totalCogsMinor: calc.totalCogsMinor,
-                        targetMarginPercent: calc.targetMarginPercent,
-                        suggestedNetPriceMinor: calc.suggestedNetPriceMinor,
-                        suggestedCustomerPriceMinor: calc.suggestedCustomerPriceMinor,
-                        netSellingPriceMinor: calc.netSellingPriceMinor,
-                        taxAmountMinor: calc.taxAmountMinor,
-                        customerSellingPriceMinor: calc.customerSellingPriceMinor,
-                        compareAtPriceMinor: item.compareAtPriceMinor,
-                        grossProfitMinor: calc.grossProfitMinor,
-                        grossMarginPercent: calc.grossMarginPercent,
-                    });
-                }
+                updatedVariants.push(variantDoc);
 
-                // 3. Save variants onto Product (Strictly Commercial, NO inventory mutation!)
-                product.variants = updatedVariants as any;
-                await product.save({ session });
-            });
-        } finally {
-            await session.endSession();
-        }
+                // 2. Prepare & Upsert Packaging Specification (Operational Manufacturing)
+                const specCode = `SPEC-${variantDoc.sku}`;
+                const specDoc = await PackagingSpecificationModel.findOneAndUpdate(
+                    { productId: product._id, variantId: new mongoose.Types.ObjectId(variantId) },
+                    {
+                        $set: {
+                            name: `${product.title} - ${item.title}`,
+                            code: specCode,
+                            masterFormulaId: new mongoose.Types.ObjectId(rowFormulaId),
+                            productId: product._id,
+                            variantId: new mongoose.Types.ObjectId(variantId),
+                            bulkConsumedPerUnit: calc.bulkConsumed,
+                            bulkUnit: recipeYieldUnit,
+                            packagingMaterials: item.packagingMaterials.map((p) => ({
+                                rawMaterialId: new mongoose.Types.ObjectId(p.rawMaterialId),
+                                quantity: p.quantity,
+                                unit: p.unit,
+                            })),
+                            laborOverheadCost: (item.laborOverheadCostMinor || 0) / 100,
+                            isActive: true,
+                        },
+                    },
+                    { upsert: true, returnDocument: "after", session }
+                );
+
+                syncedItems.push({
+                    variantId,
+                    title: variantDoc.title,
+                    sku: variantDoc.sku,
+                    barcode: variantDoc.barcode,
+                    packQuantity: item.packQuantity,
+                    packUnit: item.packUnit,
+                    masterFormulaId: rowFormulaId,
+                    masterFormulaCode: rowRecipe.code,
+                    packagingSpecificationId: specDoc._id.toString(),
+                    packagingMaterials: item.packagingMaterials,
+                    foodCostMinor: calc.foodCostMinor,
+                    packagingCostMinor: calc.packagingCostMinor,
+                    laborOverheadCostMinor: calc.laborOverheadCostMinor,
+                    totalCogsMinor: calc.totalCogsMinor,
+                    targetMarginPercent: calc.targetMarginPercent,
+                    suggestedNetPriceMinor: calc.suggestedNetPriceMinor,
+                    suggestedCustomerPriceMinor: calc.suggestedCustomerPriceMinor,
+                    netSellingPriceMinor: calc.netSellingPriceMinor,
+                    taxAmountMinor: calc.taxAmountMinor,
+                    customerSellingPriceMinor: calc.customerSellingPriceMinor,
+                    compareAtPriceMinor: item.compareAtPriceMinor,
+                    grossProfitMinor: calc.grossProfitMinor,
+                    grossMarginPercent: calc.grossMarginPercent,
+                });
+            }
+
+            // 3. Save variants onto Product (Strictly Commercial, NO inventory mutation!)
+            product.variants = updatedVariants as any;
+            await product.save({ session });
+        });
 
         return {
             productId: product._id.toString(),

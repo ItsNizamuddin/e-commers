@@ -111,7 +111,7 @@ export interface UpdateRawMaterialInput {
     isActive?: boolean | undefined;
 }
 
-export type RawMaterialLotStatus = "AVAILABLE" | "EXPIRED" | "DEPLETED" | "BLOCKED";
+export type RawMaterialLotStatus = "AVAILABLE" | "EXPIRED" | "DEPLETED" | "BLOCKED" | "QUARANTINED" | "REJECTED";
 
 export interface RawMaterialLot {
     id: string;
@@ -355,6 +355,7 @@ export interface ExecuteProductionInput {
     warehouseId: string;
     plannedQuantity: number;
     actualQuantity: number;
+    isBulkProduction?: boolean | undefined;
     manufacturingDate?: string | undefined;
     manualLotAllocations?: Array<{
         rawMaterialId: string;
@@ -610,6 +611,102 @@ export interface PackagingMatrixResponse {
     taxTreatment: TaxTreatment;
     defaultTaxRatePercent: number;
     items: PackagingMatrixItemCalculated[];
+}
+
+// Canonical Domain Model Type Contracts
+export type MasterFormula = Recipe;
+export type PackagingMaterial = PackagingSpecificationMaterial;
+export type PackagingMatrixItem = PackagingMatrixItemCalculated;
+export type BulkProductionRun = ProductionRun;
+export type BulkLot = RawMaterialLot;
+export type PackagingRun = RepackagingRun;
+
+export interface LotTraceabilityReport {
+    queryIdentifier: string;
+    entityType: "FINISHED_PACKAGING_RUN" | "BULK_PRODUCTION_RUN" | "INGREDIENT_LOT" | "BULK_LOT";
+    entitySummary: {
+        id: string;
+        codeOrNumber: string;
+        nameOrTitle: string;
+        date: string;
+        expiryDate?: string | undefined;
+        status: string;
+    };
+    backwardTrace?: {
+        packagingRun?: {
+            runNumber: string;
+            date: string;
+            unitsProduced: number;
+            variantTitle: string;
+        } | undefined;
+        bulkProduction?: {
+            batchNumber: string;
+            recipeCode: string;
+            recipeName: string;
+            version: number;
+            actualQuantity: number;
+            yieldUnit: string;
+            manufacturingDate: string;
+            expiryDate: string;
+        } | undefined;
+        bulkLot?: {
+            lotNumber: string;
+            materialName: string;
+            unit: string;
+            availableQuantity: number;
+            expiryDate: string;
+        } | undefined;
+        ingredientsConsumed?: Array<{
+            rawMaterialCode: string;
+            rawMaterialName: string;
+            lotNumber: string;
+            quantityConsumed: number;
+            unit: string;
+            supplierName?: string | undefined;
+            farmName?: string | undefined;
+            expiryDate?: string | undefined;
+        }> | undefined;
+        packagingMaterialsConsumed?: Array<{
+            packagingMaterialName: string;
+            quantityConsumed: number;
+            unit: string;
+        }> | undefined;
+    } | undefined;
+    forwardTrace?: {
+        bulkBatchesProduced?: Array<{
+            batchNumber: string;
+            recipeName: string;
+            actualQuantity: number;
+            yieldUnit: string;
+            date: string;
+        }> | undefined;
+        packagingRuns?: Array<{
+            runNumber: string;
+            productTitle: string;
+            variantTitle: string;
+            unitsProduced: number;
+            packagingDate: string;
+            expiryDate: string;
+        }> | undefined;
+        finishedInventoryLocations?: Array<{
+            productTitle: string;
+            variantTitle: string;
+            warehouseId: string;
+            onHand: number;
+        }> | undefined;
+    } | undefined;
+}
+
+export interface PackagingRunResult {
+    run: PackagingRun;
+    unitsProduced: number;
+    bulkConsumed: number;
+    bulkUnit: RawMaterialUnit;
+    remainingBulk: number;
+    remainderDisposition?: "RETAINED" | "REWORK" | "WASTE" | undefined;
+    targetProductId: string;
+    targetVariantId: string;
+    inventoryOnHand: number;
 }
 
 

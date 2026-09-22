@@ -78,11 +78,11 @@ const ProductSchema = new Schema<ProductDocument>(
             validate: {
                 validator: function (this: any, v: unknown[]) {
                     if (this.status === "PUBLISHED") {
-                        return Array.isArray(v) && v.length > 0;
+                        return Array.isArray(v) && v.some((item: any) => item && item.isActive !== false);
                     }
                     return Array.isArray(v);
                 },
-                message: "A published product must have at least one variant",
+                message: "A published product must have at least one active variant",
             },
         },
         images: {

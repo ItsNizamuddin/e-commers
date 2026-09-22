@@ -122,7 +122,7 @@ const RawMaterialLotSchema = new Schema<RawMaterialLotDocument>(
         },
         status: {
             type: String,
-            enum: ["AVAILABLE", "EXPIRED", "DEPLETED", "BLOCKED"],
+            enum: ["AVAILABLE", "EXPIRED", "DEPLETED", "BLOCKED", "QUARANTINED", "REJECTED"],
             default: "AVAILABLE",
             required: true,
             index: true,

@@ -169,6 +169,19 @@ export class ManufacturingController {
         res.json({ success: true, data: runs });
     }
 
+    async getProductionRunById(req: Request, res: Response) {
+        const { id } = req.params;
+        const run = await manufacturingService.getProductionRunById(id as string);
+        res.json({ success: true, data: run });
+    }
+
+    async completeProductionRun(req: Request, res: Response) {
+        const { id } = req.params;
+        const actor = await resolveActor((req as any).user?.id);
+        const run = await manufacturingService.completeProductionRun(id as string, req.body, actor);
+        res.json({ success: true, data: run });
+    }
+
     async syncVariantCost(req: Request, res: Response) {
         const result = await manufacturingService.syncVariantCost(req.body);
         res.json({ success: true, data: result });
@@ -190,7 +203,7 @@ export class ManufacturingController {
         res.status(201).json({ success: true, data: recipes });
     }
 
-    // Repackaging Runs (Bulk to Retail)
+    // Repackaging / Packaging Runs (Bulk to Retail)
     async listRepackagingRuns(req: Request, res: Response) {
         const { sourceRawMaterialId, targetProductId, status } = req.query as {
             sourceRawMaterialId?: string;
@@ -207,10 +220,23 @@ export class ManufacturingController {
         res.json({ success: true, data: runs });
     }
 
+    async getRepackagingRunById(req: Request, res: Response) {
+        const { id } = req.params;
+        const run = await manufacturingService.getRepackagingRunById(id as string);
+        res.json({ success: true, data: run });
+    }
+
     async createRepackagingRun(req: Request, res: Response) {
         const actor = await resolveActor((req as any).user?.id);
         const run = await manufacturingService.createRepackagingRun(req.body, actor);
         res.status(201).json({ success: true, data: run });
+    }
+
+    async completePackagingRun(req: Request, res: Response) {
+        const { id } = req.params;
+        const actor = await resolveActor((req as any).user?.id);
+        const run = await manufacturingService.completePackagingRun(id as string, req.body, actor);
+        res.json({ success: true, data: run });
     }
 
     async reverseRepackagingRun(req: Request, res: Response) {
@@ -218,6 +244,23 @@ export class ManufacturingController {
         const actor = await resolveActor((req as any).user?.id);
         const run = await manufacturingService.reverseRepackagingRun(id as string, req.body, actor);
         res.json({ success: true, data: run });
+    }
+
+    // Packaging Run Domain Aliases
+    async listPackagingRuns(req: Request, res: Response) {
+        return this.listRepackagingRuns(req, res);
+    }
+
+    async getPackagingRunById(req: Request, res: Response) {
+        return this.getRepackagingRunById(req, res);
+    }
+
+    async createPackagingRun(req: Request, res: Response) {
+        return this.createRepackagingRun(req, res);
+    }
+
+    async reversePackagingRun(req: Request, res: Response) {
+        return this.reverseRepackagingRun(req, res);
     }
 
     // Vendors & Suppliers
@@ -307,6 +350,13 @@ export class ManufacturingController {
             actor
         );
         res.json({ success: true, data: matrix });
+    }
+
+    // Bidirectional Lot Traceability & Rapid Recall
+    async getLotTraceability(req: Request, res: Response) {
+        const { identifier } = req.params;
+        const report = await manufacturingService.getLotTraceability(identifier as string);
+        res.json({ success: true, data: report });
     }
 }
 

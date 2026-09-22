@@ -17,6 +17,23 @@ export interface RepackagingRunDocument extends Document {
     packageUnitsProduced: number;
     unitSizeQuantity: number;
     unitSizeUnit: RawMaterialUnit;
+    bulkLotId?: mongoose.Types.ObjectId | undefined;
+    variantId?: mongoose.Types.ObjectId | undefined;
+    packagingSpecificationId?: mongoose.Types.ObjectId | undefined;
+    packQuantity?: number | undefined;
+    packUnit?: RawMaterialUnit | undefined;
+    plannedUnits?: number | undefined;
+    actualUnits?: number | undefined;
+    bulkConsumed?: number | undefined;
+    remainingBulk?: number | undefined;
+    waste?: number | undefined;
+    packagingMaterialsConsumed?: Array<{
+        rawMaterialId: mongoose.Types.ObjectId;
+        rawMaterialName: string;
+        quantity: number;
+        unit: RawMaterialUnit;
+        costPerUnit?: number | undefined;
+    }> | undefined;
     packagingMaterialId?: mongoose.Types.ObjectId | undefined;
     packagingMaterialName?: string | undefined;
     packagingMaterialQuantity?: number | undefined;
@@ -48,6 +65,7 @@ export interface RepackagingRunDocument extends Document {
         soldOrReservedAtReversal: number;
         isPartial: boolean;
     } | undefined;
+    createdBy?: any;
     notes?: string | undefined;
     createdAt: Date;
     updatedAt: Date;
@@ -179,6 +197,64 @@ const RepackagingRunSchema = new Schema<RepackagingRunDocument>(
             type: Number,
             default: 0,
         },
+        bulkLotId: {
+            type: Schema.Types.ObjectId,
+            ref: "RawMaterialLot",
+            default: undefined,
+            index: true,
+        },
+        variantId: {
+            type: Schema.Types.ObjectId,
+            default: undefined,
+            index: true,
+        },
+        packagingSpecificationId: {
+            type: Schema.Types.ObjectId,
+            ref: "PackagingSpecification",
+            default: undefined,
+            index: true,
+        },
+        packQuantity: {
+            type: Number,
+            default: undefined,
+        },
+        packUnit: {
+            type: String,
+            enum: ["kg", "g", "l", "ml", "pcs", "pack"],
+            default: undefined,
+        },
+        plannedUnits: {
+            type: Number,
+            default: undefined,
+        },
+        actualUnits: {
+            type: Number,
+            default: undefined,
+        },
+        bulkConsumed: {
+            type: Number,
+            default: undefined,
+        },
+        remainingBulk: {
+            type: Number,
+            default: undefined,
+        },
+        waste: {
+            type: Number,
+            default: undefined,
+        },
+        packagingMaterialsConsumed: [
+            new Schema(
+                {
+                    rawMaterialId: { type: Schema.Types.ObjectId, ref: "RawMaterial", required: true },
+                    rawMaterialName: { type: String, required: true },
+                    quantity: { type: Number, required: true },
+                    unit: { type: String, required: true },
+                    costPerUnit: { type: Number, default: 0 },
+                },
+                { _id: false }
+            ),
+        ],
         remainderQuantity: {
             type: Number,
             default: 0,
@@ -231,6 +307,10 @@ const RepackagingRunSchema = new Schema<RepackagingRunDocument>(
             type: ReversalDetailsSubSchema,
             default: undefined,
         },
+        createdBy: {
+            type: AuditActorSchema,
+            default: undefined,
+        },
         notes: {
             type: String,
             trim: true,
@@ -262,3 +342,6 @@ RepackagingRunSchema.index({ createdAt: -1 });
 export const RepackagingRunModel =
     (mongoose.models.RepackagingRun as Model<RepackagingRunDocument>) ||
     model<RepackagingRunDocument>("RepackagingRun", RepackagingRunSchema);
+
+export const PackagingRunModel = RepackagingRunModel;
+export type PackagingRunDocument = RepackagingRunDocument;

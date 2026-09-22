@@ -42,11 +42,12 @@ function generateDefaultRecipeCode(productOrName: any, unit: string = "1KG"): st
         .toUpperCase()
         .replace(/[^A-Z0-9]/g, "-")
         .replace(/-+/g, "-")
-        .replace(/^-|-$/g, "")
+        .replace(/^-+|-+$/g, "")
         .slice(0, 14)
-        .replace(/-+$/, "");
-    const cleanUnit = (unit || "1KG").toUpperCase().replace(/[^A-Z0-9]/g, "");
-    return `RCP-${clean}-${cleanUnit}`;
+        .replace(/-+$/g, "");
+    const cleanUnit = (unit || "1KG").toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^-+|-+$/g, "");
+    const parts = [clean, cleanUnit].filter(Boolean);
+    return `RCP-${parts.join("-")}`.replace(/-+/g, "-").replace(/-+$/g, "");
 }
 
 function generateDefaultRecipeName(productOrName: any, unit: string = "1 kg"): string {

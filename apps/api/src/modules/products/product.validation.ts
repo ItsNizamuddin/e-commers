@@ -104,12 +104,15 @@ export const createProductSchema = z
         metadata: z.record(z.string(), z.unknown()).optional(),
     })
     .superRefine((data, ctx) => {
-        if (data.status === "PUBLISHED" && (!data.variants || data.variants.length === 0)) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: "A published product must have at least one variant",
-                path: ["variants"],
-            });
+        if (data.status === "PUBLISHED") {
+            const activeVariants = (data.variants || []).filter((v) => v.isActive !== false);
+            if (activeVariants.length === 0) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: "A published product must have at least one active variant",
+                    path: ["variants"],
+                });
+            }
         }
 
         const seen = new Set<string>();
@@ -167,12 +170,15 @@ export const updateProductSchema = z
         expectedVersion: z.number().int().positive().optional(),
     })
     .superRefine((data, ctx) => {
-        if (data.status === "PUBLISHED" && data.variants !== undefined && data.variants.length === 0) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: "A published product must have at least one variant",
-                path: ["variants"],
-            });
+        if (data.status === "PUBLISHED" && data.variants !== undefined) {
+            const activeVariants = data.variants.filter((v) => v.isActive !== false);
+            if (activeVariants.length === 0) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: "A published product must have at least one active variant",
+                    path: ["variants"],
+                });
+            }
         }
         if (data.variants) {
             const seen = new Set<string>();
