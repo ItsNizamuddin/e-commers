@@ -24,6 +24,7 @@ import type {
     LotTraceabilityReport,
     CategorizedRecallReport,
     ExecuteLotRecallInput,
+    ManufacturingAlertsResponse,
 } from "@ecommers/types";
 
 function normalizeItem<T>(item: any): T {
@@ -447,6 +448,19 @@ export const manufacturingApi = adminApi.injectEndpoints({
                 { type: "Orders", id: "LIST" },
             ],
         }),
+
+        getManufacturingAlerts: builder.query<ManufacturingAlertsResponse, void>({
+            query: () => ({
+                url: "/admin/manufacturing/alerts",
+                method: "GET",
+            }),
+            transformResponse: (response: any) => extractData<ManufacturingAlertsResponse>(response),
+            providesTags: [
+                { type: "Manufacturing", id: "ALERTS" },
+                { type: "Manufacturing", id: "LOTS" },
+                { type: "Inventory", id: "LIST" },
+            ],
+        }),
     }),
 });
 
@@ -483,4 +497,5 @@ export const {
     useSyncPackagingMatrixMutation,
     useGetLotTraceabilityQuery,
     useExecuteLotRecallMutation,
+    useGetManufacturingAlertsQuery,
 } = manufacturingApi;

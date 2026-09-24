@@ -92,7 +92,7 @@ const FinishedGoodsLotSchema = new Schema<FinishedGoodsLotDocument>(
         },
         qualityStatus: {
             type: String,
-            enum: ["AVAILABLE", "QUARANTINED", "REJECTED", "RECALLED"],
+            enum: ["AVAILABLE", "QUARANTINED", "REJECTED", "RECALLED", "EXPIRED"],
             default: "AVAILABLE",
             required: true,
             index: true,

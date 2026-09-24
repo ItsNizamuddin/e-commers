@@ -100,9 +100,11 @@ const addressSnapshotSchema = new Schema(
 
 const auditActorSchema = new Schema(
     {
-        userId: { type: String, required: true },
-        email: { type: String, required: true },
-        role: { type: String, required: true },
+        userId: { type: String, required: false },
+        id: { type: String, required: false },
+        name: { type: String, required: false },
+        email: { type: String, required: false },
+        role: { type: String, required: false },
     },
     { _id: false }
 );

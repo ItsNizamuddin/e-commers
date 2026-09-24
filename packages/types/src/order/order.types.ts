@@ -115,3 +115,83 @@ export interface OrderListQuery {
     customerId?: string;
     search?: string;
 }
+
+export type PackingStatus =
+    | "NOT_STARTED"
+    | "IN_PROGRESS"
+    | "VERIFIED"
+    | "CANCELLED";
+
+export type PackingScanResult =
+    | "MATCHED"
+    | "ALREADY_COMPLETED"
+    | "WRONG_LOT"
+    | "NOT_FOUND"
+    | "EXPIRED"
+    | "RECALLED"
+    | "QUARANTINED"
+    | "INVALID_CODE";
+
+export interface PackingSessionItem {
+    orderItemId: string;
+    variantId: string;
+    productTitle: string;
+    variantTitle?: string | undefined;
+    lotId: string;
+    lotNumber: string;
+    requiredQty: number;
+    verifiedQty: number;
+}
+
+export interface PackingScanEvent {
+    eventId: string;
+    barcode: string;
+    lotId?: string | undefined;
+    lotNumber?: string | undefined;
+    result: PackingScanResult;
+    message: string;
+    quantity: number;
+    scannedBy?: AuditActor | undefined;
+    stationId: string;
+    scannedAt: string;
+}
+
+export interface PackingSessionResponse {
+    id: string;
+    orderId: string;
+    orderNumber: string;
+    status: PackingStatus;
+    sessionNumber: number;
+    stationId: string;
+    startedBy?: AuditActor | undefined;
+    startedAt: string;
+    completedBy?: AuditActor | undefined;
+    completedAt?: string | undefined;
+    items: PackingSessionItem[];
+    scanEvents: PackingScanEvent[];
+    resetReason?: string | undefined;
+    resetAt?: string | undefined;
+    resetBy?: AuditActor | undefined;
+}
+
+export interface StartPackingInput {
+    stationId?: string | undefined;
+}
+
+export interface PackingScanInput {
+    barcode: string;
+    stationId?: string | undefined;
+}
+
+export interface ResetPackingInput {
+    reason: string;
+    stationId?: string | undefined;
+}
+
+export interface ShipOrderInput {
+    expectedVersion: number;
+    carrier?: string | undefined;
+    trackingNumber?: string | undefined;
+    stationId?: string | undefined;
+}
+

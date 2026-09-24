@@ -1,5 +1,16 @@
 import { adminApi } from "../admin-api";
-import type { OrderResponse, OrderListQuery, UpdateFulfillmentInput, CancelOrderInput } from "@ecommers/types";
+import type {
+    OrderResponse,
+    OrderListQuery,
+    UpdateFulfillmentInput,
+    CancelOrderInput,
+    PackingSessionResponse,
+    StartPackingInput,
+    PackingScanInput,
+    ResetPackingInput,
+    ShipOrderInput,
+    PackingScanResult,
+} from "@ecommers/types";
 
 export interface PaginatedOrdersResponse {
     items: OrderResponse[];
@@ -11,6 +22,13 @@ export interface PaginatedOrdersResponse {
     };
     total: number;
     totalPages: number;
+}
+
+export interface VerifyPackingScanResultPayload {
+    session: PackingSessionResponse;
+    scanResult: PackingScanResult;
+    message: string;
+    scannedLotNumber?: string;
 }
 
 export const ordersApi = adminApi.injectEndpoints({
@@ -79,6 +97,64 @@ export const ordersApi = adminApi.injectEndpoints({
                 { type: "Orders", id: "LIST" },
             ],
         }),
+
+        // Packing Session Endpoints
+        getPackingSession: builder.query<PackingSessionResponse, string>({
+            query: (id) => ({
+                url: `/orders/admin/${id}/packing`,
+                method: "GET",
+            }),
+            transformResponse: (response: any) => response?.data || response,
+            providesTags: (_res, _err, id) => [{ type: "Orders", id: `PACKING_${id}` }],
+        }),
+
+        startPackingSession: builder.mutation<PackingSessionResponse, { id: string; body?: StartPackingInput }>({
+            query: ({ id, body }) => ({
+                url: `/orders/admin/${id}/packing/start`,
+                method: "POST",
+                body: body || {},
+            }),
+            transformResponse: (response: any) => response?.data || response,
+            invalidatesTags: (_res, _err, { id }) => [{ type: "Orders", id: `PACKING_${id}` }],
+        }),
+
+        verifyPackingScan: builder.mutation<
+            VerifyPackingScanResultPayload,
+            { id: string; body: PackingScanInput }
+        >({
+            query: ({ id, body }) => ({
+                url: `/orders/admin/${id}/packing/scan`,
+                method: "POST",
+                body,
+            }),
+            transformResponse: (response: any) => response?.data || response,
+            invalidatesTags: (_res, _err, { id }) => [{ type: "Orders", id: `PACKING_${id}` }],
+        }),
+
+        resetPackingSession: builder.mutation<PackingSessionResponse, { id: string; body: ResetPackingInput }>({
+            query: ({ id, body }) => ({
+                url: `/orders/admin/${id}/packing/reset`,
+                method: "POST",
+                body,
+            }),
+            transformResponse: (response: any) => response?.data || response,
+            invalidatesTags: (_res, _err, { id }) => [{ type: "Orders", id: `PACKING_${id}` }],
+        }),
+
+        shipOrder: builder.mutation<OrderResponse, { id: string; body: ShipOrderInput }>({
+            query: ({ id, body }) => ({
+                url: `/orders/admin/${id}/ship`,
+                method: "POST",
+                body,
+            }),
+            transformResponse: (response: any) => response?.data || response,
+            invalidatesTags: (_res, _err, { id }) => [
+                { type: "Orders", id },
+                { type: "Orders", id: `PACKING_${id}` },
+                { type: "Orders", id: "LIST" },
+                { type: "Inventory", id: "LIST" },
+            ],
+        }),
     }),
 });
 
@@ -87,4 +163,10 @@ export const {
     useGetAdminOrderByIdQuery,
     useUpdateOrderFulfillmentMutation,
     useCancelAdminOrderMutation,
+    useGetPackingSessionQuery,
+    useStartPackingSessionMutation,
+    useVerifyPackingScanMutation,
+    useResetPackingSessionMutation,
+    useShipOrderMutation,
 } = ordersApi;
+

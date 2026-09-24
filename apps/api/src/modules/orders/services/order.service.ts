@@ -6,6 +6,7 @@ import {
     UpdateFulfillmentInput,
     CancelOrderInput,
     OrderFulfillmentStatus,
+    ShipOrderInput,
 } from "@ecommers/types";
 import { AppError } from "../../../utils/app-error.js";
 import { DEFAULT_WAREHOUSE_ID } from "../../../database/schemas/warehouse.schema.js";
@@ -14,6 +15,7 @@ import { inventoryService, InventoryService } from "../../inventory/services/inv
 import { paymentRepository, PaymentRepository } from "../../payments/repositories/payment.repository.js";
 import { orderRepository, OrderRepository } from "../repositories/order.repository.js";
 import { manufacturingService } from "../../manufacturing/manufacturing.service.js";
+import { packingService } from "./packing.service.js";
 import { OrderDocument } from "../types/order.types.js";
 
 // Strict state transition map for fulfillment
@@ -220,6 +222,16 @@ export class OrderService {
             }
         }
 
+        if (input.fulfillmentStatus === "SHIPPED") {
+            const itemsToCheck = updatedItems || order.items;
+            const hasAllocatedLots = itemsToCheck.some(
+                (i: any) => i.allocatedLots && i.allocatedLots.length > 0
+            );
+            if (hasAllocatedLots) {
+                await packingService.validateOrderForShipment(orderId);
+            }
+        }
+
         const updated = await this.repo.updateFulfillmentWithOCC(
             orderId,
             input.expectedVersion,
@@ -247,6 +259,23 @@ export class OrderService {
         }
 
         return this.mapOrderToResponse(updated);
+    }
+
+    async shipOrder(
+        orderId: string,
+        input: ShipOrderInput,
+        actor?: AuditActor
+    ): Promise<OrderResponse> {
+        return this.updateFulfillment(
+            orderId,
+            {
+                fulfillmentStatus: "SHIPPED",
+                expectedVersion: input.expectedVersion,
+                carrier: input.carrier,
+                trackingNumber: input.trackingNumber,
+            },
+            actor
+        );
     }
 
     async cancelOrder(

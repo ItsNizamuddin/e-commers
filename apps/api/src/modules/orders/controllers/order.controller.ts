@@ -2,6 +2,7 @@ import { RequestHandler } from "express";
 import { AppError } from "../../../utils/app-error.js";
 import { resolveActor } from "../../../utils/audit.js";
 import { orderService, OrderService } from "../services/order.service.js";
+import { packingService } from "../services/packing.service.js";
 
 export class OrderController {
     constructor(private readonly svc: OrderService = orderService) {}
@@ -125,6 +126,80 @@ export class OrderController {
             const actor = req.user ? await resolveActor(req.user.id) : undefined;
 
             const order = await this.svc.cancelOrder(orderId, req.body, actor);
+
+            res.status(200).json({
+                success: true,
+                data: order,
+            });
+        } catch (err) {
+            next(err);
+        }
+    };
+
+    startPackingSession: RequestHandler = async (req, res, next) => {
+        try {
+            const orderId = String(req.params.id);
+            const actor = req.user ? await resolveActor(req.user.id) : undefined;
+            const session = await packingService.getOrCreateActiveSession(orderId, req.body, actor);
+
+            res.status(200).json({
+                success: true,
+                data: packingService.mapToResponse(session),
+            });
+        } catch (err) {
+            next(err);
+        }
+    };
+
+    verifyPackingScan: RequestHandler = async (req, res, next) => {
+        try {
+            const orderId = String(req.params.id);
+            const actor = req.user ? await resolveActor(req.user.id) : undefined;
+            const result = await packingService.verifyPackingScan(orderId, req.body, actor);
+
+            res.status(200).json({
+                success: true,
+                data: result,
+            });
+        } catch (err) {
+            next(err);
+        }
+    };
+
+    getActivePackingSession: RequestHandler = async (req, res, next) => {
+        try {
+            const orderId = String(req.params.id);
+            const session = await packingService.getOrCreateActiveSession(orderId);
+
+            res.status(200).json({
+                success: true,
+                data: packingService.mapToResponse(session),
+            });
+        } catch (err) {
+            next(err);
+        }
+    };
+
+    resetPackingSession: RequestHandler = async (req, res, next) => {
+        try {
+            const orderId = String(req.params.id);
+            const actor = req.user ? await resolveActor(req.user.id) : undefined;
+            const session = await packingService.resetPackingSession(orderId, req.body, actor);
+
+            res.status(200).json({
+                success: true,
+                data: session,
+            });
+        } catch (err) {
+            next(err);
+        }
+    };
+
+    shipOrder: RequestHandler = async (req, res, next) => {
+        try {
+            const orderId = String(req.params.id);
+            const actor = req.user ? await resolveActor(req.user.id) : undefined;
+            const order = await this.svc.shipOrder(orderId, req.body, actor);
 
             res.status(200).json({
                 success: true,

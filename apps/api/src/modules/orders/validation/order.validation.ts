@@ -48,3 +48,32 @@ export const cancelOrderSchema = z.object({
     reason: z.string().optional(),
     expectedVersion: z.number().int().min(1).optional(),
 }).default({});
+
+const stationIdSchema = z
+    .string()
+    .trim()
+    .max(50, "Station ID must be 50 characters or less")
+    .regex(/^[a-zA-Z0-9_-]+$/, "Station ID must contain only alphanumeric characters, dashes, or underscores")
+    .optional();
+
+export const startPackingSchema = z.object({
+    stationId: stationIdSchema,
+}).default({});
+
+export const packingScanSchema = z.object({
+    barcode: z.string().trim().min(1, "Barcode is required").max(255, "Barcode cannot exceed 255 characters"),
+    stationId: stationIdSchema,
+});
+
+export const resetPackingSchema = z.object({
+    reason: z.string().trim().min(1, "Reset reason is required").max(500, "Reset reason cannot exceed 500 characters"),
+    stationId: stationIdSchema,
+});
+
+export const shipOrderSchema = z.object({
+    expectedVersion: z.number().int().min(1, "expectedVersion must be a positive integer"),
+    carrier: z.string().trim().max(100).optional(),
+    trackingNumber: z.string().trim().max(100).optional(),
+    stationId: stationIdSchema,
+});
+

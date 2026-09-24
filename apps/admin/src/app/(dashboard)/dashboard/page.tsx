@@ -30,6 +30,7 @@ import {
     ShieldAlert,
 } from "lucide-react";
 import { RequireRole } from "../../../components/auth/require-role";
+import { OperationalAlertsWidget } from "../../../components/dashboard/operational-alerts-widget";
 
 export default function DashboardOverviewPage() {
     const {
@@ -197,6 +198,9 @@ export default function DashboardOverviewPage() {
                     </div>
                 </Card>
             </div>
+
+            {/* Food Safety & Live Shelf-Life Intelligence Widget */}
+            <OperationalAlertsWidget />
 
             {/* Operational Status Breakdown */}
             <Card className="p-3.5">

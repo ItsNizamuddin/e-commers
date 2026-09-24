@@ -246,6 +246,10 @@ adminManufacturingRouter.post(
     validate(executeLotRecallSchema, "body"),
     manufacturingController.executeLotRecall.bind(manufacturingController)
 );
+adminManufacturingRouter.get(
+    "/alerts",
+    manufacturingController.getManufacturingAlerts.bind(manufacturingController)
+);
 
 export const publicManufacturingRouter = Router();
 

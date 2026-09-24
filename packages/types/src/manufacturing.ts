@@ -713,7 +713,7 @@ export interface PackagingRunResult {
     finishedGoodsLot?: FinishedGoodsLot | undefined;
 }
 
-export type LotQualityStatus = "AVAILABLE" | "QUARANTINED" | "REJECTED" | "RECALLED";
+export type LotQualityStatus = "AVAILABLE" | "QUARANTINED" | "REJECTED" | "RECALLED" | "EXPIRED";
 
 export interface FinishedGoodsLot {
     id: string;
@@ -788,5 +788,55 @@ export interface ExecuteLotRecallInput {
     notifyCustomers?: boolean | undefined;
     notes?: string | undefined;
 }
+
+export type ExpiryAlertUrgency = "CRITICAL" | "WARNING" | "ADVISORY" | "EXPIRED";
+
+export interface LotExpiryAlertItem {
+    lotId: string;
+    lotNumber: string;
+    lotType: "RAW_MATERIAL" | "BULK_LOT" | "FINISHED_GOODS";
+    name: string;
+    warehouseId?: string | undefined;
+    availableQuantity: number;
+    unit: string;
+    expiryDate: string;
+    daysRemaining: number;
+    urgency: ExpiryAlertUrgency;
+    status: string;
+}
+
+export interface LowStockAlertItem {
+    id: string;
+    type: "RAW_MATERIAL" | "FINISHED_PRODUCT";
+    codeOrSku: string;
+    name: string;
+    currentStock: number;
+    reorderThreshold: number;
+    unit: string;
+    warehouseId?: string | undefined;
+}
+
+export interface ManufacturingAlertsResponse {
+    timestamp: string;
+    summary: {
+        expiredLotsCount: number;
+        upcomingExpiryCount: number;
+        lowStockRawMaterialsCount: number;
+        lowStockFinishedCount: number;
+        activeRecallsCount: number;
+    };
+    expiredLots: LotExpiryAlertItem[];
+    expiringLots: LotExpiryAlertItem[];
+    lowStockRawMaterials: LowStockAlertItem[];
+    lowStockFinishedGoods: LowStockAlertItem[];
+    activeRecalls: Array<{
+        lotId: string;
+        lotNumber: string;
+        productOrMaterial: string;
+        recalledAt: string;
+        totalImpactedOrders: number;
+    }>;
+}
+
 
 

@@ -27,6 +27,10 @@ import {
     PublicBatchVerification,
     ExecuteLotRecallInput,
     AllocatedLotReference,
+    ManufacturingAlertsResponse,
+    LotExpiryAlertItem,
+    LowStockAlertItem,
+    ExpiryAlertUrgency,
 } from "@ecommers/types";
 import { RawMaterialModel, RawMaterialDocument } from "./raw-material.model.js";
 import { RawMaterialLotModel, RawMaterialLotDocument } from "./raw-material-lot.model.js";
@@ -3657,6 +3661,184 @@ export class ManufacturingService {
         }
 
         return rows.map((r) => r.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\n");
+    }
+
+    async getManufacturingAlerts(): Promise<ManufacturingAlertsResponse> {
+        const now = new Date();
+        const day30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+        // 1. Expired Lots (both raw materials and finished goods)
+        const expiredRawLots = await RawMaterialLotModel.find({
+            availableQuantity: { $gt: 0 },
+            $or: [{ status: "EXPIRED" }, { expiryDate: { $lte: now } }],
+        }).populate("rawMaterialId", "name code");
+
+        const expiredFinishedLots = await FinishedGoodsLotModel.find({
+            availableQuantity: { $gt: 0 },
+            $or: [{ qualityStatus: "EXPIRED" }, { expiryDate: { $lte: now } }],
+        }).populate("productId", "title");
+
+        const expiredLots: LotExpiryAlertItem[] = [
+            ...expiredRawLots.map((l: any) => ({
+                lotId: l._id.toString(),
+                lotNumber: l.lotNumber,
+                lotType: "RAW_MATERIAL" as const,
+                name: l.rawMaterialId?.name || "Raw Material",
+                warehouseId: l.warehouseId?.toString(),
+                availableQuantity: l.availableQuantity,
+                unit: l.unit,
+                expiryDate: l.expiryDate.toISOString(),
+                daysRemaining: 0,
+                urgency: "EXPIRED" as const,
+                status: l.status,
+            })),
+            ...expiredFinishedLots.map((l: any) => ({
+                lotId: l._id.toString(),
+                lotNumber: l.lotNumber,
+                lotType: "FINISHED_GOODS" as const,
+                name: l.productId?.title || "Finished Product",
+                warehouseId: l.warehouseId?.toString(),
+                availableQuantity: l.availableQuantity,
+                unit: "pcs",
+                expiryDate: l.expiryDate.toISOString(),
+                daysRemaining: 0,
+                urgency: "EXPIRED" as const,
+                status: l.qualityStatus,
+            })),
+        ];
+
+        // 2. Expiring Lots (upcoming <= 30 days)
+        const expiringRawLots = await RawMaterialLotModel.find({
+            status: "AVAILABLE",
+            availableQuantity: { $gt: 0 },
+            expiryDate: { $gt: now, $lte: day30 },
+        }).populate("rawMaterialId", "name code");
+
+        const expiringFinishedLots = await FinishedGoodsLotModel.find({
+            qualityStatus: "AVAILABLE",
+            availableQuantity: { $gt: 0 },
+            expiryDate: { $gt: now, $lte: day30 },
+        }).populate("productId", "title");
+
+        const expiringLots: LotExpiryAlertItem[] = [
+            ...expiringRawLots.map((l: any) => {
+                const daysRemaining = Math.max(0, Math.ceil((l.expiryDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)));
+                let urgency: ExpiryAlertUrgency = "ADVISORY";
+                if (daysRemaining <= 7) urgency = "CRITICAL";
+                else if (daysRemaining <= 15) urgency = "WARNING";
+
+                return {
+                    lotId: l._id.toString(),
+                    lotNumber: l.lotNumber,
+                    lotType: "RAW_MATERIAL" as const,
+                    name: l.rawMaterialId?.name || "Raw Material",
+                    warehouseId: l.warehouseId?.toString(),
+                    availableQuantity: l.availableQuantity,
+                    unit: l.unit,
+                    expiryDate: l.expiryDate.toISOString(),
+                    daysRemaining,
+                    urgency,
+                    status: l.status,
+                };
+            }),
+            ...expiringFinishedLots.map((l: any) => {
+                const daysRemaining = Math.max(0, Math.ceil((l.expiryDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)));
+                let urgency: ExpiryAlertUrgency = "ADVISORY";
+                if (daysRemaining <= 7) urgency = "CRITICAL";
+                else if (daysRemaining <= 15) urgency = "WARNING";
+
+                return {
+                    lotId: l._id.toString(),
+                    lotNumber: l.lotNumber,
+                    lotType: "FINISHED_GOODS" as const,
+                    name: l.productId?.title || "Finished Product",
+                    warehouseId: l.warehouseId?.toString(),
+                    availableQuantity: l.availableQuantity,
+                    unit: "pcs",
+                    expiryDate: l.expiryDate.toISOString(),
+                    daysRemaining,
+                    urgency,
+                    status: l.qualityStatus,
+                };
+            }),
+        ].sort((a, b) => a.daysRemaining - b.daysRemaining);
+
+        // 3. Low Stock Raw Materials
+        const rawMaterials = await RawMaterialModel.find({ isActive: true });
+        const lowStockRawMaterials: LowStockAlertItem[] = rawMaterials
+            .filter((rm) => rm.currentStock <= rm.reorderThreshold)
+            .map((rm) => ({
+                id: rm._id.toString(),
+                type: "RAW_MATERIAL" as const,
+                codeOrSku: rm.code,
+                name: rm.name,
+                currentStock: rm.currentStock,
+                reorderThreshold: rm.reorderThreshold,
+                unit: rm.unit,
+                warehouseId: rm.warehouseId?.toString(),
+            }));
+
+        // 4. Low Stock Finished Goods (Sellable Stock Formula)
+        const inventoryDocs = await InventoryModel.find({}).populate("productId", "title");
+        const lowStockFinishedGoods: LowStockAlertItem[] = [];
+
+        for (const inv of inventoryDocs) {
+            const unSellableLots = await FinishedGoodsLotModel.find({
+                variantId: inv.variantId,
+                warehouseId: inv.warehouseId,
+                $or: [
+                    { qualityStatus: { $in: ["QUARANTINED", "REJECTED", "RECALLED", "EXPIRED"] } },
+                    { expiryDate: { $lte: now } },
+                ],
+            });
+            const unSellableQty = unSellableLots.reduce((sum, l) => sum + l.availableQuantity, 0);
+            const sellableStock = Math.max(0, inv.onHand - inv.reserved - unSellableQty);
+
+            if (sellableStock <= inv.reorderThreshold) {
+                const prod = inv.productId as any;
+                lowStockFinishedGoods.push({
+                    id: inv._id.toString(),
+                    type: "FINISHED_PRODUCT" as const,
+                    codeOrSku: `VAR-${inv.variantId.toString().slice(-6)}`,
+                    name: prod?.title || "Product Variant",
+                    currentStock: sellableStock,
+                    reorderThreshold: inv.reorderThreshold,
+                    unit: "pcs",
+                    warehouseId: inv.warehouseId?.toString(),
+                });
+            }
+        }
+
+        // 5. Active Recalls
+        const recalledLots = await FinishedGoodsLotModel.find({ qualityStatus: "RECALLED" }).populate("productId", "title");
+        const activeRecalls: ManufacturingAlertsResponse["activeRecalls"] = [];
+        for (const r of recalledLots) {
+            const report = await this.getCategorizedImpactedOrdersForLots([r.lotNumber], [r._id as Types.ObjectId]);
+            const prod = r.productId as any;
+            activeRecalls.push({
+                lotId: r._id.toString(),
+                lotNumber: r.lotNumber,
+                productOrMaterial: prod?.title || r.lotNumber,
+                recalledAt: (r as any).recalledAt ? new Date((r as any).recalledAt).toISOString() : new Date().toISOString(),
+                totalImpactedOrders: report?.totalImpactedOrders || 0,
+            });
+        }
+
+        return {
+            timestamp: now.toISOString(),
+            summary: {
+                expiredLotsCount: expiredLots.length,
+                upcomingExpiryCount: expiringLots.length,
+                lowStockRawMaterialsCount: lowStockRawMaterials.length,
+                lowStockFinishedCount: lowStockFinishedGoods.length,
+                activeRecallsCount: activeRecalls.length,
+            },
+            expiredLots,
+            expiringLots,
+            lowStockRawMaterials,
+            lowStockFinishedGoods,
+            activeRecalls,
+        };
     }
 }
 

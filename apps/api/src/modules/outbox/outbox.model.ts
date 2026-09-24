@@ -3,7 +3,7 @@ import mongoose, { Schema, model, type Document, type Model } from "mongoose";
 export interface IOutboxEvent extends Document {
     deduplicationKey?: string;
     eventType: string;
-    aggregateType: "ProductionRun" | "RepackagingRun" | "Order" | "RawMaterialLot" | "RawMaterial";
+    aggregateType: "ProductionRun" | "RepackagingRun" | "Order" | "RawMaterialLot" | "RawMaterial" | "FinishedGoodsLot" | "Inventory";
     aggregateId: mongoose.Types.ObjectId;
     payload: Record<string, any>;
     status: "PENDING" | "PROCESSING" | "DISPATCHED" | "FAILED";
@@ -31,7 +31,7 @@ const OutboxEventSchema = new Schema<IOutboxEvent>(
         aggregateType: {
             type: String,
             required: true,
-            enum: ["ProductionRun", "RepackagingRun", "Order", "RawMaterialLot", "RawMaterial"],
+            enum: ["ProductionRun", "RepackagingRun", "Order", "RawMaterialLot", "RawMaterial", "FinishedGoodsLot", "Inventory"],
             index: true,
         },
         aggregateId: {

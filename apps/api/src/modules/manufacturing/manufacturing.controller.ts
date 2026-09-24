@@ -387,7 +387,13 @@ export class ManufacturingController {
         const data = await manufacturingService.getPublicBatchVerification(publicToken as string);
         res.json({ success: true, data });
     }
+
+    async getManufacturingAlerts(_req: Request, res: Response) {
+        const data = await manufacturingService.getManufacturingAlerts();
+        res.json({ success: true, data });
+    }
 }
 
 export const manufacturingController = new ManufacturingController();
+
 

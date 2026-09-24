@@ -304,6 +304,22 @@ describe("Finished Goods Lots, FEFO Allocation & Recall Verification Tests", () 
         const order = await OrderModel.findOne({ customerEmailSnapshot: "fefo.customer@example.com" });
         expect(order).not.toBeNull();
 
+        const lotA = await FinishedGoodsLotModel.findById(finishedLotAId);
+        expect(lotA).not.toBeNull();
+
+        // Pack and verify allocated lot at packing bench before shipping
+        await request(app)
+            .post(`/api/v1/orders/admin/${order!._id}/packing/start`)
+            .set("Authorization", `Bearer ${superAdminToken}`)
+            .send({ stationId: "PACK-BENCH-01" });
+
+        for (let i = 0; i < 20; i++) {
+            await request(app)
+                .post(`/api/v1/orders/admin/${order!._id}/packing/scan`)
+                .set("Authorization", `Bearer ${superAdminToken}`)
+                .send({ barcode: lotA!.lotNumber, stationId: "PACK-BENCH-01" });
+        }
+
         // Transition from PROCESSING to SHIPPED
         const shipRes = await request(app)
             .patch(`/api/v1/orders/admin/${order!._id}/fulfillment`)
@@ -319,10 +335,10 @@ describe("Finished Goods Lots, FEFO Allocation & Recall Verification Tests", () 
         expect(shipRes.body.data.fulfillmentStatus).toBe("SHIPPED");
 
         // Verify Lot A in DB finalized consumption
-        const lotA = await FinishedGoodsLotModel.findById(finishedLotAId);
-        expect(lotA?.availableQuantity).toBe(30);
-        expect(lotA?.allocatedQuantity).toBe(0); // Shifted from allocated to consumed
-        expect(lotA?.consumedQuantity).toBe(20);
+        const updatedLotA = await FinishedGoodsLotModel.findById(finishedLotAId);
+        expect(updatedLotA?.availableQuantity).toBe(30);
+        expect(updatedLotA?.allocatedQuantity).toBe(0); // Shifted from allocated to consumed
+        expect(updatedLotA?.consumedQuantity).toBe(20);
     });
 
     it("4. Cancelling an order should release allocated lots back to availableQuantity", async () => {

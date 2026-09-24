@@ -7,8 +7,10 @@ import {
     useGetAdminOrderByIdQuery,
     useUpdateOrderFulfillmentMutation,
     useCancelAdminOrderMutation,
+    useShipOrderMutation,
 } from "../../../../store/api";
 import type { OrderFulfillmentStatus } from "@ecommers/types";
+import { PackingBenchScanner } from "../../../../components/orders/packing-bench-scanner";
 import {
     Card,
     Badge,
@@ -31,6 +33,7 @@ import {
     XCircle,
     MapPin,
     Tag,
+    AlertTriangle,
 } from "lucide-react";
 
 export default function OrderDetailPage() {
@@ -46,7 +49,11 @@ export default function OrderDetailPage() {
     } = useGetAdminOrderByIdQuery(id, { skip: !id });
 
     const [updateOrderFulfillment, { isLoading: isUpdatingFulfillment }] = useUpdateOrderFulfillmentMutation();
+    const [shipOrder, { isLoading: isShipping }] = useShipOrderMutation();
     const [cancelAdminOrder, { isLoading: isCancelling }] = useCancelAdminOrderMutation();
+
+    // Packing verification state
+    const [packingStatus, setPackingStatus] = useState<string>("");
 
     // Fulfillment Form State
     const [targetFulfillment, setTargetFulfillment] = useState<OrderFulfillmentStatus>("PROCESSING");
@@ -57,6 +64,11 @@ export default function OrderDetailPage() {
     // Cancellation State
     const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
+
+    const hasAllocatedLots = Boolean(order?.items?.some(
+        (it) => it.allocatedLots && it.allocatedLots.length > 0
+    ));
+    const isPackingVerified = !hasAllocatedLots || packingStatus === "VERIFIED";
 
     useEffect(() => {
         if (order) {
@@ -71,6 +83,12 @@ export default function OrderDetailPage() {
     const handleUpdateFulfillment = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!order) return;
+
+        if (targetFulfillment === "SHIPPED" && !isPackingVerified) {
+            toast.error("Packing verification required: All FEFO allocated lots must be verified before marking SHIPPED.");
+            return;
+        }
+
         setFulfillmentNotice(null);
         try {
             await updateOrderFulfillment({
@@ -86,9 +104,29 @@ export default function OrderDetailPage() {
             toast.success(`Fulfillment updated to ${targetFulfillment}`);
             setTimeout(() => setFulfillmentNotice(null), 3000);
         } catch (err: unknown) {
-            if (err instanceof Error) {
-                toast.error(`Error updating fulfillment: ${err.message}`);
-            }
+            const errData = (err as any)?.data;
+            const msg = errData?.message || (err instanceof Error ? err.message : "Error updating fulfillment");
+            toast.error(`Error updating fulfillment: ${msg}`);
+        }
+    };
+
+    const handleDirectShip = async () => {
+        if (!order) return;
+        try {
+            await shipOrder({
+                id,
+                body: {
+                    expectedVersion: order.version,
+                    carrier: carrier.trim() || undefined,
+                    trackingNumber: trackingNumber.trim() || undefined,
+                },
+            }).unwrap();
+            toast.success("Order dispatched and marked as SHIPPED!");
+            fetchOrder();
+        } catch (err: unknown) {
+            const errData = (err as any)?.data;
+            const msg = errData?.message || (err instanceof Error ? err.message : "Shipment dispatch blocked");
+            toast.error(`Shipment blocked: ${msg}`);
         }
     };
 
@@ -195,6 +233,14 @@ export default function OrderDetailPage() {
                     </div>
                 </div>
             </Card>
+
+            {/* Packing Bench Scanner Section */}
+            {!isOrderCancelled && hasAllocatedLots && (
+                <PackingBenchScanner
+                    order={order}
+                    onPackingStatusChange={setPackingStatus}
+                />
+            )}
 
             {/* Two-Column Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -332,6 +378,30 @@ export default function OrderDetailPage() {
                             </div>
                         )}
 
+                        {hasAllocatedLots && !isPackingVerified && (
+                            <div className="flex items-start gap-2 p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-lg text-amber-800 dark:text-amber-200 text-xs mb-3">
+                                <AlertTriangle size={15} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                                <div>
+                                    <span className="font-semibold">Packing Verification Locked</span>
+                                    <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">
+                                        Food safety guard active. Scan physical FEFO jars at the packing bench before marking as SHIPPED.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {hasAllocatedLots && isPackingVerified && order.fulfillmentStatus !== "SHIPPED" && order.fulfillmentStatus !== "DELIVERED" && (
+                            <div className="flex items-start gap-2 p-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-lg text-emerald-800 dark:text-emerald-200 text-xs mb-3">
+                                <CheckCircle2 size={15} className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                                <div>
+                                    <span className="font-semibold">Packing Verified</span>
+                                    <p className="text-[11px] text-emerald-700 dark:text-emerald-300 mt-0.5">
+                                        All allocated lots verified against FEFO assignment. Safe to dispatch.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
                         <form onSubmit={handleUpdateFulfillment} className="flex flex-col gap-3">
                             <FormField label="Fulfillment State" required>
                                 <Select
@@ -342,7 +412,9 @@ export default function OrderDetailPage() {
                                 >
                                     <option value="UNFULFILLED">UNFULFILLED</option>
                                     <option value="PROCESSING">PROCESSING</option>
-                                    <option value="SHIPPED">SHIPPED</option>
+                                    <option value="SHIPPED" disabled={hasAllocatedLots && !isPackingVerified}>
+                                        SHIPPED {hasAllocatedLots && !isPackingVerified ? "🔒 (Verification Required)" : ""}
+                                    </option>
                                     <option value="DELIVERED">DELIVERED</option>
                                     <option value="RETURNED">RETURNED</option>
                                 </Select>
@@ -353,7 +425,7 @@ export default function OrderDetailPage() {
                                     value={carrier}
                                     onChange={(e) => setCarrier(e.target.value)}
                                     placeholder="e.g. FedEx"
-                                    disabled={isOrderCancelled || isUpdatingFulfillment}
+                                    disabled={isOrderCancelled || isUpdatingFulfillment || isShipping}
                                 />
                             </FormField>
 
@@ -362,19 +434,35 @@ export default function OrderDetailPage() {
                                     value={trackingNumber}
                                     onChange={(e) => setTrackingNumber(e.target.value)}
                                     placeholder="e.g. TRK9847120398"
-                                    disabled={isOrderCancelled || isUpdatingFulfillment}
+                                    disabled={isOrderCancelled || isUpdatingFulfillment || isShipping}
                                 />
                             </FormField>
 
-                            <Button
-                                type="submit"
-                                variant="primary"
-                                isLoading={isUpdatingFulfillment}
-                                disabled={isOrderCancelled || isUpdatingFulfillment}
-                                className="w-full mt-2"
-                            >
-                                Update Fulfillment
-                            </Button>
+                            <div className="flex flex-col gap-2 mt-2">
+                                <Button
+                                    type="submit"
+                                    variant="primary"
+                                    isLoading={isUpdatingFulfillment}
+                                    disabled={isOrderCancelled || isUpdatingFulfillment || isShipping}
+                                    className="w-full"
+                                >
+                                    Update Fulfillment
+                                </Button>
+
+                                {hasAllocatedLots && isPackingVerified && order.fulfillmentStatus !== "SHIPPED" && order.fulfillmentStatus !== "DELIVERED" && !isOrderCancelled && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={handleDirectShip}
+                                        isLoading={isShipping}
+                                        disabled={isUpdatingFulfillment || isShipping}
+                                        className="w-full border-emerald-500 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 gap-1.5"
+                                    >
+                                        <Truck size={14} />
+                                        <span>Dispatch & Ship Order</span>
+                                    </Button>
+                                )}
+                            </div>
                         </form>
                     </Card>
                 </div>

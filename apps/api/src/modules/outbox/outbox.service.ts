@@ -4,7 +4,7 @@ import { logger } from "../../config/logger.js";
 
 export interface RecordOutboxEventParams {
     eventType: string;
-    aggregateType: "ProductionRun" | "RepackagingRun" | "Order" | "RawMaterialLot" | "RawMaterial";
+    aggregateType: "ProductionRun" | "RepackagingRun" | "Order" | "RawMaterialLot" | "RawMaterial" | "FinishedGoodsLot" | "Inventory";
     aggregateId: mongoose.Types.ObjectId | string;
     deduplicationKey?: string;
     payload: Record<string, any>;
