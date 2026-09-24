@@ -22,6 +22,7 @@ import {
     FormField,
     Select,
     SearchableSelect,
+    Modal,
     toast,
 } from "@ecommers/ui";
 import {
@@ -676,74 +677,57 @@ export default function NewRawMaterialPurchasePage() {
             </form>
 
             {/* Quick Create Vendor Modal */}
-            {showQuickVendorModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-                    <div className="w-full max-w-md bg-white dark:bg-[#151515] border border-slate-200 dark:border-neutral-800 rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-                        <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-neutral-800">
-                            <div className="flex items-center gap-2.5">
-                                <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600">
-                                    <Building2 size={16} />
-                                </div>
-                                <div>
-                                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">Quick Add Vendor</h3>
-                                    <p className="text-[11px] text-slate-500">Create vendor with Name and Phone number only.</p>
-                                </div>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setShowQuickVendorModal(false)}
-                                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-neutral-800"
-                            >
-                                <X size={16} />
-                            </button>
-                        </div>
+            <Modal
+                isOpen={showQuickVendorModal}
+                onClose={() => setShowQuickVendorModal(false)}
+                title="Quick Add Vendor"
+                description="Create vendor with Name and Phone number only."
+                maxWidth="sm"
+            >
+                <form onSubmit={handleQuickCreateVendor} className="space-y-4">
+                    <FormField label="Vendor / Supplier Name" required>
+                        <Input
+                            value={quickVendorName}
+                            onChange={(e) => setQuickVendorName(e.target.value)}
+                            placeholder="e.g. Royal Spices & Herbs"
+                            required
+                            autoFocus
+                            className="text-xs h-10 font-semibold"
+                        />
+                    </FormField>
 
-                        <form onSubmit={handleQuickCreateVendor} className="p-5 space-y-4">
-                            <FormField label="Vendor / Supplier Name" required>
-                                <Input
-                                    value={quickVendorName}
-                                    onChange={(e) => setQuickVendorName(e.target.value)}
-                                    placeholder="e.g. Royal Spices & Herbs"
-                                    required
-                                    autoFocus
-                                    className="text-xs h-10 font-semibold"
-                                />
-                            </FormField>
+                    <FormField label="Contact Number / Phone" required helperText="Minimum required to identify and contact supplier">
+                        <Input
+                            value={quickVendorContact}
+                            onChange={(e) => setQuickVendorContact(e.target.value)}
+                            placeholder="+91 98765 43210"
+                            required
+                            className="text-xs h-10 font-mono"
+                        />
+                    </FormField>
 
-                            <FormField label="Contact Number / Phone" required helperText="Minimum required to identify and contact supplier">
-                                <Input
-                                    value={quickVendorContact}
-                                    onChange={(e) => setQuickVendorContact(e.target.value)}
-                                    placeholder="+91 98765 43210"
-                                    required
-                                    className="text-xs h-10 font-mono"
-                                />
-                            </FormField>
-
-                            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-neutral-800">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setShowQuickVendorModal(false)}
-                                    disabled={isCreatingVendor}
-                                >
-                                    Cancel
-                                </Button>
-                                <Button
-                                    type="submit"
-                                    size="sm"
-                                    disabled={isCreatingVendor || !quickVendorName.trim() || !quickVendorContact.trim()}
-                                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
-                                >
-                                    {isCreatingVendor ? <Spinner size="sm" /> : <CheckCircle2 size={14} />}
-                                    Save & Select
-                                </Button>
-                            </div>
-                        </form>
+                    <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-neutral-800">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowQuickVendorModal(false)}
+                            disabled={isCreatingVendor}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="submit"
+                            size="sm"
+                            disabled={isCreatingVendor || !quickVendorName.trim() || !quickVendorContact.trim()}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                        >
+                            {isCreatingVendor ? <Spinner size="sm" /> : <CheckCircle2 size={14} />}
+                            Save & Select
+                        </Button>
                     </div>
-                </div>
-            )}
+                </form>
+            </Modal>
         </div>
     );
 }

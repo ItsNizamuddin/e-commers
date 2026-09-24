@@ -12,6 +12,7 @@ import {
     Spinner,
     FormField,
     Pagination,
+    Modal,
     toast,
 } from "@ecommers/ui";
 import {
@@ -479,115 +480,98 @@ export default function VendorsPage() {
         </Card>
 
             {/* Create Vendor Modal */}
-            {isAddModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-                    <div className="w-full max-w-lg bg-white dark:bg-[#151515] border border-slate-200 dark:border-neutral-800 rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-                        <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-neutral-800">
-                            <div className="flex items-center gap-2.5">
-                                <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600">
-                                    <Building2 size={18} />
-                                </div>
-                                <div>
-                                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">Add New Vendor / Supplier</h3>
-                                    <p className="text-[11px] text-slate-500">Only Name & Phone are required to start.</p>
-                                </div>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setIsAddModalOpen(false)}
-                                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-neutral-800"
-                            >
-                                <X size={16} />
-                            </button>
-                        </div>
+            <Modal
+                isOpen={isAddModalOpen}
+                onClose={() => setIsAddModalOpen(false)}
+                title="Add New Vendor / Supplier"
+                description="Only Name & Phone are required to start."
+                maxWidth="md"
+            >
+                <form onSubmit={handleCreateVendor} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField label="Vendor / Company Name" required>
+                            <Input
+                                value={newName}
+                                onChange={(e) => setNewName(e.target.value)}
+                                placeholder="e.g. Royal Spices & Herbs"
+                                required
+                                autoFocus
+                                className="text-xs h-10 font-semibold"
+                            />
+                        </FormField>
 
-                        <form onSubmit={handleCreateVendor} className="p-5 space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormField label="Vendor / Company Name" required>
-                                    <Input
-                                        value={newName}
-                                        onChange={(e) => setNewName(e.target.value)}
-                                        placeholder="e.g. Royal Spices & Herbs"
-                                        required
-                                        autoFocus
-                                        className="text-xs h-10 font-semibold"
-                                    />
-                                </FormField>
-
-                                <FormField label="Contact Number / Phone" required>
-                                    <Input
-                                        value={newContactNumber}
-                                        onChange={(e) => setNewContactNumber(e.target.value)}
-                                        placeholder="+91 98765 43210"
-                                        required
-                                        className="text-xs h-10 font-mono"
-                                    />
-                                </FormField>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormField label="Email Address">
-                                    <Input
-                                        type="email"
-                                        value={newEmail}
-                                        onChange={(e) => setNewEmail(e.target.value)}
-                                        placeholder="sales@royalspices.com"
-                                        className="text-xs h-10"
-                                    />
-                                </FormField>
-
-                                <FormField label="GSTIN / Tax ID">
-                                    <Input
-                                        value={newGstin}
-                                        onChange={(e) => setNewGstin(e.target.value.toUpperCase())}
-                                        placeholder="29AAAAA0000A1Z5"
-                                        className="text-xs h-10 font-mono uppercase"
-                                    />
-                                </FormField>
-                            </div>
-
-                            <FormField label="Registered Office / Warehouse Address">
-                                <Input
-                                    value={newAddress}
-                                    onChange={(e) => setNewAddress(e.target.value)}
-                                    placeholder="Plot 42, Industrial Area, Bangalore, Karnataka"
-                                    className="text-xs h-10"
-                                />
-                            </FormField>
-
-                            <FormField label="Internal Procurement Notes">
-                                <Input
-                                    value={newNotes}
-                                    onChange={(e) => setNewNotes(e.target.value)}
-                                    placeholder="Payment terms: Net 15 days, delivers via VRL Logistics"
-                                    className="text-xs h-10"
-                                />
-                            </FormField>
-
-                            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-neutral-800">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setIsAddModalOpen(false)}
-                                    disabled={isSubmitting}
-                                >
-                                    Cancel
-                                </Button>
-                                <Button
-                                    type="submit"
-                                    size="sm"
-                                    disabled={isSubmitting || !newName.trim() || !newContactNumber.trim()}
-                                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
-                                >
-                                    {isSubmitting ? <Spinner size="sm" /> : <CheckCircle2 size={14} />}
-                                    Save Vendor
-                                </Button>
-                            </div>
-                        </form>
+                        <FormField label="Contact Number / Phone" required>
+                            <Input
+                                value={newContactNumber}
+                                onChange={(e) => setNewContactNumber(e.target.value)}
+                                placeholder="+91 98765 43210"
+                                required
+                                className="text-xs h-10 font-mono"
+                            />
+                        </FormField>
                     </div>
-                </div>
-            )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField label="Email Address">
+                            <Input
+                                type="email"
+                                value={newEmail}
+                                onChange={(e) => setNewEmail(e.target.value)}
+                                placeholder="sales@royalspices.com"
+                                className="text-xs h-10"
+                            />
+                        </FormField>
+
+                        <FormField label="GSTIN / Tax ID">
+                            <Input
+                                value={newGstin}
+                                onChange={(e) => setNewGstin(e.target.value.toUpperCase())}
+                                placeholder="29AAAAA0000A1Z5"
+                                className="text-xs h-10 font-mono uppercase"
+                            />
+                        </FormField>
+                    </div>
+
+                    <FormField label="Registered Office / Warehouse Address">
+                        <Input
+                            value={newAddress}
+                            onChange={(e) => setNewAddress(e.target.value)}
+                            placeholder="Plot 42, Industrial Area, Bangalore, Karnataka"
+                            className="text-xs h-10"
+                        />
+                    </FormField>
+
+                    <FormField label="Internal Procurement Notes">
+                        <Input
+                            value={newNotes}
+                            onChange={(e) => setNewNotes(e.target.value)}
+                            placeholder="Payment terms: Net 15 days, delivers via VRL Logistics"
+                            className="text-xs h-10"
+                        />
+                    </FormField>
+
+                    <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-neutral-800">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsAddModalOpen(false)}
+                            disabled={isSubmitting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="submit"
+                            size="sm"
+                            disabled={isSubmitting || !newName.trim() || !newContactNumber.trim()}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                        >
+                            {isSubmitting ? <Spinner size="sm" /> : <CheckCircle2 size={14} />}
+                            Save Vendor
+                        </Button>
+                    </div>
+                </form>
+            </Modal>
         </div>
     );
 }

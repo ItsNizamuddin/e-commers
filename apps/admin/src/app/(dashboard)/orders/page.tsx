@@ -210,20 +210,22 @@ export default function OrdersPage() {
 
                     <div className="ml-auto flex items-center gap-2 text-xs text-slate-500 dark:text-neutral-400 shrink-0">
                         <span>Show</span>
-                        <select
-                            value={pageSize}
-                            onChange={(e) => {
-                                setPageSize(Number(e.target.value));
-                                setPage(1);
-                            }}
-                            className="text-xs font-medium rounded-md border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#161616] px-2 py-1 text-slate-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                            <option value={10}>10</option>
-                            <option value={15}>15</option>
-                            <option value={25}>25</option>
-                            <option value={50}>50</option>
-                            <option value={100}>100</option>
-                        </select>
+                        <div className="w-20">
+                            <Select
+                                size="sm"
+                                value={pageSize}
+                                onChange={(e) => {
+                                    setPageSize(Number(e.target.value));
+                                    setPage(1);
+                                }}
+                            >
+                                <option value={10}>10</option>
+                                <option value={15}>15</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                            </Select>
+                        </div>
                         <span>entries</span>
                     </div>
                 </div>
