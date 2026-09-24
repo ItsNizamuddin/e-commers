@@ -1,6 +1,41 @@
 import mongoose, { Schema } from "mongoose";
 import { IOrder, IOrderItem, OrderDocument } from "../types/order.types.js";
 
+const allocatedLotSchema = new Schema(
+    {
+        lotId: {
+            type: Schema.Types.ObjectId,
+            ref: "FinishedGoodsLot",
+            required: true,
+        },
+        lotNumber: {
+            type: String,
+            required: true,
+        },
+        packagingRunId: {
+            type: Schema.Types.ObjectId,
+            ref: "RepackagingRun",
+            required: false,
+        },
+        warehouseId: {
+            type: Schema.Types.ObjectId,
+            ref: "Warehouse",
+            required: true,
+        },
+        quantity: {
+            type: Number,
+            required: true,
+            min: 1,
+        },
+        allocatedAt: {
+            type: Date,
+            default: Date.now,
+            required: true,
+        },
+    },
+    { _id: false }
+);
+
 const orderItemSchema = new Schema<IOrderItem>(
     {
         productId: {
@@ -40,6 +75,10 @@ const orderItemSchema = new Schema<IOrderItem>(
         lineTotalMinor: {
             type: Number,
             required: true,
+        },
+        allocatedLots: {
+            type: [allocatedLotSchema],
+            default: undefined,
         },
     },
     { _id: false }
@@ -206,6 +245,8 @@ orderSchema.index({ customerId: 1, createdAt: -1 });
 orderSchema.index({ orderStatus: 1, createdAt: -1 });
 orderSchema.index({ paymentStatus: 1, createdAt: -1 });
 orderSchema.index({ fulfillmentStatus: 1, createdAt: -1 });
+orderSchema.index({ "items.allocatedLots.lotId": 1 });
+orderSchema.index({ "items.allocatedLots.lotNumber": 1 });
 
 export const OrderModel =
     (mongoose.models.Order as mongoose.Model<OrderDocument>) ||

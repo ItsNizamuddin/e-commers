@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
     useGetAdminOrderByIdQuery,
@@ -29,6 +30,7 @@ import {
     CheckCircle2,
     XCircle,
     MapPin,
+    Tag,
 } from "lucide-react";
 
 export default function OrderDetailPage() {
@@ -213,6 +215,22 @@ export default function OrderDetailPage() {
                                         <div className="text-[11px] font-mono text-slate-400 dark:text-neutral-500">
                                             SKU: {item.sku}
                                         </div>
+                                        {item.allocatedLots && item.allocatedLots.length > 0 && (
+                                            <div className="mt-1.5 flex flex-wrap gap-1.5 items-center">
+                                                <span className="text-[10px] text-slate-400 font-medium">FEFO Lots:</span>
+                                                {item.allocatedLots.map((lot, lIdx) => (
+                                                    <Link
+                                                        key={lIdx}
+                                                        href={`/manufacturing/traceability?query=${encodeURIComponent(lot.lotNumber)}`}
+                                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-mono font-medium hover:underline"
+                                                        title="Inspect lot traceability & recall blast radius"
+                                                    >
+                                                        <Tag size={10} />
+                                                        <span>{lot.lotNumber} ({lot.quantity})</span>
+                                                    </Link>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="text-right">
                                         <div className="text-xs font-bold text-slate-900 dark:text-white">

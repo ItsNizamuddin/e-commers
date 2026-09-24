@@ -33,6 +33,7 @@ import {
     AlertCircle,
     Eye,
     Clock,
+    ShieldAlert,
 } from "lucide-react";
 import {
     useGetProductionRunsQuery,
@@ -730,7 +731,14 @@ export default function ManufacturingPage() {
                             </div>
                         )}
 
-                        <div className="flex justify-end pt-2">
+                        <div className="flex flex-wrap justify-between items-center gap-2 pt-2 border-t border-slate-100 dark:border-neutral-800">
+                            <Link
+                                href={`/manufacturing/traceability?query=${encodeURIComponent(viewingBatch.batchNumber)}`}
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                            >
+                                <ShieldAlert size={14} />
+                                <span>Trace Batch Genealogy & Recall →</span>
+                            </Link>
                             <Button variant="outline" onClick={() => setViewingBatch(null)}>
                                 Close
                             </Button>

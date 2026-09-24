@@ -27,6 +27,7 @@ import {
     Clock,
     Cpu,
     ArrowRight,
+    ShieldAlert,
 } from "lucide-react";
 import { RequireRole } from "../../../components/auth/require-role";
 
@@ -230,6 +231,35 @@ export default function DashboardOverviewPage() {
                             <div className="text-[10px] uppercase font-semibold text-slate-400 dark:text-neutral-500">Delivered</div>
                             <div className="text-sm font-bold text-slate-900 dark:text-white">{orders.breakdown.byFulfillmentStatus?.DELIVERED || 0}</div>
                         </div>
+                    </div>
+                </div>
+            </Card>
+
+            {/* Food Safety & Lot Traceability Hub Quick Access */}
+            <Card className="p-3.5 bg-gradient-to-r from-indigo-50/60 via-white to-emerald-50/40 dark:from-slate-900 dark:via-neutral-900 dark:to-slate-900 border-indigo-100 dark:border-neutral-800">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                            <ShieldAlert size={18} />
+                        </div>
+                        <div>
+                            <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                <span>Food Safety & Lot Traceability Engine</span>
+                                <Badge variant="success" size="sm" className="text-[10px]">FEFO Active</Badge>
+                            </div>
+                            <p className="text-[11px] text-slate-500 dark:text-neutral-400 mt-0.5">
+                                Instantaneous two-way lot genealogy, public QR batch verification, and customer recall blast radius analysis.
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Link
+                            href="/manufacturing/traceability"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors shrink-0"
+                        >
+                            <span>Trace Lot / Batch</span>
+                            <ArrowRight size={13} />
+                        </Link>
                     </div>
                 </div>
             </Card>

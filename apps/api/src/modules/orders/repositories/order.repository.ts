@@ -123,13 +123,18 @@ export class OrderRepository {
         newFulfillmentStatus: OrderFulfillmentStatus,
         fulfillmentInfo?: { carrier?: string | undefined; trackingNumber?: string | undefined } | undefined,
         actor?: AuditActor | undefined,
-        session?: ClientSession | undefined
+        session?: ClientSession | undefined,
+        items?: any[] | undefined
     ): Promise<OrderDocument | null> {
         const now = new Date();
         const setPayload: any = {
             fulfillmentStatus: newFulfillmentStatus,
             ...(actor ? { updatedBy: actor } : {}),
         };
+
+        if (items) {
+            setPayload.items = items;
+        }
 
         if (fulfillmentInfo?.carrier) setPayload["fulfillment.carrier"] = fulfillmentInfo.carrier;
         if (fulfillmentInfo?.trackingNumber)

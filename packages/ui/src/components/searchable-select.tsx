@@ -232,18 +232,18 @@ export function SearchableSelect({
                 <div className="flex items-center justify-between w-full min-w-0 pr-6 gap-2">
                     {selectedOption ? (
                         <>
-                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                <span className="truncate font-semibold text-slate-900 dark:text-neutral-100 shrink-0 max-w-[80%]">
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+                                <span className="truncate font-semibold text-slate-900 dark:text-neutral-100 min-w-0">
                                     {selectedOption.label}
                                 </span>
                                 {selectedOption.subText && (
-                                    <span className="text-[11px] font-mono text-slate-400 dark:text-neutral-500 truncate min-w-0 hidden md:inline">
+                                    <span className="text-[11px] font-mono text-slate-400 dark:text-neutral-500 truncate min-w-0 hidden xl:inline">
                                         ({selectedOption.subText})
                                     </span>
                                 )}
                             </div>
                             {selectedOption.badge && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-slate-100 dark:bg-neutral-800 text-slate-600 dark:text-neutral-300 shrink-0 ml-auto mr-1">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-slate-100 dark:bg-neutral-800 text-slate-600 dark:text-neutral-300 shrink-0 ml-auto whitespace-nowrap">
                                     {selectedOption.badge}
                                 </span>
                             )}

@@ -60,8 +60,22 @@ function convertQuantity(qty: number, fromUnit: string, toUnit: string): number 
     return qty;
 }
 
+function formatStock(val: number | undefined | null, maxDecimals: number = 2): string {
+    if (val === undefined || val === null || isNaN(val)) return "0";
+    return Number(val.toFixed(maxDecimals)).toString();
+}
+
 function parseVariantUnitSize(v: ProductVariant | undefined): { qty: number; unit: RawMaterialUnit } | null {
     if (!v) return null;
+    if (v.weight && v.weight > 0) {
+        const wu = (v.weightUnit || "g").toLowerCase();
+        let u: RawMaterialUnit = "g";
+        if (wu === "kg") u = "kg";
+        else if (wu === "g" || wu === "gm" || wu === "gms") u = "g";
+        else if (wu === "l" || wu === "ltr" || wu === "liter") u = "l";
+        else if (wu === "ml") u = "ml";
+        return { qty: v.weight, unit: u };
+    }
     const text = `${v.title || ""} ${v.sku || ""}`.toLowerCase();
     const match = text.match(/(\d+(?:\.\d+)?)\s*(kg|g|gm|gms|l|ltr|liter|liters|ml|pcs|pack)/i);
     if (match) {
@@ -112,16 +126,47 @@ export default function NewRepackagingRunPage() {
 
     const [createRepackagingRun, { isLoading: submitting }] = useCreateRepackagingRunMutation();
 
-    // Default material: prioritize materials with usage "BOTH" or "SELLABLE"
+    // Repackable Materials Filter:
+    // Only show manufactured bulk foods from cooking batches or sellable bulk commodities.
+    // Exclude packaging materials (jars, caps) and raw internal cooking spices with no retail variety.
+    const repackableMaterials = useMemo(() => {
+        return materials.filter((m) => {
+            if (m.category === "PACKAGING") return false;
+            // Always include manufactured bulk items or items with linked products or items with bulk code
+            if (m.code?.startsWith("BLK-") || m.name?.toLowerCase().includes("bulk") || m.linkedProductId) return true;
+            // Include commodities configured for selling or both
+            if (m.usage === "SELLABLE" || m.usage === "BOTH") return true;
+            return false;
+        });
+    }, [materials]);
+
+    const sortedRepackableMaterials = useMemo(() => {
+        return [...repackableMaterials].sort((a, b) => {
+            const aIsBulk = a.code?.startsWith("BLK-") || a.linkedProductId || a.name?.toLowerCase().includes("bulk") ? 1 : 0;
+            const bIsBulk = b.code?.startsWith("BLK-") || b.linkedProductId || b.name?.toLowerCase().includes("bulk") ? 1 : 0;
+            if (aIsBulk !== bIsBulk) return bIsBulk - aIsBulk;
+
+            if ((a.currentStock > 0) !== (b.currentStock > 0)) {
+                return a.currentStock > 0 ? -1 : 1;
+            }
+            return a.name.localeCompare(b.name);
+        });
+    }, [repackableMaterials]);
+
+    // Default material: prioritize manufactured bulk stock with available balance
     useEffect(() => {
-        if (!selectedMaterialId && materials.length > 0) {
-            const defaultMat = materials.find((m) => m.usage === "BOTH" || m.usage === "SELLABLE") || materials[0];
+        if (!selectedMaterialId && sortedRepackableMaterials.length > 0) {
+            const defaultMat =
+                sortedRepackableMaterials.find((m) => (m.code?.startsWith("BLK-") || m.linkedProductId) && m.currentStock > 0) ||
+                sortedRepackableMaterials.find((m) => m.currentStock > 0) ||
+                sortedRepackableMaterials[0];
             if (defaultMat) {
-                setSelectedMaterialId(defaultMat.id || (defaultMat as any)._id || "");
+                const mId = defaultMat.id || (defaultMat as any)._id || "";
+                setSelectedMaterialId(mId);
                 setUnitSizeUnit(defaultMat.unit);
             }
         }
-    }, [materials, selectedMaterialId]);
+    }, [sortedRepackableMaterials, selectedMaterialId]);
 
     // Default warehouse
     useEffect(() => {
@@ -157,41 +202,68 @@ export default function NewRepackagingRunPage() {
         }
     }, [materialLots]);
 
-    // When Material changes: pre-select linked product/variant if configured
+    // When Material changes: pre-select linked product and variant
     useEffect(() => {
         if (!selectedMaterialId) return;
-        const currentMat = materials.find((m) => (m.id || (m as any)._id) === selectedMaterialId);
-        if (currentMat?.linkedProductId) {
-            setSelectedProductId(currentMat.linkedProductId);
+        const currentMat = materials.find((m) => String(m.id || (m as any)._id) === String(selectedMaterialId));
+        if (!currentMat) return;
+
+        // 1. Direct link on raw material document
+        if (currentMat.linkedProductId) {
+            const rawProdId = String((currentMat.linkedProductId as any)?._id || currentMat.linkedProductId);
+            setSelectedProductId(rawProdId);
             if (currentMat.linkedVariantId) {
-                setSelectedVariantId(currentMat.linkedVariantId);
+                const rawVarId = String((currentMat.linkedVariantId as any)?._id || currentMat.linkedVariantId);
+                setSelectedVariantId(rawVarId);
+            } else {
+                setSelectedVariantId("");
             }
+            return;
         }
-        if (currentMat?.unit && !selectedVariantId) {
-            setUnitSizeUnit(currentMat.unit);
+
+        // 2. Intelligent match by product title
+        const cleanMatName = currentMat.name
+            .replace(/\(Bulk\)/i, "")
+            .replace(/\(1 kg Master Formula\)/i, "")
+            .trim()
+            .toLowerCase();
+
+        const matchedProd = products.find((p) => {
+            const pTitle = p.title.toLowerCase();
+            return pTitle.includes(cleanMatName) || cleanMatName.includes(pTitle);
+        });
+
+        if (matchedProd) {
+            setSelectedProductId(String(matchedProd.id || (matchedProd as any)._id));
+            setSelectedVariantId("");
+        } else {
+            // Material has no matching product: reset both product & variant
+            setSelectedProductId("");
+            setSelectedVariantId("");
         }
-    }, [selectedMaterialId, materials, selectedVariantId]);
+    }, [selectedMaterialId, materials, products]);
 
     // Selected entities
     const selectedMaterial = useMemo(() => {
-        return materials.find((m) => (m.id || (m as any)._id) === selectedMaterialId);
+        return materials.find((m) => String(m.id || (m as any)._id) === String(selectedMaterialId));
     }, [materials, selectedMaterialId]);
 
     const materialOptions = useMemo(() => {
-        return materials.map((m, idx) => {
+        return sortedRepackableMaterials.map((m, idx) => {
             const mId = m.id || (m as any)._id || m.code || `mat-${idx}`;
+            const isManufactured = m.code?.startsWith("BLK-") || m.name?.toLowerCase().includes("bulk") || m.linkedProductId;
             return {
                 value: mId,
-                label: m.name,
-                subText: m.code,
-                badge: `${m.currentStock} ${m.unit}`,
-                description: m.usage ? `Usage: ${m.usage}` : undefined,
+                label: isManufactured ? `★ ${m.name}` : m.name,
+                subText: `${m.code} • ${isManufactured ? "Manufactured Bulk Food" : "Bulk Commodity"}`,
+                badge: `${formatStock(m.currentStock)} ${m.unit} avail`,
+                description: isManufactured ? "Manufactured in cooking batch; ready for retail jars" : `Usage: ${m.usage}`,
             };
         });
-    }, [materials]);
+    }, [sortedRepackableMaterials]);
 
     const selectedLot = useMemo(() => {
-        return materialLots.find((l) => (l.id || (l as any)._id) === selectedLotId);
+        return materialLots.find((l) => String(l.id || (l as any)._id) === String(selectedLotId));
     }, [materialLots, selectedLotId]);
 
     const lotOptions = useMemo(() => {
@@ -201,28 +273,82 @@ export default function NewRepackagingRunPage() {
             return {
                 value: lId,
                 label: `Lot: ${lot.lotNumber}`,
-                subText: `${lot.availableQuantity} ${lot.unit} avail`,
+                subText: `${formatStock(lot.availableQuantity)} ${lot.unit} avail`,
                 badge: `₹${lot.costPerUnit.toFixed(2)}/${lot.unit}`,
                 description: expStr ? `Expiry: ${new Date(lot.expiryDate!).toLocaleDateString()}` : "No expiry recorded",
             };
         });
     }, [materialLots]);
 
+    const selectedProduct = useMemo(() => {
+        return products.find((p) => String(p.id || (p as any)._id) === String(selectedProductId));
+    }, [products, selectedProductId]);
+
     const productOptions = useMemo(() => {
-        return products.map((p, idx) => {
-            const pId = p.id || (p as any)._id || `prod-${idx}`;
+        if (!selectedMaterial) return [];
+
+        const targetMat = selectedMaterial;
+        const linkedId = targetMat?.linkedProductId
+            ? String((targetMat.linkedProductId as any)?._id || targetMat.linkedProductId)
+            : "";
+
+        // If this bulk material is explicitly linked to a product, only show that product
+        if (linkedId) {
+            const linkedProd = products.find((p) => String(p.id || (p as any)._id) === linkedId);
+            if (linkedProd) {
+                return [
+                    {
+                        value: String(linkedProd.id || (linkedProd as any)._id),
+                        label: `★ ${linkedProd.title} (Designated Linked Product)`,
+                        subText: linkedProd.slug,
+                        badge: `${linkedProd.variants?.length || 0} variants`,
+                    },
+                ];
+            }
+        }
+
+        // Otherwise filter compatible products
+        const cleanMatName = targetMat.name
+            .replace(/\(Bulk\)/i, "")
+            .replace(/\(1 kg Master Formula\)/i, "")
+            .trim()
+            .toLowerCase();
+
+        const compatibleProds = products.filter((p) => {
+            const pTitle = p.title.toLowerCase();
+            const pId = String(p.id || (p as any)._id);
+
+            // Exclude products that are already dedicated to another bulk material
+            const otherMatLinked = materials.some((m) => {
+                const mLinkedId = m.linkedProductId ? String((m.linkedProductId as any)?._id || m.linkedProductId) : "";
+                return mLinkedId === pId && String(m.id || (m as any)._id) !== String(targetMat.id || (targetMat as any)._id);
+            });
+            if (otherMatLinked) return false;
+
+            // Category sanity checks
+            if (targetMat.category === "OIL" && !pTitle.includes("oil")) {
+                return false;
+            }
+            if (targetMat.category === "SPICE") {
+                const spiceBase = targetMat.name.toLowerCase().replace(/powder|seeds/i, "").trim();
+                if (!pTitle.includes(spiceBase)) return false;
+            }
+
+            return true;
+        });
+
+        return compatibleProds.map((p, idx) => {
+            const pId = String(p.id || (p as any)._id || `prod-${idx}`);
+            const pTitle = p.title.toLowerCase();
+            const isNameMatch = pTitle.includes(cleanMatName) || cleanMatName.includes(pTitle);
             return {
                 value: pId,
-                label: p.title,
+                label: isNameMatch ? `★ ${p.title} (Matched)` : p.title,
                 subText: p.slug,
                 badge: `${p.variants?.length || 0} variants`,
             };
         });
-    }, [products]);
-
-    const selectedProduct = useMemo(() => {
-        return products.find((p) => (p.id || (p as any)._id) === selectedProductId);
-    }, [products, selectedProductId]);
+    }, [products, selectedMaterial, materials]);
 
     // Variants for selected product
     const availableVariants = useMemo<ProductVariant[]>(() => {
@@ -232,11 +358,12 @@ export default function NewRepackagingRunPage() {
 
     const variantOptions = useMemo(() => {
         return availableVariants.map((v, idx) => {
-            const vId = v.id || (v as any)._id || v.sku || `var-${idx}`;
+            const vId = String(v.id || (v as any)._id || v.sku || `var-${idx}`);
             const price = v.prices?.[0]?.amount;
+            const weightStr = v.weight ? ` (${v.weight}${v.weightUnit || "g"})` : "";
             return {
                 value: vId,
-                label: v.title || v.sku,
+                label: `${v.title || v.sku}${weightStr}`,
                 subText: v.sku,
                 badge: price ? `₹${price}` : undefined,
             };
@@ -274,13 +401,66 @@ export default function NewRepackagingRunPage() {
         return packagingMaterials.find((m) => (m.id || (m as any)._id) === selectedPackagingMaterialId);
     }, [packagingMaterials, selectedPackagingMaterialId]);
 
+    // Material & Product Compatibility Validation
+    const compatibility = useMemo(() => {
+        if (!selectedMaterial) {
+            return { isCompatible: false, reason: "Please select a bulk source material." };
+        }
+        if (!selectedProduct) {
+            return {
+                isCompatible: false,
+                reason: `No retail product selected for bulk material "${selectedMaterial.name}". Please link or select a matching retail product.`,
+            };
+        }
+
+        // 1. Explicit link validation
+        if (selectedMaterial.linkedProductId) {
+            const linkedId = String((selectedMaterial.linkedProductId as any)?._id || selectedMaterial.linkedProductId);
+            const prodId = String(selectedProduct.id || (selectedProduct as any)._id);
+            if (linkedId !== prodId) {
+                return {
+                    isCompatible: false,
+                    reason: `Mismatch: "${selectedMaterial.name}" is linked exclusively to its designated retail product. It cannot be repackaged into "${selectedProduct.title}".`,
+                };
+            }
+        }
+
+        // 2. Physical dimension validation (Liquid vs Solid)
+        const matUnit = selectedMaterial.unit;
+        const isLiquidMat = matUnit === "l" || matUnit === "ml";
+        const isLiquidPack = unitSizeUnit === "l" || unitSizeUnit === "ml";
+        const isCountPack = unitSizeUnit === "pcs" || unitSizeUnit === "pack";
+        if (isLiquidMat && !isLiquidPack && !isCountPack) {
+            return {
+                isCompatible: false,
+                reason: `Dimension mismatch: Bulk material "${selectedMaterial.name}" is measured in liquid volume (${matUnit}), but target pack unit is measured in mass (${unitSizeUnit}). Direct repackaging without density calibration is invalid.`,
+            };
+        }
+        if (!isLiquidMat && isLiquidPack) {
+            return {
+                isCompatible: false,
+                reason: `Dimension mismatch: Bulk material "${selectedMaterial.name}" is measured in solid mass (${matUnit}), but target pack unit is measured in liquid volume (${unitSizeUnit}).`,
+            };
+        }
+
+        // 3. Category & name sanity checks
+        if (selectedMaterial.category === "OIL" && !selectedProduct.title.toLowerCase().includes("oil")) {
+            return {
+                isCompatible: false,
+                reason: `Product mismatch: Bulk oil "${selectedMaterial.name}" cannot be packaged as retail product "${selectedProduct.title}".`,
+            };
+        }
+
+        return { isCompatible: true, reason: "" };
+    }, [selectedMaterial, selectedProduct, unitSizeUnit]);
+
     // Conversions and Live Validation
     const calculation = useMemo(() => {
-        if (!selectedMaterial || !selectedLot) {
+        if (!selectedMaterial || !selectedLot || !selectedProduct || !selectedVariant || !compatibility.isCompatible) {
             return {
                 bulkQuantityRequired: 0,
                 isSufficient: false,
-                lotRemaining: 0,
+                lotRemaining: selectedLot ? selectedLot.availableQuantity : 0,
                 deficit: 0,
                 bulkCost: 0,
                 packagingCost: 0,
@@ -321,6 +501,9 @@ export default function NewRepackagingRunPage() {
     }, [
         selectedMaterial,
         selectedLot,
+        selectedProduct,
+        selectedVariant,
+        compatibility.isCompatible,
         packageUnitsProduced,
         unitSizeQuantity,
         unitSizeUnit,
@@ -341,6 +524,10 @@ export default function NewRepackagingRunPage() {
         }
         if (!selectedProductId) {
             toast.error("Please select a target sellable product.");
+            return;
+        }
+        if (!compatibility.isCompatible) {
+            toast.error(compatibility.reason);
             return;
         }
         if (!selectedVariantId) {
@@ -491,7 +678,7 @@ export default function NewRepackagingRunPage() {
                                 <div>
                                     <span className="text-gray-500 block">Available Balance</span>
                                     <span className="font-bold text-emerald-700">
-                                        {selectedLot.availableQuantity} {selectedLot.unit}
+                                        {formatStock(selectedLot.availableQuantity)} {selectedLot.unit}
                                     </span>
                                 </div>
                                 <div>
@@ -526,40 +713,65 @@ export default function NewRepackagingRunPage() {
                             Choose the retail catalog product and specific packaging variant to credit.
                         </p>
 
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <FormField label="Target Retail Product" required>
-                                <SearchableSelect
-                                    value={selectedProductId}
-                                    onChange={setSelectedProductId}
-                                    options={productOptions}
-                                    placeholder="-- Select retail product --"
-                                    searchPlaceholder="Search retail product title, slug..."
-                                    pageSize={15}
-                                />
-                            </FormField>
+                        {selectedMaterial && productOptions.length === 0 ? (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 flex items-start gap-3">
+                                <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                                <div>
+                                    <div className="font-bold uppercase tracking-wider text-amber-800">
+                                        No Compatible Retail Product in Catalog
+                                    </div>
+                                    <p className="mt-1 text-amber-700 leading-relaxed">
+                                        "{selectedMaterial.name}" has no matching retail product in the catalog.
+                                        Repackaging converts bulk raw materials into sellable consumer packages (e.g. bottles or jars).
+                                        Please create a corresponding retail product in the Products Catalog or link it to this material.
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <FormField
+                                    label="Target Retail Product"
+                                    required
+                                    helperText={
+                                        selectedMaterial?.linkedProductId
+                                            ? "Exclusively linked to this bulk formula"
+                                            : undefined
+                                    }
+                                >
+                                    <SearchableSelect
+                                        value={selectedProductId}
+                                        onChange={setSelectedProductId}
+                                        options={productOptions}
+                                        disabled={!!selectedMaterial?.linkedProductId && productOptions.length === 1}
+                                        placeholder="-- Select retail product --"
+                                        searchPlaceholder="Search retail product title, slug..."
+                                        pageSize={15}
+                                    />
+                                </FormField>
 
-                            <FormField
-                                label="Target Product Variant"
-                                required
-                                helperText={
-                                    availableVariants.length === 0
-                                        ? "No variants found"
-                                        : `${availableVariants.length} packaging variants`
-                                }
-                            >
-                                <SearchableSelect
-                                    value={selectedVariantId}
-                                    onChange={setSelectedVariantId}
-                                    options={variantOptions}
-                                    disabled={availableVariants.length === 0}
-                                    placeholder="-- Select packaging variant --"
-                                    searchPlaceholder="Search variant name, SKU..."
-                                    pageSize={15}
-                                />
-                            </FormField>
-                        </div>
+                                <FormField
+                                    label="Target Product Variant"
+                                    required
+                                    helperText={
+                                        availableVariants.length === 0
+                                            ? "No variants found"
+                                            : `${availableVariants.length} packaging variants`
+                                    }
+                                >
+                                    <SearchableSelect
+                                        value={selectedVariantId}
+                                        onChange={setSelectedVariantId}
+                                        options={variantOptions}
+                                        disabled={availableVariants.length === 0}
+                                        placeholder="-- Select packaging variant --"
+                                        searchPlaceholder="Search variant name, SKU..."
+                                        pageSize={15}
+                                    />
+                                </FormField>
+                            </div>
+                        )}
 
-                        {selectedVariant && (
+                        {selectedVariant && compatibility.isCompatible && (
                             <div className="mt-3 flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 px-3 py-2 rounded border border-emerald-200">
                                 <Store className="h-4 w-4 shrink-0" />
                                 <span>
@@ -567,6 +779,13 @@ export default function NewRepackagingRunPage() {
                                     <strong>{selectedVariant.sku}</strong> (Title:{" "}
                                     {selectedVariant.title || "Default"})
                                 </span>
+                            </div>
+                        )}
+
+                        {selectedProduct && !compatibility.isCompatible && (
+                            <div className="mt-3 flex items-start gap-2 text-xs text-rose-700 bg-rose-50 px-3 py-2.5 rounded border border-rose-200">
+                                <AlertCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+                                <span>{compatibility.reason}</span>
                             </div>
                         )}
                     </Card>
@@ -665,7 +884,7 @@ export default function NewRepackagingRunPage() {
                                         const pkgId = pkg.id || (pkg as any)._id || pkg.code || `pkg-${idx}`;
                                         return (
                                             <option key={pkgId} value={pkgId}>
-                                                {pkg.name} (Stock: {pkg.currentStock} {pkg.unit} @ ₹
+                                                {pkg.name} (Stock: {formatStock(pkg.currentStock)} {pkg.unit} @ ₹
                                                 {pkg.averageCost.toFixed(2)})
                                             </option>
                                         );
@@ -714,33 +933,59 @@ export default function NewRepackagingRunPage() {
                         </div>
 
                         {/* Feasibility Indicator */}
-                        <div
-                            className={`rounded-lg p-4 border flex items-start gap-3 ${
-                                calculation.isSufficient
-                                    ? "bg-emerald-50/70 border-emerald-200 text-emerald-900"
-                                    : "bg-rose-50/70 border-rose-200 text-rose-900"
-                            }`}
-                        >
-                            {calculation.isSufficient ? (
-                                <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
-                            ) : (
-                                <AlertCircle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
-                            )}
-                            <div>
-                                <div className="text-xs font-bold uppercase tracking-wider">
-                                    {calculation.isSufficient
-                                        ? "Sufficient Bulk Lot Stock"
-                                        : "Lot Deficit Detected"}
+                        {!selectedProduct || !selectedVariant ? (
+                            <div className="rounded-lg p-4 border border-slate-200 bg-slate-50 text-slate-700 flex items-start gap-3">
+                                <AlertCircle className="h-5 w-5 text-slate-500 shrink-0 mt-0.5" />
+                                <div>
+                                    <div className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                                        Awaiting Target Product Selection
+                                    </div>
+                                    <p className="text-xs mt-0.5 text-slate-600">
+                                        Please select a compatible retail product and packaging variant in Step 2 to simulate the transformation run.
+                                    </p>
                                 </div>
-                                <p className="text-xs mt-0.5">
-                                    {calculation.isSufficient
-                                        ? `Lot ${selectedLot?.lotNumber || ""} has sufficient balance to fulfill this run.`
-                                        : `Shortfall of ${calculation.deficit.toFixed(2)} ${
-                                              selectedMaterial?.unit || ""
-                                          }. Please reduce quantity or select another lot.`}
-                                </p>
                             </div>
-                        </div>
+                        ) : !compatibility.isCompatible ? (
+                            <div className="rounded-lg p-4 border border-rose-200 bg-rose-50 text-rose-900 flex items-start gap-3">
+                                <AlertCircle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+                                <div>
+                                    <div className="text-xs font-bold uppercase tracking-wider text-rose-800">
+                                        Incompatible Product / Material
+                                    </div>
+                                    <p className="text-xs mt-0.5 text-rose-700">
+                                        {compatibility.reason}
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div
+                                className={`rounded-lg p-4 border flex items-start gap-3 ${
+                                    calculation.isSufficient
+                                        ? "bg-emerald-50/70 border-emerald-200 text-emerald-900"
+                                        : "bg-rose-50/70 border-rose-200 text-rose-900"
+                                }`}
+                            >
+                                {calculation.isSufficient ? (
+                                    <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+                                ) : (
+                                    <AlertCircle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+                                )}
+                                <div>
+                                    <div className="text-xs font-bold uppercase tracking-wider">
+                                        {calculation.isSufficient
+                                            ? "Sufficient Bulk Lot Stock"
+                                            : "Lot Deficit Detected"}
+                                    </div>
+                                    <p className="text-xs mt-0.5">
+                                        {calculation.isSufficient
+                                            ? `Lot ${selectedLot?.lotNumber || ""} has sufficient balance to fulfill this run.`
+                                            : `Shortfall of ${calculation.deficit.toFixed(2)} ${
+                                                  selectedMaterial?.unit || ""
+                                              }. Please reduce quantity or select another lot.`}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Breakdown Metrics */}
                         <div className="mt-5 space-y-3.5 divide-y divide-gray-100 text-xs">
@@ -820,9 +1065,12 @@ export default function NewRepackagingRunPage() {
                                 type="submit"
                                 disabled={
                                     submitting ||
-                                    !calculation.isSufficient ||
+                                    !selectedMaterialId ||
                                     !selectedLotId ||
-                                    !selectedVariantId
+                                    !selectedProductId ||
+                                    !selectedVariantId ||
+                                    !compatibility.isCompatible ||
+                                    !calculation.isSufficient
                                 }
                                 className="w-full flex items-center justify-center gap-2 py-2.5 font-semibold text-sm shadow"
                             >

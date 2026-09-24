@@ -21,6 +21,15 @@ export type OrderFulfillmentStatus =
     | "DELIVERED"
     | "RETURNED";
 
+export interface AllocatedLotReference {
+    lotId: string;
+    lotNumber: string;
+    packagingRunId?: string | undefined;
+    warehouseId: string;
+    quantity: number;
+    allocatedAt: string;
+}
+
 export interface OrderItemSnapshot {
     productId: string;
     variantId: string;
@@ -31,6 +40,7 @@ export interface OrderItemSnapshot {
     currency: string;
     unitPriceMinor: number;
     lineTotalMinor: number;
+    allocatedLots?: AllocatedLotReference[] | undefined;
 }
 
 export interface OrderPricingSnapshot {
@@ -79,9 +89,16 @@ export interface OrderResponse {
 
 export interface UpdateFulfillmentInput {
     fulfillmentStatus: OrderFulfillmentStatus;
-    carrier?: string;
-    trackingNumber?: string;
+    carrier?: string | undefined;
+    trackingNumber?: string | undefined;
     expectedVersion: number;
+    fulfillmentWarehouseId?: string | undefined;
+    itemLotOverrides?: Array<{
+        variantId: string;
+        lotId: string;
+        lotNumber: string;
+        quantity: number;
+    }> | undefined;
 }
 
 export interface CancelOrderInput {

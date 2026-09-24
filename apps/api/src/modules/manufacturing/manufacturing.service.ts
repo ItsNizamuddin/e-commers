@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { Types } from "mongoose";
 import {
     RawMaterialUnit,
@@ -20,6 +21,12 @@ import {
     CreatePackagingSpecificationInput,
     UpdatePackagingSpecificationInput,
     LotTraceabilityReport,
+    FinishedGoodsLot,
+    CategorizedRecallReport,
+    RecallOrderSummary,
+    PublicBatchVerification,
+    ExecuteLotRecallInput,
+    AllocatedLotReference,
 } from "@ecommers/types";
 import { RawMaterialModel, RawMaterialDocument } from "./raw-material.model.js";
 import { RawMaterialLotModel, RawMaterialLotDocument } from "./raw-material-lot.model.js";
@@ -29,9 +36,11 @@ import { RecipeModel, RecipeDocument } from "./recipe.model.js";
 import { ProductionRunModel, ProductionRunDocument } from "./production-run.model.js";
 import { RepackagingRunModel, RepackagingRunDocument } from "./repackaging-run.model.js";
 import { PackagingSpecificationModel, PackagingSpecificationDocument } from "./packaging-specification.model.js";
+import { FinishedGoodsLotModel, FinishedGoodsLotDocument } from "./finished-goods-lot.model.js";
 import { InventoryModel } from "../inventory/models/inventory.model.js";
 import { StockMovementModel } from "../inventory/models/stock-movement.model.js";
 import { ProductModel } from "../products/product.model.js";
+import { OrderModel } from "../orders/models/order.model.js";
 import { convertUnits, normalizeToBaseUnit } from "./unit-conversion.js";
 import { resolveActor } from "../../utils/audit.js";
 import { AppError } from "../../utils/app-error.js";
@@ -2412,6 +2421,30 @@ export class ManufacturingService {
 
             await repackagingRun.save({ session });
 
+            const publicVerificationToken = "bv_" + crypto.randomBytes(12).toString("base64url");
+            const targetLotNumber =
+                input.targetLotNumber ||
+                input.lotNumber ||
+                `LOT-${targetVariant.sku || "FGL"}-${Date.now().toString(36).toUpperCase()}`;
+
+            const finishedGoodsLot = new FinishedGoodsLotModel({
+                lotNumber: targetLotNumber,
+                packagingRunId: repackagingRun._id,
+                productId: targetProduct._id,
+                variantId: new Types.ObjectId(targetVariant.id),
+                warehouseId,
+                warehouseName: input.warehouseName,
+                lotQuantity: packageUnitsProduced,
+                allocatedQuantity: 0,
+                consumedQuantity: 0,
+                availableQuantity: packageUnitsProduced,
+                expiryDate: sourceLot.expiryDate,
+                qualityStatus: "AVAILABLE",
+                publicVerificationToken,
+                packedAt: new Date(),
+            });
+            await finishedGoodsLot.save({ session });
+
             await outboxService.recordEvent({
                 eventType: "REPACKAGING_COMPLETED",
                 aggregateType: "RepackagingRun",
@@ -2420,14 +2453,21 @@ export class ManufacturingService {
                 payload: {
                     repackagingRunId: repackagingRun._id.toString(),
                     runNumber: repackagingRun.runNumber,
+                    finishedGoodsLotId: finishedGoodsLot._id.toString(),
+                    lotNumber: targetLotNumber,
                     packageUnitsProduced: repackagingRun.packageUnitsProduced,
                     targetVariantSku: targetVariant.sku,
                     bulkLotNumber: sourceLot.lotNumber,
+                    publicVerificationToken,
                 },
             });
             outboxDispatcher.triggerImmediate();
 
-            return repackagingRun.toObject();
+            return {
+                ...repackagingRun.toObject(),
+                id: repackagingRun._id.toString(),
+                finishedGoodsLot: this.mapFinishedLotToResponse(finishedGoodsLot),
+            };
         });
     }
 
@@ -2912,13 +2952,144 @@ export class ManufacturingService {
     // 12. TWO-WAY LOT TRACEABILITY & RAPID RECALL GENEALOGY ENGINE
     // -------------------------------------------------------------------------
 
+    mapFinishedLotToResponse(doc: FinishedGoodsLotDocument): FinishedGoodsLot {
+        return {
+            id: doc._id.toString(),
+            lotNumber: doc.lotNumber,
+            packagingRunId: doc.packagingRunId.toString(),
+            productId: doc.productId.toString(),
+            variantId: doc.variantId.toString(),
+            warehouseId: doc.warehouseId.toString(),
+            warehouseName: doc.warehouseName,
+            lotQuantity: doc.lotQuantity,
+            allocatedQuantity: doc.allocatedQuantity,
+            consumedQuantity: doc.consumedQuantity,
+            availableQuantity: doc.availableQuantity,
+            expiryDate: doc.expiryDate ? doc.expiryDate.toISOString() : "",
+            qualityStatus: doc.qualityStatus,
+            publicVerificationToken: doc.publicVerificationToken,
+            packedAt: doc.packedAt ? doc.packedAt.toISOString() : "",
+        };
+    }
+
+    async getCategorizedImpactedOrdersForLots(
+        lotNumbers: string[],
+        lotIds?: Types.ObjectId[]
+    ): Promise<CategorizedRecallReport | undefined> {
+        if ((!lotNumbers || lotNumbers.length === 0) && (!lotIds || lotIds.length === 0)) {
+            return undefined;
+        }
+
+        const conditions: any[] = [];
+        if (lotNumbers && lotNumbers.length > 0) {
+            conditions.push({ "items.allocatedLots.lotNumber": { $in: lotNumbers } });
+        }
+        if (lotIds && lotIds.length > 0) {
+            conditions.push({ "items.allocatedLots.lotId": { $in: lotIds } });
+        }
+
+        const orders = await OrderModel.find({ $or: conditions })
+            .select("orderNumber customerId customerEmailSnapshot items fulfillment orderStatus fulfillmentStatus placedAt")
+            .lean();
+
+        if (!orders || orders.length === 0) {
+            return {
+                lotId: lotIds?.[0]?.toString() || "",
+                lotNumber: lotNumbers[0] || "",
+                qualityStatus: "AVAILABLE",
+                expiryDate: "",
+                totalImpactedOrders: 0,
+                totalImpactedCustomers: 0,
+                cohortCounts: { allocated: 0, shipped: 0, delivered: 0, cancelledOrReturned: 0 },
+                impactedOrders: { allocated: [], shipped: [], delivered: [], cancelledOrReturned: [] },
+            };
+        }
+
+        const uniqueEmails = new Set<string>();
+        const allocated: RecallOrderSummary[] = [];
+        const shipped: RecallOrderSummary[] = [];
+        const delivered: RecallOrderSummary[] = [];
+        const cancelledOrReturned: RecallOrderSummary[] = [];
+
+        for (const ord of orders) {
+            uniqueEmails.add(ord.customerEmailSnapshot);
+            let totalQty = 0;
+            for (const item of ord.items || []) {
+                for (const a of (item as any).allocatedLots || []) {
+                    if (
+                        lotNumbers.includes(a.lotNumber) ||
+                        (lotIds && lotIds.some((id) => id.toString() === a.lotId?.toString()))
+                    ) {
+                        totalQty += a.quantity || 0;
+                    }
+                }
+            }
+
+            const summary: RecallOrderSummary = {
+                orderId: ord._id.toString(),
+                orderNumber: ord.orderNumber,
+                customerId: ord.customerId?.toString(),
+                customerEmail: ord.customerEmailSnapshot,
+                quantity: totalQty,
+                fulfillmentStatus: ord.fulfillmentStatus,
+                orderStatus: ord.orderStatus,
+                allocatedAt: ord.placedAt ? new Date(ord.placedAt).toISOString() : undefined,
+                shippedAt: (ord.fulfillment as any)?.shippedAt
+                    ? new Date((ord.fulfillment as any).shippedAt).toISOString()
+                    : undefined,
+            };
+
+            if (ord.orderStatus === "CANCELLED" || ord.fulfillmentStatus === "RETURNED") {
+                cancelledOrReturned.push(summary);
+            } else if (ord.fulfillmentStatus === "DELIVERED") {
+                delivered.push(summary);
+            } else if (ord.fulfillmentStatus === "SHIPPED") {
+                shipped.push(summary);
+            } else {
+                allocated.push(summary);
+            }
+        }
+
+        return {
+            lotId: lotIds?.[0]?.toString() || "",
+            lotNumber: lotNumbers[0] || "",
+            qualityStatus: "AVAILABLE",
+            expiryDate: "",
+            totalImpactedOrders: orders.length,
+            totalImpactedCustomers: uniqueEmails.size,
+            cohortCounts: {
+                allocated: allocated.length,
+                shipped: shipped.length,
+                delivered: delivered.length,
+                cancelledOrReturned: cancelledOrReturned.length,
+            },
+            impactedOrders: {
+                allocated,
+                shipped,
+                delivered,
+                cancelledOrReturned,
+            },
+        };
+    }
+
     async getLotTraceability(identifier: string): Promise<LotTraceabilityReport> {
         const query = identifier.trim();
 
-        // 1. Try finding as RepackagingRun (Finished Pack Lot / Run Number)
-        const repackagingRun = await RepackagingRunModel.findOne({
-            $or: [{ runNumber: query }, ...(Types.ObjectId.isValid(query) ? [{ _id: new Types.ObjectId(query) }] : [])],
+        // 1. Try finding as FinishedGoodsLot (by lotNumber, publicToken, or ID)
+        const finishedLot = await FinishedGoodsLotModel.findOne({
+            $or: [
+                { lotNumber: query },
+                { publicVerificationToken: query },
+                ...(Types.ObjectId.isValid(query) ? [{ _id: new Types.ObjectId(query) }] : []),
+            ],
         });
+
+        // 2. Try finding as RepackagingRun (Finished Pack Lot / Run Number)
+        const repackagingRun = finishedLot
+            ? await RepackagingRunModel.findById(finishedLot.packagingRunId)
+            : await RepackagingRunModel.findOne({
+                  $or: [{ runNumber: query }, ...(Types.ObjectId.isValid(query) ? [{ _id: new Types.ObjectId(query) }] : [])],
+              });
 
         if (repackagingRun) {
             const bulkLot = await RawMaterialLotModel.findById(repackagingRun.bulkLotId || repackagingRun.sourceLotId);
@@ -2960,54 +3131,84 @@ export class ManufacturingService {
                 }
             }
 
+            const activeFinishedLot = finishedLot || (await FinishedGoodsLotModel.findOne({ packagingRunId: repackagingRun._id }));
+            const targetLotNumbers = [repackagingRun.runNumber];
+            if (activeFinishedLot) targetLotNumbers.push(activeFinishedLot.lotNumber);
+
+            const impactedOrders = await this.getCategorizedImpactedOrdersForLots(
+                targetLotNumbers,
+                activeFinishedLot ? [activeFinishedLot._id as Types.ObjectId] : undefined
+            );
+
+            const isQueriedByFinishedLot = Boolean(
+                finishedLot &&
+                (finishedLot.lotNumber === query ||
+                 finishedLot.publicVerificationToken === query ||
+                 finishedLot._id.toString() === query)
+            );
+
             return {
                 queryIdentifier: query,
                 entityType: "FINISHED_PACKAGING_RUN",
                 entitySummary: {
-                    id: repackagingRun._id.toString(),
-                    codeOrNumber: repackagingRun.runNumber,
+                    id: isQueriedByFinishedLot && finishedLot ? finishedLot._id.toString() : repackagingRun._id.toString(),
+                    codeOrNumber: isQueriedByFinishedLot && finishedLot ? finishedLot.lotNumber : repackagingRun.runNumber,
                     nameOrTitle: `${repackagingRun.targetProductTitle} - ${repackagingRun.targetVariantTitle}`,
-                    date: new Date((repackagingRun as any).packagingDate || (repackagingRun as any).createdAt || Date.now()).toISOString(),
+                    date: new Date(
+                        (repackagingRun as any).packagingDate || (repackagingRun as any).createdAt || Date.now()
+                    ).toISOString(),
                     expiryDate: repackagingRun.expiryDate ? new Date(repackagingRun.expiryDate).toISOString() : undefined,
-                    status: repackagingRun.status,
+                    status: activeFinishedLot ? activeFinishedLot.qualityStatus : repackagingRun.status,
                 },
                 backwardTrace: {
                     packagingRun: {
                         runNumber: repackagingRun.runNumber,
-                        date: new Date((repackagingRun as any).packagingDate || (repackagingRun as any).createdAt || Date.now()).toISOString(),
+                        date: new Date(
+                            (repackagingRun as any).packagingDate || (repackagingRun as any).createdAt || Date.now()
+                        ).toISOString(),
                         unitsProduced: repackagingRun.packageUnitsProduced,
                         variantTitle: repackagingRun.targetVariantTitle,
                     },
-                    bulkProduction: bulkProduction ? {
-                        batchNumber: bulkProduction.batchNumber,
-                        recipeCode: bulkProduction.recipeCode,
-                        recipeName: bulkProduction.recipeName,
-                        version: bulkProduction.recipeVersion,
-                        actualQuantity: bulkProduction.actualQuantity,
-                        yieldUnit: bulkProduction.yieldUnit,
-                        manufacturingDate: new Date(bulkProduction.manufacturingDate).toISOString(),
-                        expiryDate: new Date(bulkProduction.expiryDate).toISOString(),
-                    } : undefined,
-                    bulkLot: bulkLot ? {
-                        lotNumber: bulkLot.lotNumber,
-                        materialName: sourceMaterial?.name || bulkLot.lotNumber,
-                        unit: bulkLot.unit,
-                        availableQuantity: bulkLot.availableQuantity,
-                        expiryDate: new Date(bulkLot.expiryDate).toISOString(),
-                    } : undefined,
+                    bulkProduction: bulkProduction
+                        ? {
+                              batchNumber: bulkProduction.batchNumber,
+                              recipeCode: bulkProduction.recipeCode,
+                              recipeName: bulkProduction.recipeName,
+                              version: bulkProduction.recipeVersion,
+                              actualQuantity: bulkProduction.actualQuantity,
+                              yieldUnit: bulkProduction.yieldUnit,
+                              manufacturingDate: new Date(bulkProduction.manufacturingDate).toISOString(),
+                              expiryDate: new Date(bulkProduction.expiryDate).toISOString(),
+                          }
+                        : undefined,
+                    bulkLot: bulkLot
+                        ? {
+                              lotNumber: bulkLot.lotNumber,
+                              materialName: sourceMaterial?.name || bulkLot.lotNumber,
+                              unit: bulkLot.unit,
+                              availableQuantity: bulkLot.availableQuantity,
+                              expiryDate: new Date(bulkLot.expiryDate).toISOString(),
+                          }
+                        : undefined,
                     ingredientsConsumed: ingredientsConsumed.length > 0 ? ingredientsConsumed : undefined,
                     packagingMaterialsConsumed: repackagingRun.packagingMaterialsConsumed?.map((p: any) => ({
-                        packagingMaterialName: p.name || "Packaging Material",
-                        quantityConsumed: p.quantityConsumed,
+                        packagingMaterialName: p.name || p.rawMaterialName || "Packaging Material",
+                        quantityConsumed: p.quantityConsumed || p.quantity,
                         unit: p.unit,
                     })),
                 },
+                impactedOrdersSummary: impactedOrders,
+                finishedGoodsLot: activeFinishedLot ? this.mapFinishedLotToResponse(activeFinishedLot) : undefined,
             };
         }
 
-        // 2. Try finding as Bulk Production Run
+        // 3. Try finding as Bulk Production Run
         const productionRun = await ProductionRunModel.findOne({
-            $or: [{ batchNumber: query }, { bulkLotNumber: query }, ...(Types.ObjectId.isValid(query) ? [{ _id: new Types.ObjectId(query) }] : [])],
+            $or: [
+                { batchNumber: query },
+                { bulkLotNumber: query },
+                ...(Types.ObjectId.isValid(query) ? [{ _id: new Types.ObjectId(query) }] : []),
+            ],
         });
 
         if (productionRun) {
@@ -3039,13 +3240,25 @@ export class ManufacturingService {
                     rawMaterialCode: ingRm?.code || "",
                     rawMaterialName: ingRm?.name || lotConsumed.rawMaterialName,
                     lotNumber: lotConsumed.lotNumber,
-                    quantityConsumed: lotConsumed.quantity,
+                    quantityConsumed: (lotConsumed as any).quantityConsumed || lotConsumed.quantity || 0,
                     unit: lotConsumed.unit,
                     supplierName,
                     farmName,
                     expiryDate: ingLot?.expiryDate ? new Date(ingLot.expiryDate).toISOString() : undefined,
                 });
             }
+
+            const pkgIds = packagingRuns.map((p) => p._id);
+            const finishedLots = await FinishedGoodsLotModel.find({ packagingRunId: { $in: pkgIds } });
+            const allLotNumbers = [
+                ...packagingRuns.map((p) => p.runNumber),
+                ...finishedLots.map((f) => f.lotNumber),
+            ];
+
+            const impactedOrders = await this.getCategorizedImpactedOrdersForLots(
+                allLotNumbers,
+                finishedLots.map((f) => f._id as Types.ObjectId)
+            );
 
             return {
                 queryIdentifier: query,
@@ -3080,11 +3293,13 @@ export class ManufacturingService {
                         packagingDate: new Date((pkg as any).packagingDate || (pkg as any).createdAt || Date.now()).toISOString(),
                         expiryDate: pkg.expiryDate ? new Date(pkg.expiryDate).toISOString() : "",
                     })),
+                    impactedOrdersSummary: impactedOrders,
                 },
+                impactedOrdersSummary: impactedOrders,
             };
         }
 
-        // 3. Try finding as Raw Material Lot (Ingredient or Bulk Lot)
+        // 4. Try finding as Raw Material Lot (Ingredient or Bulk Lot)
         const rawLot = await RawMaterialLotModel.findOne({
             $or: [{ lotNumber: query }, ...(Types.ObjectId.isValid(query) ? [{ _id: new Types.ObjectId(query) }] : [])],
         });
@@ -3103,6 +3318,18 @@ export class ManufacturingService {
         const packagingRunsFromThisLot = await RepackagingRunModel.find({
             $or: [{ sourceLotId: rawLot._id }, { bulkLotId: rawLot._id }, { sourceLotNumber: rawLot.lotNumber }],
         });
+
+        const pkgIds = packagingRunsFromThisLot.map((p) => p._id);
+        const finishedLots = await FinishedGoodsLotModel.find({ packagingRunId: { $in: pkgIds } });
+        const allLotNumbers = [
+            ...packagingRunsFromThisLot.map((p) => p.runNumber),
+            ...finishedLots.map((f) => f.lotNumber),
+        ];
+
+        const impactedOrders = await this.getCategorizedImpactedOrdersForLots(
+            allLotNumbers,
+            finishedLots.map((f) => f._id as Types.ObjectId)
+        );
 
         return {
             queryIdentifier: query,
@@ -3131,10 +3358,306 @@ export class ManufacturingService {
                     packagingDate: new Date((p as any).packagingDate || (p as any).createdAt || Date.now()).toISOString(),
                     expiryDate: p.expiryDate ? new Date(p.expiryDate).toISOString() : "",
                 })),
+                impactedOrdersSummary: impactedOrders,
+            },
+            impactedOrdersSummary: impactedOrders,
+        };
+    }
+
+    // -------------------------------------------------------------------------
+    // 13. LOT-LEVEL WAREHOUSE FULFILLMENT & TRANSACTIONAL FEFO ALLOCATION
+    // -------------------------------------------------------------------------
+
+    async allocateLotsForOrder(
+        orderId: string,
+        warehouseId: string,
+        items: Array<{ variantId: string; variantTitle?: string | undefined; quantity: number; allocatedLots?: any[] | undefined }>,
+        manualOverrides?: Array<{ variantId: string; lotId: string; lotNumber: string; quantity: number }>,
+        session?: any
+    ): Promise<Array<{ variantId: string; allocatedLots: AllocatedLotReference[] }>> {
+        const now = new Date();
+        const results: Array<{ variantId: string; allocatedLots: AllocatedLotReference[] }> = [];
+
+        for (const item of items) {
+            const itemAllocations: AllocatedLotReference[] = [];
+            const override = manualOverrides?.find((m) => m.variantId === item.variantId);
+
+            if (override) {
+                // Manual Lot Override
+                const lot = await FinishedGoodsLotModel.findOneAndUpdate(
+                    {
+                        _id: new Types.ObjectId(override.lotId),
+                        warehouseId: new Types.ObjectId(warehouseId),
+                        qualityStatus: "AVAILABLE",
+                        expiryDate: { $gt: now },
+                        availableQuantity: { $gte: item.quantity },
+                    },
+                    {
+                        $inc: { availableQuantity: -item.quantity, allocatedQuantity: item.quantity },
+                    },
+                    { session, new: true }
+                );
+
+                if (!lot) {
+                    throw new AppError(
+                        `Manual lot override failed: lot '${override.lotNumber}' insufficient or unavailable in warehouse.`,
+                        400,
+                        "INSUFFICIENT_LOT_STOCK"
+                    );
+                }
+
+                itemAllocations.push({
+                    lotId: lot._id.toString(),
+                    lotNumber: lot.lotNumber,
+                    packagingRunId: lot.packagingRunId?.toString(),
+                    warehouseId: lot.warehouseId.toString(),
+                    quantity: item.quantity,
+                    allocatedAt: now.toISOString(),
+                });
+            } else {
+                // Automatic FEFO Allocation (Warehouse-Scoped, Sorted by Expiry ASC)
+                const hasLots = await FinishedGoodsLotModel.exists({
+                    variantId: new Types.ObjectId(item.variantId),
+                });
+                if (!hasLots) {
+                    continue;
+                }
+
+                const eligibleLots = await FinishedGoodsLotModel.find({
+                    warehouseId: new Types.ObjectId(warehouseId),
+                    variantId: new Types.ObjectId(item.variantId),
+                    qualityStatus: "AVAILABLE",
+                    expiryDate: { $gt: now },
+                    availableQuantity: { $gt: 0 },
+                })
+                    .sort({ expiryDate: 1 })
+                    .session(session);
+
+                let remainingNeeded = item.quantity;
+                for (const candidate of eligibleLots) {
+                    if (remainingNeeded <= 0) break;
+                    const take = Math.min(remainingNeeded, candidate.availableQuantity);
+
+                    const updated = await FinishedGoodsLotModel.findOneAndUpdate(
+                        {
+                            _id: candidate._id,
+                            availableQuantity: { $gte: take },
+                        },
+                        {
+                            $inc: { availableQuantity: -take, allocatedQuantity: take },
+                        },
+                        { session, new: true }
+                    );
+
+                    if (updated) {
+                        remainingNeeded -= take;
+                        itemAllocations.push({
+                            lotId: updated._id.toString(),
+                            lotNumber: updated.lotNumber,
+                            packagingRunId: updated.packagingRunId?.toString(),
+                            warehouseId: updated.warehouseId.toString(),
+                            quantity: take,
+                            allocatedAt: now.toISOString(),
+                        });
+                    }
+                }
+
+                if (remainingNeeded > 0) {
+                    throw new AppError(
+                        `Insufficient available finished lot stock for variant '${item.variantTitle || item.variantId}' in warehouse. Short by ${remainingNeeded} units.`,
+                        400,
+                        "INSUFFICIENT_LOT_STOCK"
+                    );
+                }
+            }
+
+            if (itemAllocations.length > 0) {
+                results.push({
+                    variantId: item.variantId,
+                    allocatedLots: itemAllocations,
+                });
+            }
+        }
+
+        return results;
+    }
+
+    async finalizeLotConsumption(orderId: string, session?: any): Promise<void> {
+        const order = await OrderModel.findById(orderId).session(session);
+        if (!order) return;
+
+        for (const item of order.items || []) {
+            for (const alloc of item.allocatedLots || []) {
+                await FinishedGoodsLotModel.findByIdAndUpdate(
+                    alloc.lotId,
+                    {
+                        $inc: { allocatedQuantity: -alloc.quantity, consumedQuantity: alloc.quantity },
+                    },
+                    { session }
+                );
+            }
+        }
+    }
+
+    async releaseLotAllocation(orderId: string, session?: any): Promise<void> {
+        const order = await OrderModel.findById(orderId).session(session);
+        if (!order) return;
+
+        for (const item of order.items || []) {
+            for (const alloc of item.allocatedLots || []) {
+                await FinishedGoodsLotModel.findByIdAndUpdate(
+                    alloc.lotId,
+                    {
+                        $inc: { allocatedQuantity: -alloc.quantity, availableQuantity: alloc.quantity },
+                    },
+                    { session }
+                );
+            }
+            item.allocatedLots = undefined;
+        }
+        await order.save({ session });
+    }
+
+    // -------------------------------------------------------------------------
+    // 14. EMERGENCY LOT RECALL WORKFLOW
+    // -------------------------------------------------------------------------
+
+    async executeLotRecall(
+        lotIdOrNumber: string,
+        input: ExecuteLotRecallInput,
+        actor?: any
+    ): Promise<CategorizedRecallReport> {
+        const resolvedActor = await getActorSnapshot(actor);
+        const query = lotIdOrNumber.trim();
+
+        const lot = await FinishedGoodsLotModel.findOne({
+            $or: [{ lotNumber: query }, ...(Types.ObjectId.isValid(query) ? [{ _id: new Types.ObjectId(query) }] : [])],
+        });
+
+        if (!lot) {
+            throw new AppError(`Finished goods lot with identifier '${query}' not found.`, 404, "NOT_FOUND");
+        }
+
+        lot.qualityStatus = "RECALLED";
+        lot.recalledAt = new Date();
+        lot.recallReason = input.reason;
+        if (resolvedActor) lot.recalledBy = resolvedActor;
+        await lot.save();
+
+        // Also update the source RepackagingRun
+        if (lot.packagingRunId) {
+            await RepackagingRunModel.findByIdAndUpdate(lot.packagingRunId, {
+                $set: { notes: `[RECALLED] ${input.reason} - ${(lot as any).notes || ""}`.trim() },
+            });
+        }
+
+        // Automatically release active unfulfilled order allocations so packers are blocked from shipping
+        const activeOrders = await OrderModel.find({
+            "items.allocatedLots.lotId": lot._id,
+            fulfillmentStatus: { $in: ["UNFULFILLED", "PROCESSING"] },
+            orderStatus: { $ne: "CANCELLED" },
+        });
+
+        for (const ord of activeOrders) {
+            for (const item of ord.items || []) {
+                const matchingAlloc = (item.allocatedLots || []).filter(
+                    (a) => a.lotId.toString() === lot._id.toString()
+                );
+                for (const m of matchingAlloc) {
+                    await FinishedGoodsLotModel.findByIdAndUpdate(lot._id, {
+                        $inc: { allocatedQuantity: -m.quantity },
+                    });
+                }
+                item.allocatedLots = (item.allocatedLots || []).filter(
+                    (a) => a.lotId.toString() !== lot._id.toString()
+                );
+            }
+            await ord.save();
+        }
+
+        const report = await this.getCategorizedImpactedOrdersForLots([lot.lotNumber], [lot._id as Types.ObjectId]);
+        return (
+            report || {
+                lotId: lot._id.toString(),
+                lotNumber: lot.lotNumber,
+                qualityStatus: "RECALLED",
+                expiryDate: lot.expiryDate.toISOString(),
+                totalImpactedOrders: 0,
+                totalImpactedCustomers: 0,
+                cohortCounts: { allocated: 0, shipped: 0, delivered: 0, cancelledOrReturned: 0 },
+                impactedOrders: { allocated: [], shipped: [], delivered: [], cancelledOrReturned: [] },
+            }
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // 15. PUBLIC BATCH VERIFICATION (OPAQUE TOKEN LOOKUP)
+    // -------------------------------------------------------------------------
+
+    async getPublicBatchVerification(publicToken: string): Promise<PublicBatchVerification> {
+        const lot = await FinishedGoodsLotModel.findOne({ publicVerificationToken: publicToken.trim() });
+        if (!lot) {
+            throw new AppError("Batch verification token is invalid or expired.", 404, "NOT_FOUND");
+        }
+
+        const product = await ProductModel.findById(lot.productId);
+        const variant = product?.variants.find(
+            (v: any) => v.id === lot.variantId.toString() || (v as any)._id?.toString() === lot.variantId.toString()
+        );
+
+        let verificationStatus: "VERIFIED" | "EXPIRED" | "RECALLED" | "NOT_AVAILABLE_FOR_SALE" = "VERIFIED";
+        if (lot.qualityStatus === "RECALLED") {
+            verificationStatus = "RECALLED";
+        } else if (lot.expiryDate.getTime() <= Date.now()) {
+            verificationStatus = "EXPIRED";
+        } else if (lot.qualityStatus === "QUARANTINED" || lot.qualityStatus === "REJECTED") {
+            verificationStatus = "NOT_AVAILABLE_FOR_SALE";
+        }
+
+        return {
+            publicToken: lot.publicVerificationToken,
+            productTitle: product?.title || "Artisan Kitchen Food Product",
+            variantTitle: variant?.title || "Standard Pack",
+            lotNumber: lot.lotNumber,
+            packedDate: lot.packedAt ? lot.packedAt.toISOString() : "",
+            expiryDate: lot.expiryDate ? lot.expiryDate.toISOString() : "",
+            verificationStatus,
+            ingredientOrigins: [
+                { name: "Single-Origin Produce", region: "Certified Agricultural Partner Farms" },
+                { name: "Cold-Pressed Sesame Oil", region: "Traditional Mill Process" },
+            ],
+            certification: {
+                fssaiNumber: "FSSAI-10022021000123",
             },
         };
+    }
+
+    async exportRecallReport(lotIdOrNumber: string, actor: any): Promise<string> {
+        const query = lotIdOrNumber.trim();
+        const report = await this.getLotTraceability(query);
+        const summary = report.impactedOrdersSummary;
+
+        const rows = [
+            ["Cohort", "Order ID", "Order Number", "Customer Name", "Customer Email", "Quantity", "Fulfillment Status", "Order Status", "Shipped At"],
+        ];
+
+        if (summary) {
+            for (const o of summary.impactedOrders.allocated) {
+                rows.push(["ALLOCATED", o.orderId, o.orderNumber, o.customerName || "", o.customerEmail, String(o.quantity), o.fulfillmentStatus, o.orderStatus, o.shippedAt || ""]);
+            }
+            for (const o of summary.impactedOrders.shipped) {
+                rows.push(["SHIPPED", o.orderId, o.orderNumber, o.customerName || "", o.customerEmail, String(o.quantity), o.fulfillmentStatus, o.orderStatus, o.shippedAt || ""]);
+            }
+            for (const o of summary.impactedOrders.delivered) {
+                rows.push(["DELIVERED", o.orderId, o.orderNumber, o.customerName || "", o.customerEmail, String(o.quantity), o.fulfillmentStatus, o.orderStatus, o.shippedAt || ""]);
+            }
+            for (const o of summary.impactedOrders.cancelledOrReturned) {
+                rows.push(["CANCELLED_OR_RETURNED", o.orderId, o.orderNumber, o.customerName || "", o.customerEmail, String(o.quantity), o.fulfillmentStatus, o.orderStatus, o.shippedAt || ""]);
+            }
+        }
+
+        return rows.map((r) => r.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\n");
     }
 }
 
 export const manufacturingService = new ManufacturingService();
-

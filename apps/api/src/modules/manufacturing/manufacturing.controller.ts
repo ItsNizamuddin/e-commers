@@ -358,6 +358,35 @@ export class ManufacturingController {
         const report = await manufacturingService.getLotTraceability(identifier as string);
         res.json({ success: true, data: report });
     }
+
+    async executeLotRecall(req: Request, res: Response) {
+        const { lotId } = req.params;
+        const actor = await resolveActor((req as any).user?.id);
+        const report = await manufacturingService.executeLotRecall(
+            lotId as string,
+            req.body,
+            actor
+        );
+        res.json({ success: true, data: report });
+    }
+
+    async exportRecallReport(req: Request, res: Response) {
+        const { identifier } = req.params;
+        const actor = await resolveActor((req as any).user?.id);
+        const csv = await manufacturingService.exportRecallReport(identifier as string, actor);
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="recall-report-${identifier}-${Date.now()}.csv"`
+        );
+        res.send(csv);
+    }
+
+    async getPublicBatchVerification(req: Request, res: Response) {
+        const { publicToken } = req.params;
+        const data = await manufacturingService.getPublicBatchVerification(publicToken as string);
+        res.json({ success: true, data });
+    }
 }
 
 export const manufacturingController = new ManufacturingController();

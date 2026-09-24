@@ -694,7 +694,10 @@ export interface LotTraceabilityReport {
             warehouseId: string;
             onHand: number;
         }> | undefined;
+        impactedOrdersSummary?: CategorizedRecallReport | undefined;
     } | undefined;
+    impactedOrdersSummary?: CategorizedRecallReport | undefined;
+    finishedGoodsLot?: FinishedGoodsLot | undefined;
 }
 
 export interface PackagingRunResult {
@@ -707,6 +710,83 @@ export interface PackagingRunResult {
     targetProductId: string;
     targetVariantId: string;
     inventoryOnHand: number;
+    finishedGoodsLot?: FinishedGoodsLot | undefined;
+}
+
+export type LotQualityStatus = "AVAILABLE" | "QUARANTINED" | "REJECTED" | "RECALLED";
+
+export interface FinishedGoodsLot {
+    id: string;
+    lotNumber: string;
+    packagingRunId: string;
+    productId: string;
+    variantId: string;
+    warehouseId: string;
+    warehouseName?: string | undefined;
+    lotQuantity: number;
+    allocatedQuantity: number;
+    consumedQuantity: number;
+    availableQuantity: number;
+    expiryDate: string;
+    qualityStatus: LotQualityStatus;
+    publicVerificationToken: string;
+    packedAt: string;
+}
+
+export interface RecallOrderSummary {
+    orderId: string;
+    orderNumber: string;
+    customerId?: string | undefined;
+    customerEmail: string;
+    customerName?: string | undefined;
+    quantity: number;
+    fulfillmentStatus: string;
+    orderStatus: string;
+    allocatedAt?: string | undefined;
+    shippedAt?: string | undefined;
+}
+
+export interface CategorizedRecallReport {
+    lotId: string;
+    lotNumber: string;
+    qualityStatus: LotQualityStatus;
+    warehouseId?: string | undefined;
+    warehouseName?: string | undefined;
+    expiryDate: string;
+    totalImpactedOrders: number;
+    totalImpactedCustomers: number;
+    cohortCounts: {
+        allocated: number;
+        shipped: number;
+        delivered: number;
+        cancelledOrReturned: number;
+    };
+    impactedOrders: {
+        allocated: RecallOrderSummary[];
+        shipped: RecallOrderSummary[];
+        delivered: RecallOrderSummary[];
+        cancelledOrReturned: RecallOrderSummary[];
+    };
+}
+
+export interface PublicBatchVerification {
+    publicToken: string;
+    productTitle: string;
+    variantTitle: string;
+    lotNumber: string;
+    packedDate: string;
+    expiryDate: string;
+    verificationStatus: "VERIFIED" | "EXPIRED" | "RECALLED" | "NOT_AVAILABLE_FOR_SALE";
+    ingredientOrigins?: Array<{ name: string; region?: string }> | undefined;
+    certification?: { fssaiNumber?: string } | undefined;
+}
+
+export interface ExecuteLotRecallInput {
+    reason: string;
+    actionRequired?: string | undefined;
+    quarantineInventory?: boolean | undefined;
+    notifyCustomers?: boolean | undefined;
+    notes?: string | undefined;
 }
 
 

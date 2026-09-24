@@ -9,13 +9,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@hookform/resolvers": "^3.10.0",
-    "@reduxjs/toolkit": "^2.6.0",
     "@ecommers/api-client": "workspace:*",
     "@ecommers/types": "workspace:*",
     "@ecommers/ui": "workspace:*",
+    "@hookform/resolvers": "^3.10.0",
+    "@reduxjs/toolkit": "^2.6.0",
     "lucide-react": "^0.475.0",
     "next": "16.3.3",
+    "qrcode": "^1.5.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-hook-form": "^7.54.2",
@@ -25,6 +26,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "postcss": "^8",

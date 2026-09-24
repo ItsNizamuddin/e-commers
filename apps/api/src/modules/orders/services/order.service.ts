@@ -8,10 +8,12 @@ import {
     OrderFulfillmentStatus,
 } from "@ecommers/types";
 import { AppError } from "../../../utils/app-error.js";
+import { DEFAULT_WAREHOUSE_ID } from "../../../database/schemas/warehouse.schema.js";
 import { inventoryRepository, InventoryRepository } from "../../inventory/repositories/inventory.repository.js";
 import { inventoryService, InventoryService } from "../../inventory/services/inventory.service.js";
 import { paymentRepository, PaymentRepository } from "../../payments/repositories/payment.repository.js";
 import { orderRepository, OrderRepository } from "../repositories/order.repository.js";
+import { manufacturingService } from "../../manufacturing/manufacturing.service.js";
 import { OrderDocument } from "../types/order.types.js";
 
 // Strict state transition map for fulfillment
@@ -49,6 +51,14 @@ export class OrderService {
                 currency: i.currency,
                 unitPriceMinor: i.unitPriceMinor,
                 lineTotalMinor: i.lineTotalMinor,
+                allocatedLots: i.allocatedLots?.map((l: any) => ({
+                    lotId: l.lotId.toString(),
+                    lotNumber: l.lotNumber,
+                    packagingRunId: l.packagingRunId ? l.packagingRunId.toString() : undefined,
+                    warehouseId: l.warehouseId.toString(),
+                    quantity: l.quantity,
+                    allocatedAt: l.allocatedAt instanceof Date ? l.allocatedAt.toISOString() : String(l.allocatedAt),
+                })),
             })),
             shippingAddressSnapshot: doc.shippingAddressSnapshot,
             billingAddressSnapshot: doc.billingAddressSnapshot,
@@ -163,12 +173,61 @@ export class OrderService {
                   }
                 : undefined;
 
+        const isFulfilling = ["PROCESSING", "SHIPPED"].includes(input.fulfillmentStatus);
+        const alreadyAllocated = order.items.some(
+            (i) => i.allocatedLots && i.allocatedLots.length > 0
+        );
+
+        let updatedItems: any[] | undefined = undefined;
+
+        if (isFulfilling && !alreadyAllocated) {
+            const warehouseId =
+                input.fulfillmentWarehouseId ||
+                (order as any).warehouseId?.toString() ||
+                DEFAULT_WAREHOUSE_ID.toString();
+
+            const lotAllocations = await manufacturingService.allocateLotsForOrder(
+                orderId,
+                warehouseId,
+                order.items.map((i) => ({
+                    variantId: i.variantId,
+                    variantTitle: i.variantTitle,
+                    quantity: i.quantity,
+                    allocatedLots: i.allocatedLots,
+                })),
+                input.itemLotOverrides
+            );
+
+            if (lotAllocations.length > 0) {
+                updatedItems = order.items.map((item) => {
+                    const alloc = lotAllocations.find((a) => a.variantId === item.variantId);
+                    if (alloc && alloc.allocatedLots.length > 0) {
+                        const rawItem = typeof (item as any).toObject === "function" ? (item as any).toObject() : item;
+                        return {
+                            ...rawItem,
+                            allocatedLots: alloc.allocatedLots.map((l) => ({
+                                lotId: new Types.ObjectId(l.lotId),
+                                lotNumber: l.lotNumber,
+                                packagingRunId: l.packagingRunId ? new Types.ObjectId(l.packagingRunId) : undefined,
+                                warehouseId: new Types.ObjectId(l.warehouseId),
+                                quantity: l.quantity,
+                                allocatedAt: new Date(l.allocatedAt),
+                            })),
+                        };
+                    }
+                    return typeof (item as any).toObject === "function" ? (item as any).toObject() : item;
+                });
+            }
+        }
+
         const updated = await this.repo.updateFulfillmentWithOCC(
             orderId,
             input.expectedVersion,
             input.fulfillmentStatus,
             fulfillmentInfo,
-            actor
+            actor,
+            undefined,
+            updatedItems
         );
 
         if (!updated) {
@@ -181,6 +240,10 @@ export class OrderService {
                 );
             }
             throw new AppError("Failed to update fulfillment", 400, "UPDATE_FAILED");
+        }
+
+        if (input.fulfillmentStatus === "SHIPPED") {
+            await manufacturingService.finalizeLotConsumption(orderId);
         }
 
         return this.mapOrderToResponse(updated);
@@ -217,6 +280,13 @@ export class OrderService {
 
         if (!cancelled) {
             throw new AppError("Failed to cancel order due to version conflict", 409, "OCC_CONFLICT");
+        }
+
+        // Release lot allocations if any were reserved
+        try {
+            await manufacturingService.releaseLotAllocation(orderId);
+        } catch {
+            // Non-blocking catch
         }
 
         // 2. Asynchronous External Refund & Restock Workflow

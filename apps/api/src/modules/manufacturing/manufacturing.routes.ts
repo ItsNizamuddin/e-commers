@@ -21,6 +21,7 @@ import {
     createPackagingSpecificationSchema,
     updatePackagingSpecificationSchema,
     syncPackagingMatrixSchema,
+    executeLotRecallSchema,
 } from "./manufacturing.validation.js";
 
 export const adminManufacturingRouter = Router();
@@ -234,5 +235,23 @@ adminManufacturingRouter.post(
 adminManufacturingRouter.get(
     "/traceability/:identifier",
     manufacturingController.getLotTraceability.bind(manufacturingController)
+);
+adminManufacturingRouter.get(
+    "/traceability/:identifier/export",
+    manufacturingController.exportRecallReport.bind(manufacturingController)
+);
+adminManufacturingRouter.post(
+    ["/lots/:lotId/recall", "/traceability/:lotId/recall"],
+    idempotency(),
+    validate(executeLotRecallSchema, "body"),
+    manufacturingController.executeLotRecall.bind(manufacturingController)
+);
+
+export const publicManufacturingRouter = Router();
+
+// Public Batch Verification via opaque token
+publicManufacturingRouter.get(
+    ["/verify/:publicToken", "/public/verify/:publicToken"],
+    manufacturingController.getPublicBatchVerification.bind(manufacturingController)
 );
 

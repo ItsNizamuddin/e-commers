@@ -6,7 +6,8 @@ import {
     useGetRepackagingRunsQuery,
     useReverseRepackagingRunMutation,
 } from "../../../../store/api";
-import type { RepackagingRun } from "@ecommers/types";
+import type { RepackagingRun, FinishedGoodsLot } from "@ecommers/types";
+import { PrintLabelModal } from "../../../../components/manufacturing/print-label-modal";
 import {
     Card,
     Badge,
@@ -33,6 +34,8 @@ import {
     Sparkles,
     Calendar,
     Tag,
+    ShieldAlert,
+    Printer,
 } from "lucide-react";
 
 export default function RepackagingDashboardPage() {
@@ -59,6 +62,35 @@ export default function RepackagingDashboardPage() {
     const [reversingRun, setReversingRun] = useState<RepackagingRun | null>(null);
     const [reversalReason, setReversalReason] = useState("");
     const [reverseQuantity, setReverseQuantity] = useState("");
+
+    // Modal: Print Labels
+    const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+    const [selectedLotForPrint, setSelectedLotForPrint] = useState<FinishedGoodsLot | null>(null);
+    const [printProductTitle, setPrintProductTitle] = useState("");
+    const [printVariantTitle, setPrintVariantTitle] = useState("");
+
+    const handleOpenPrintForRun = (r: RepackagingRun) => {
+        const lot: FinishedGoodsLot = {
+            id: r.id,
+            lotNumber: r.runNumber,
+            packagingRunId: r.id,
+            productId: r.targetProductId,
+            variantId: r.targetVariantId,
+            warehouseId: (r as any).warehouseId || "",
+            lotQuantity: r.packageUnitsProduced,
+            allocatedQuantity: 0,
+            consumedQuantity: 0,
+            availableQuantity: r.packageUnitsProduced,
+            expiryDate: r.expiryDate ? new Date(r.expiryDate).toISOString() : new Date().toISOString(),
+            qualityStatus: "AVAILABLE",
+            publicVerificationToken: (r as any).publicVerificationToken || `bv_${r.runNumber.replace(/[^a-zA-Z0-9]/g, "")}`,
+            packedAt: (r as any).packagingDate || (r as any).createdAt || new Date().toISOString(),
+        };
+        setSelectedLotForPrint(lot);
+        setPrintProductTitle(r.targetProductTitle);
+        setPrintVariantTitle(`${r.targetVariantTitle} (${r.unitSizeQuantity} ${r.unitSizeUnit})`);
+        setIsPrintModalOpen(true);
+    };
 
     const safeRuns = Array.isArray(runs) ? runs : [];
 
@@ -412,6 +444,17 @@ export default function RepackagingDashboardPage() {
                                                     <Button
                                                         variant="outline"
                                                         size="sm"
+                                                        onClick={() => handleOpenPrintForRun(r)}
+                                                        className="h-7 text-[11px] px-2 text-indigo-600 hover:bg-indigo-50 border-indigo-200"
+                                                        title="Print batch QR labels"
+                                                    >
+                                                        <Printer size={12} className="mr-1" />
+                                                        Print
+                                                    </Button>
+
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
                                                         onClick={() => setViewingRun(r)}
                                                         className="h-7 text-[11px] px-2 text-slate-600"
                                                         title="View run details"
@@ -554,7 +597,28 @@ export default function RepackagingDashboardPage() {
                             </div>
                         )}
 
-                        <div className="flex justify-end pt-2">
+                        <div className="flex flex-wrap justify-between items-center gap-2 pt-2 border-t border-slate-100 dark:border-neutral-800">
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        if (viewingRun) handleOpenPrintForRun(viewingRun);
+                                    }}
+                                    className="h-8 text-xs font-semibold text-indigo-600 border-indigo-200 hover:bg-indigo-50 flex items-center gap-1.5"
+                                >
+                                    <Printer size={13} />
+                                    <span>Print Labels</span>
+                                </Button>
+                                <Link
+                                    href={`/manufacturing/traceability?query=${encodeURIComponent(viewingRun.runNumber)}`}
+                                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                                >
+                                    <ShieldAlert size={14} />
+                                    <span>Trace Lot Genealogy & Recall →</span>
+                                </Link>
+                            </div>
                             <Button variant="outline" size="sm" onClick={() => setViewingRun(null)}>
                                 Close
                             </Button>
@@ -630,6 +694,18 @@ export default function RepackagingDashboardPage() {
                     </form>
                 )}
             </Modal>
+
+            {/* Print Batch Verification Labels Modal */}
+            <PrintLabelModal
+                isOpen={isPrintModalOpen}
+                onClose={() => {
+                    setIsPrintModalOpen(false);
+                    setSelectedLotForPrint(null);
+                }}
+                lot={selectedLotForPrint}
+                productTitle={printProductTitle}
+                variantTitle={printVariantTitle}
+            />
         </div>
     );
 }

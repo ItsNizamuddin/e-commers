@@ -320,3 +320,10 @@ export const syncPackagingMatrixSchema = z.object({
     ).min(1, "At least one packaging variety must be configured in the matrix"),
 });
 
+export const executeLotRecallSchema = z.object({
+    reason: z.string().min(3, "Recall reason must be at least 3 characters").trim(),
+    actionRequired: z.string().trim().optional(),
+    quarantineInventory: z.boolean().default(true),
+    notifyCustomers: z.boolean().default(false),
+});
+

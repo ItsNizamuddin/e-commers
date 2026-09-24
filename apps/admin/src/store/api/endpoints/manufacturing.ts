@@ -22,6 +22,8 @@ import type {
     PackagingMatrixResponse,
     SyncPackagingMatrixInput,
     LotTraceabilityReport,
+    CategorizedRecallReport,
+    ExecuteLotRecallInput,
 } from "@ecommers/types";
 
 function normalizeItem<T>(item: any): T {
@@ -428,6 +430,23 @@ export const manufacturingApi = adminApi.injectEndpoints({
                 { type: "Manufacturing", id: `TRACE_${identifier}` },
             ],
         }),
+
+        executeLotRecall: builder.mutation<
+            CategorizedRecallReport,
+            { lotId: string; body: ExecuteLotRecallInput }
+        >({
+            query: ({ lotId, body }) => ({
+                url: `/admin/manufacturing/lots/${lotId}/recall`,
+                method: "POST",
+                body,
+            }),
+            transformResponse: (response: any) => extractData<CategorizedRecallReport>(response),
+            invalidatesTags: (_res, _err, { lotId }) => [
+                { type: "Manufacturing", id: "LOTS" },
+                { type: "Manufacturing", id: `TRACE_${lotId}` },
+                { type: "Orders", id: "LIST" },
+            ],
+        }),
     }),
 });
 
@@ -463,4 +482,5 @@ export const {
     useGetPackagingMatrixQuery,
     useSyncPackagingMatrixMutation,
     useGetLotTraceabilityQuery,
+    useExecuteLotRecallMutation,
 } = manufacturingApi;
