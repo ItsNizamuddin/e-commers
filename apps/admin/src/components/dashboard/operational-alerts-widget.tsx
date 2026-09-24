@@ -19,6 +19,7 @@ import {
     TableRow,
     TableHead,
     TableCell,
+    EmptyState,
 } from "@ecommers/ui";
 import {
     ShieldAlert,
@@ -238,15 +239,12 @@ export function OperationalAlertsWidget() {
             {activeTab === "expiry" && (
                 <div>
                     {allExpiryAlerts.length === 0 ? (
-                        <div className="py-6 text-center flex flex-col items-center justify-center gap-1.5 text-slate-500 dark:text-neutral-400">
-                            <CheckCircle2 size={24} className="text-emerald-500" />
-                            <div className="text-xs font-semibold text-slate-700 dark:text-neutral-300">
-                                Zero Expiry Concerns
-                            </div>
-                            <p className="text-[11px] text-slate-400">
-                                No raw materials or finished goods are within 30 days of shelf-life expiration.
-                            </p>
-                        </div>
+                        <EmptyState
+                            title="Zero Expiry Concerns"
+                            description="No raw materials or finished goods are within 30 days of shelf-life expiration."
+                            icon={<CheckCircle2 size={24} className="text-emerald-500" />}
+                            className="py-6 border-dashed"
+                        />
                     ) : (
                         <Table>
                             <TableHeader>
@@ -318,15 +316,12 @@ export function OperationalAlertsWidget() {
             {activeTab === "low_stock" && (
                 <div>
                     {allLowStockAlerts.length === 0 ? (
-                        <div className="py-6 text-center flex flex-col items-center justify-center gap-1.5 text-slate-500 dark:text-neutral-400">
-                            <CheckCircle2 size={24} className="text-emerald-500" />
-                            <div className="text-xs font-semibold text-slate-700 dark:text-neutral-300">
-                                All Sellable Inventory Healthy
-                            </div>
-                            <p className="text-[11px] text-slate-400">
-                                All raw materials and finished goods meet or exceed their reorder thresholds after deducting quarantined, reserved, and expired lots.
-                            </p>
-                        </div>
+                        <EmptyState
+                            title="All Sellable Inventory Healthy"
+                            description="All raw materials and finished goods meet or exceed their reorder thresholds after deducting quarantined, reserved, and expired lots."
+                            icon={<CheckCircle2 size={24} className="text-emerald-500" />}
+                            className="py-6 border-dashed"
+                        />
                     ) : (
                         <Table>
                             <TableHeader>

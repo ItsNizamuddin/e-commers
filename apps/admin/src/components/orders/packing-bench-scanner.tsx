@@ -21,6 +21,8 @@ import {
     Select,
     FormField,
     Spinner,
+    Modal,
+    EmptyState,
     toast,
 } from "@ecommers/ui";
 import {
@@ -297,19 +299,12 @@ export function PackingBenchScanner({ order, onPackingStatusChange }: PackingBen
 
     if (!hasAllocatedLots) {
         return (
-            <Card className="p-4 bg-slate-50/50 dark:bg-neutral-900/40 border-dashed border-slate-300 dark:border-neutral-800">
-                <div className="flex items-center gap-3 text-slate-500 dark:text-neutral-400">
-                    <PackageCheck size={18} className="text-slate-400" />
-                    <div>
-                        <div className="text-xs font-semibold text-slate-700 dark:text-neutral-300">
-                            No FEFO Lots Allocated
-                        </div>
-                        <div className="text-[11px] text-slate-400">
-                            This order does not contain batch-tracked finished goods lots requiring barcode verification.
-                        </div>
-                    </div>
-                </div>
-            </Card>
+            <EmptyState
+                title="No FEFO Lots Allocated"
+                description="This order does not contain batch-tracked finished goods lots requiring barcode verification."
+                icon={<PackageCheck size={22} className="text-slate-400" />}
+                className="bg-slate-50/50 dark:bg-neutral-900/40 border-slate-300 dark:border-neutral-800"
+            />
         );
     }
 
@@ -388,29 +383,16 @@ export function PackingBenchScanner({ order, onPackingStatusChange }: PackingBen
 
             {/* If no session has been started yet */}
             {(!session || session.status === "NOT_STARTED") && (
-                <div className="py-6 flex flex-col items-center justify-center text-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-                        <Barcode size={24} />
-                    </div>
-                    <div>
-                        <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
-                            Ready to Begin Packing Verification
-                        </h4>
-                        <p className="text-xs text-slate-500 dark:text-neutral-400 max-w-sm mt-0.5">
-                            Station {stationId} is assigned. Click Start to initialize the FEFO verification checklist.
-                        </p>
-                    </div>
-                    <Button
-                        type="button"
-                        variant="primary"
-                        onClick={handleStartSession}
-                        isLoading={isStarting}
-                        className="gap-1.5"
-                    >
-                        <Sparkles size={14} />
-                        <span>Start Packing Session</span>
-                    </Button>
-                </div>
+                <EmptyState
+                    title="Ready to Begin Packing Verification"
+                    description={`Station ${stationId} is assigned. Click Start to initialize the FEFO verification checklist.`}
+                    icon={<Barcode size={24} className="text-indigo-600 dark:text-indigo-400" />}
+                    action={{
+                        label: isStarting ? "Starting..." : "Start Packing Session",
+                        onClick: handleStartSession,
+                    }}
+                    className="mt-2 border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/20 dark:bg-indigo-950/10"
+                />
             )}
 
             {/* Active or Verified Session View */}
@@ -653,56 +635,61 @@ export function PackingBenchScanner({ order, onPackingStatusChange }: PackingBen
             )}
 
             {/* Reset Packing Dialog */}
-            {isResetDialogOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-                    <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-2xl border border-slate-200 dark:border-neutral-800 p-5 max-w-md w-full flex flex-col gap-3">
-                        <div className="flex items-center gap-2.5 text-rose-600 dark:text-rose-400">
-                            <RotateCcw size={20} />
-                            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                                Reset Packing Session #{session?.sessionNumber || 1}
-                            </h3>
-                        </div>
+            <Modal
+                isOpen={isResetDialogOpen}
+                onClose={() => {
+                    if (!isResetting) {
+                        setIsResetDialogOpen(false);
+                        setResetReason("");
+                    }
+                }}
+                title={`Reset Packing Session #${session?.sessionNumber || 1}`}
+                description={`This cancels the current packing verification checklist and starts Session #${((session?.sessionNumber || 1) + 1)}. All previous scan audit logs will be permanently retained.`}
+                maxWidth="sm"
+            >
+                <form
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        if (resetReason.trim() && !isResetting) {
+                            handleResetConfirm();
+                        }
+                    }}
+                    className="flex flex-col gap-4 mt-2"
+                >
+                    <FormField label="Reason for Reset" required>
+                        <Input
+                            value={resetReason}
+                            onChange={(e) => setResetReason(e.target.value)}
+                            placeholder="e.g. Wrong jar physically packed, Damaged seal"
+                            autoFocus
+                        />
+                    </FormField>
 
-                        <p className="text-xs text-slate-500 dark:text-neutral-400">
-                            This cancels the current packing verification checklist and starts Session #{((session?.sessionNumber || 1) + 1)}. All previous scan audit logs will be permanently retained.
-                        </p>
-
-                        <FormField label="Reason for Reset" required>
-                            <Input
-                                value={resetReason}
-                                onChange={(e) => setResetReason(e.target.value)}
-                                placeholder="e.g. Wrong jar physically packed, Damaged seal"
-                                autoFocus
-                            />
-                        </FormField>
-
-                        <div className="flex justify-end gap-2 mt-2">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                    setIsResetDialogOpen(false);
-                                    setResetReason("");
-                                }}
-                                disabled={isResetting}
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="danger"
-                                size="sm"
-                                onClick={handleResetConfirm}
-                                isLoading={isResetting}
-                                disabled={!resetReason.trim()}
-                            >
-                                Confirm Reset
-                            </Button>
-                        </div>
+                    <div className="flex justify-end gap-2.5 pt-1">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                                setIsResetDialogOpen(false);
+                                setResetReason("");
+                            }}
+                            disabled={isResetting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="submit"
+                            variant="danger"
+                            size="sm"
+                            isLoading={isResetting}
+                            disabled={!resetReason.trim() || isResetting}
+                        >
+                            Confirm Reset
+                        </Button>
                     </div>
-                </div>
-            )}
+                </form>
+            </Modal>
         </Card>
     );
 }
