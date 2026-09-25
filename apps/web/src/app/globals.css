@@ -1,0 +1,45 @@
+@import "tailwindcss";
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *, .dark, .dark *));
+@import "../../../../packages/ui/src/styles/theme.css";
+@source "../../../../packages/ui/src";
+
+:root {
+  --font-sans: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-geist-mono), monospace;
+  --bg-app: var(--ec-bg-app, #fafafa);
+  --bg-card: var(--ec-surface, #ffffff);
+  --text-primary: var(--ec-text-primary, #09090b);
+  --text-secondary: var(--ec-text-secondary, #27272a);
+  --text-muted: var(--ec-text-muted, #71717a);
+  --border-subtle: var(--ec-border, #e4e4e7);
+  --border-strong: var(--ec-border-strong, #d4d4d8);
+  --primary-500: var(--ec-primary-500, #16a34a); /* Fresh farm green */
+  --primary-600: var(--ec-primary-600, #15803d);
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Data-dense clean scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ec-border-strong, #cbd5e1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ec-text-subtle, #94a3b8);
+}
