@@ -21,6 +21,13 @@ export const ALL_ROLES: readonly UserRole[] = [
 
 export * from "./permissions.js";
 
+export type AuthProvider = "LOCAL" | "GOOGLE" | "APPLE";
+
+export interface GoogleAuthInput {
+    idToken: string;
+    nonce: string;
+}
+
 export interface UserResponse {
     id: string;
     email: string;
@@ -28,6 +35,8 @@ export interface UserResponse {
     lastName: string;
     role: UserRole;
     isActive: boolean;
+    authenticationMethods?: AuthProvider[];
+    passwordLoginEnabled?: boolean;
     createdAt: string;
     updatedAt: string;
 }

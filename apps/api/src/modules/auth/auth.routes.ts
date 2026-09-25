@@ -11,8 +11,11 @@ import {
     refreshAdmin,
     logoutCustomer,
     logoutAdmin,
+    loginGoogle,
+    linkGoogle,
 } from "./auth.controller.js";
-import { registerSchema, loginSchema } from "./auth.validation.js";
+import { registerSchema, loginSchema, googleAuthSchema } from "./auth.validation.js";
+import { authenticate } from "./auth.middleware.js";
 
 const router = Router();
 
@@ -29,6 +32,21 @@ router.post(
     authLimiter,
     validate(loginSchema, "body"),
     asyncHandler(loginCustomer),
+);
+
+router.post(
+    "/google",
+    authLimiter,
+    validate(googleAuthSchema, "body"),
+    asyncHandler(loginGoogle),
+);
+
+router.post(
+    "/google/link",
+    authLimiter,
+    authenticate,
+    validate(googleAuthSchema, "body"),
+    asyncHandler(linkGoogle),
 );
 
 router.post(

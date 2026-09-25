@@ -16,6 +16,8 @@ import { locationRouter, adminLocationRouter } from "./modules/locations/locatio
 import { seoRouter, adminSeoRouter } from "./modules/seo/seo.routes.js";
 import { adminManufacturingRouter, publicManufacturingRouter } from "./modules/manufacturing/manufacturing.routes.js";
 import { adminJobsRouter } from "./modules/queues/queue-job.routes.js";
+import walletRoutes from "./modules/wallet/wallet.routes.js";
+import adminWalletRoutes from "./modules/wallet/admin-wallet.routes.js";
 
 const router = Router();
 
@@ -25,6 +27,7 @@ router.use("/admin", adminRoutes);
 router.use("/admin/locations", adminLocationRouter);
 router.use("/admin/seo", adminSeoRouter);
 router.use("/admin/manufacturing", adminManufacturingRouter);
+router.use("/admin/wallet", adminWalletRoutes);
 router.use("/manufacturing", publicManufacturingRouter);
 router.use("/admin/jobs", adminJobsRouter);
 router.use("/categories", categoryRoutes);
@@ -39,5 +42,6 @@ router.use("/orders", orderRoutes);
 router.use("/reviews", reviewRoutes);
 router.use("/wishlist", wishlistRoutes);
 router.use("/search", searchRoutes);
+router.use("/wallet", walletRoutes);
 
 export default router;

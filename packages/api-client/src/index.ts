@@ -14,6 +14,7 @@ import { AdminClient } from "./domains/admin";
 import { LocationsClient } from "./domains/locations";
 import { SeoClient } from "./domains/seo";
 import { ManufacturingClient } from "./domains/manufacturing";
+import { WalletClient } from "./domains/wallet";
 
 export * from "./errors";
 export * from "./token-store";
@@ -33,10 +34,12 @@ export * from "./domains/search";
 export * from "./domains/admin";
 export * from "./domains/seo";
 export * from "./domains/manufacturing";
+export * from "./domains/wallet";
 
 export interface EcommersApi {
     client: ApiClient;
     auth: AuthClient;
+    wallet: WalletClient;
     products: ProductsClient;
     categories: CategoriesClient;
     locations: LocationsClient;
@@ -58,6 +61,7 @@ export function createEcommersClient(config: ApiClientConfig): EcommersApi {
     return {
         client,
         auth: new AuthClient(client),
+        wallet: new WalletClient(client),
         products: new ProductsClient(client),
         categories: new CategoriesClient(client),
         locations: new LocationsClient(client),

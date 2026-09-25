@@ -16,3 +16,4 @@ export * from "./wishlist/index.js";
 export * from "./search/index.js";
 export * from "./manufacturing.js";
 export * from "./jobs.js";
+export * from "./wallet/index.js";

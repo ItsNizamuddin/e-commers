@@ -11,6 +11,8 @@ export const toUserResponse = (
         lastName: user.lastName,
         role: user.role,
         isActive: user.isActive,
+        authenticationMethods: user.authenticationMethods as any,
+        passwordLoginEnabled: user.passwordLoginEnabled,
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt.toISOString(),
     };

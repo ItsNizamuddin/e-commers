@@ -205,3 +205,42 @@ export const logoutAdmin = async (
 // Aliases
 export const login = loginCustomer;
 export const logout = logoutCustomer;
+
+export const loginGoogle = async (
+    req: Request,
+    res: Response,
+): Promise<void> => {
+    const { idToken, nonce } = req.body as { idToken: string; nonce: string };
+    const userAgent = req.get("user-agent");
+    const ip = req.ip || req.socket.remoteAddress;
+
+    const result = await authService.loginWithGoogle(idToken, nonce, userAgent, ip);
+
+    res.cookie("customerRefreshToken", result.refreshToken, {
+        ...COOKIE_OPTIONS,
+        path: "/api/v1/auth",
+    });
+
+    res.status(200).json({
+        success: true,
+        data: {
+            user: result.user,
+            accessToken: result.accessToken,
+        },
+    });
+};
+
+export const linkGoogle = async (
+    req: Request,
+    res: Response,
+): Promise<void> => {
+    const { idToken, nonce } = req.body as { idToken: string; nonce: string };
+    const userId = req.user!.id;
+
+    const result = await authService.linkGoogleAccount(userId, idToken, nonce);
+
+    res.status(200).json({
+        success: true,
+        data: result,
+    });
+};

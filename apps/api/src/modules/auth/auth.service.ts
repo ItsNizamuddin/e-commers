@@ -10,9 +10,13 @@ import {
     type SessionType,
 } from "../../utils/jwt.js";
 import { userRepository } from "../users/user.repository.js";
-import { UserModel } from "../users/user.model.js";
+import { UserModel, type UserDocument } from "../users/user.model.js";
 import { toUserResponse } from "../users/user.mapper.js";
 import { SessionModel } from "./session.model.js";
+import { AuthIdentityModel } from "./auth-identity.model.js";
+import { googleAuthService } from "./google-auth.service.js";
+import { walletService } from "../wallet/wallet.service.js";
+import { withTransaction } from "../../database/transaction.js";
 import type { LoginInput, RegisterInput } from "./auth.validation.js";
 
 const hashToken = (token: string): string => {
@@ -39,6 +43,14 @@ export const authService = {
                 "Your account has been deactivated",
                 403,
                 "ACCOUNT_DEACTIVATED",
+            );
+        }
+
+        if (!user.passwordLoginEnabled || !user.passwordHash) {
+            throw new AppError(
+                "Password login is not enabled for this account. Please sign in with Google.",
+                401,
+                "PASSWORD_LOGIN_DISABLED",
             );
         }
 
@@ -144,13 +156,21 @@ export const authService = {
         const passwordHash = await hashPassword(input.password);
 
         try {
-            return await userRepository.create({
+            const user = await userRepository.create({
                 email: input.email,
                 passwordHash,
                 firstName: input.firstName,
                 lastName: input.lastName,
                 role: "CUSTOMER",
             });
+
+            // Automatically provision Customer Wallet with location-based currency and welcome bonus
+            await walletService.provisionCustomerWallet(user._id.toString(), {
+                ...(input.countryCode ? { countryCode: input.countryCode } : {}),
+                ...(input.currency ? { currency: input.currency } : {}),
+            });
+
+            return user;
         } catch (error: unknown) {
             if (
                 error &&
@@ -310,5 +330,144 @@ export const authService = {
                 { $set: { isRevoked: true } },
             );
         }
+    },
+
+    /**
+     * Authenticates a user with a verified Google ID Token & nonce.
+     * Maps Google sub to AuthIdentity, enforces anti-hijacking rules,
+     * and auto-provisions a Customer Wallet inside a transaction.
+     */
+    async loginWithGoogle(
+        idToken: string,
+        nonce: string,
+        userAgent = "unknown",
+        ipAddress = "unknown"
+    ) {
+        const payload = await googleAuthService.verifyIdToken(idToken, nonce);
+
+        // 1. Check if an AuthIdentity exists for this Google subject
+        const existingIdentity = await AuthIdentityModel.findOne({
+            provider: "GOOGLE",
+            providerSubject: payload.sub,
+        });
+
+        let user: UserDocument | null = null;
+
+        if (existingIdentity) {
+            user = await UserModel.findById(existingIdentity.userId);
+            if (!user) {
+                throw new AppError("Associated user account not found", 404, "USER_NOT_FOUND");
+            }
+            if (!user.isActive) {
+                throw new AppError("Your account has been deactivated", 403, "ACCOUNT_DEACTIVATED");
+            }
+        } else {
+            // 2. No AuthIdentity: check if an existing user has this email
+            const emailUser = await UserModel.findOne({ email: payload.email });
+            if (emailUser) {
+                // Anti-hijacking policy: Do not auto-link without authenticated credentials
+                throw new AppError(
+                    "An account with this email already exists. Please log in with your password to link your Google account.",
+                    409,
+                    "REQUIRE_ACCOUNT_LINKING"
+                );
+            }
+
+            // 3. Create fresh customer account + AuthIdentity + auto-provision Wallet in a transaction
+            user = await withTransaction(async (session) => {
+                const newUser = new UserModel({
+                    email: payload.email,
+                    firstName: payload.firstName,
+                    lastName: payload.lastName || "Customer",
+                    role: "CUSTOMER",
+                    isActive: true,
+                    passwordLoginEnabled: false,
+                    authenticationMethods: ["GOOGLE"],
+                });
+                await newUser.save({ session });
+
+                const identity = new AuthIdentityModel({
+                    userId: newUser._id,
+                    provider: "GOOGLE",
+                    providerSubject: payload.sub,
+                    email: payload.email,
+                    emailVerified: payload.emailVerified,
+                    metadata: {
+                        name: `${payload.firstName} ${payload.lastName}`.trim(),
+                        avatarUrl: payload.picture ?? null,
+                    },
+                });
+                await identity.save({ session });
+
+                // Auto-provision Customer Wallet with location-based currency and welcome bonus
+                await walletService.provisionCustomerWallet(newUser._id.toString(), undefined, session);
+
+                return newUser;
+            });
+        }
+
+        if (!user) {
+            throw new AppError("Failed to authenticate user", 500, "AUTH_FAILED");
+        }
+
+        const tokens = await this.issueTokensAndCreateSession(
+            user._id.toString(),
+            user.role as UserRole,
+            "CUSTOMER",
+            userAgent,
+            ipAddress
+        );
+
+        return {
+            user: toUserResponse(user),
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+        };
+    },
+
+    /**
+     * Links a Google identity to an existing authenticated user session.
+     */
+    async linkGoogleAccount(
+        userId: string,
+        idToken: string,
+        nonce: string
+    ) {
+        const payload = await googleAuthService.verifyIdToken(idToken, nonce);
+
+        const existingIdentity = await AuthIdentityModel.findOne({
+            provider: "GOOGLE",
+            providerSubject: payload.sub,
+        });
+
+        if (existingIdentity) {
+            if (existingIdentity.userId.toString() === userId) {
+                return { success: true, message: "Google account is already linked" };
+            }
+            throw new AppError(
+                "This Google account is already linked to another user",
+                409,
+                "GOOGLE_ALREADY_LINKED"
+            );
+        }
+
+        const identity = new AuthIdentityModel({
+            userId: new Types.ObjectId(userId),
+            provider: "GOOGLE",
+            providerSubject: payload.sub,
+            email: payload.email,
+            emailVerified: payload.emailVerified,
+            metadata: {
+                name: `${payload.firstName} ${payload.lastName}`.trim(),
+                avatarUrl: payload.picture ?? null,
+            },
+        });
+        await identity.save();
+
+        await UserModel.findByIdAndUpdate(userId, {
+            $addToSet: { authenticationMethods: "GOOGLE" },
+        });
+
+        return { success: true, message: "Google account successfully linked" };
     },
 };

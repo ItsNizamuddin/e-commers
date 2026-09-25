@@ -31,7 +31,17 @@ const OutboxEventSchema = new Schema<IOutboxEvent>(
         aggregateType: {
             type: String,
             required: true,
-            enum: ["ProductionRun", "RepackagingRun", "Order", "RawMaterialLot", "RawMaterial", "FinishedGoodsLot", "Inventory"],
+            enum: [
+                "ProductionRun",
+                "RepackagingRun",
+                "Order",
+                "RawMaterialLot",
+                "RawMaterial",
+                "FinishedGoodsLot",
+                "Inventory",
+                "Wallet",
+                "Payment",
+            ],
             index: true,
         },
         aggregateId: {

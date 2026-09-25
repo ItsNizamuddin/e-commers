@@ -65,6 +65,28 @@ export class MockPaymentGateway implements IPaymentGateway {
             payload: parsed,
         };
     }
+
+    async getPaymentStatus(
+        paymentIntentId: string
+    ): Promise<{ status: "SUCCEEDED" | "PENDING" | "FAILED"; failureReason?: string }> {
+        if (paymentIntentId.includes("fail")) {
+            return { status: "FAILED", failureReason: "Mock payment failure" };
+        }
+        if (paymentIntentId.includes("pending")) {
+            return { status: "PENDING" };
+        }
+        return { status: "SUCCEEDED" };
+    }
+
+    async refundPayment(
+        params: { paymentIntentId: string; amountMinor: number; idempotencyKey?: string; reason?: string }
+    ): Promise<{ externalRefundId: string; status: "SUCCEEDED" | "PENDING" | "FAILED" }> {
+        if (params.paymentIntentId.includes("refund_fail")) {
+            return { externalRefundId: "", status: "FAILED" };
+        }
+        const externalRefundId = `re_mock_${crypto.randomBytes(12).toString("hex")}`;
+        return { externalRefundId, status: "SUCCEEDED" };
+    }
 }
 
 export const mockPaymentGateway = new MockPaymentGateway();

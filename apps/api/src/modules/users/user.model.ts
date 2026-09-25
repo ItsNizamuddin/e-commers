@@ -14,8 +14,20 @@ const userSchema = new Schema(
 
         passwordHash: {
             type: String,
-            required: true,
+            required: false,
             select: false,
+        },
+
+        passwordLoginEnabled: {
+            type: Boolean,
+            default: true,
+            required: true,
+        },
+
+        authenticationMethods: {
+            type: [String],
+            default: ["LOCAL"],
+            required: true,
         },
 
         firstName: {

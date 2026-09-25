@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -10,6 +10,7 @@ import {
     CheckCircle2,
     Lock,
     ShoppingBag,
+    Wallet,
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "../../store";
 import { setCart } from "../../store/cart-slice";
@@ -35,6 +36,26 @@ export default function CheckoutPage() {
     const [paymentProvider] = useState<"MOCK" | "STRIPE">("MOCK");
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // Customer Wallet State
+    const [walletBalanceMinor, setWalletBalanceMinor] = useState(0);
+    const [useWallet, setUseWallet] = useState(false);
+
+    useEffect(() => {
+        if (user && user.role === "CUSTOMER") {
+            api.wallet
+                .get()
+                .then((w) => {
+                    setWalletBalanceMinor(w.balanceMinor);
+                    if (w.balanceMinor > 0) {
+                        setUseWallet(true);
+                    }
+                })
+                .catch(() => {
+                    // Wallet not active or unavailable
+                });
+        }
+    }, [user]);
+
     const items = cart?.items || [];
     const subtotal = cart?.summary?.subtotal || 0;
     const currency = cart?.summary?.currency || "INR";
@@ -43,6 +64,11 @@ export default function CheckoutPage() {
     const shippingPaise = effectiveSubtotalPaise >= 49900 ? 0 : 5000;
     const taxPaise = Math.round(effectiveSubtotalPaise * 0.05);
     const grandTotalPaise = effectiveSubtotalPaise + shippingPaise + taxPaise;
+
+    // Split-Payment Calculations
+    const walletDeductionPaise = useWallet ? Math.min(walletBalanceMinor, grandTotalPaise) : 0;
+    const payableGatewayPaise = grandTotalPaise - walletDeductionPaise;
+    const isFullyCoveredByWallet = useWallet && walletDeductionPaise >= grandTotalPaise;
 
     const handleSubmitOrder = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -78,30 +104,37 @@ export default function CheckoutPage() {
                 billingAddress: address,
             });
 
-            // 2. Create Payment Intent
+            // 2. Create Payment Intent (with wallet split flag if toggled)
             await api.payments.createIntent({
                 checkoutId: checkout.id,
                 provider: paymentProvider,
+                useWallet: useWallet && walletBalanceMinor > 0,
             });
 
-            // 3. Complete payment webhook (Instant for Mock / Sandbox)
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api/v1";
-            const webhookRes = await fetch(`${apiUrl}/checkout/webhook`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    event: "payment.succeeded",
-                    checkoutId: checkout.id,
-                }),
-            });
+            // 3. Complete payment webhook if external gateway payment is required
+            if (!isFullyCoveredByWallet) {
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api/v1";
+                const webhookRes = await fetch(`${apiUrl}/checkout/webhook`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        event: "payment.succeeded",
+                        checkoutId: checkout.id,
+                    }),
+                });
 
-            if (!webhookRes.ok) {
-                throw new Error("Payment completion callback failed");
+                if (!webhookRes.ok) {
+                    throw new Error("Payment completion callback failed");
+                }
             }
 
             // 4. Reset client active cart & redirect to confirmation
             dispatch(setCart(null));
-            toast.success("Order confirmed successfully!");
+            toast.success(
+                isFullyCoveredByWallet
+                    ? "Paid with wallet! Order confirmed."
+                    : "Order confirmed successfully!"
+            );
             router.push(`/orders/${checkout.id}/confirmation`);
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : "Failed to place order";
@@ -291,25 +324,98 @@ export default function CheckoutPage() {
                             </div>
                         </div>
 
-                        {/* 3. Payment Method */}
+                        {/* 3. Payment Method & Wallet */}
                         <div className="p-6 rounded-3xl bg-white border border-zinc-200/80 shadow-xs space-y-4">
                             <div className="flex items-center gap-2 pb-2 border-b border-zinc-100">
                                 <span className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center">
                                     3
                                 </span>
-                                <h2 className="font-bold text-sm text-zinc-900">Payment Gateway</h2>
+                                <h2 className="font-bold text-sm text-zinc-900">Payment & Wallet</h2>
                             </div>
 
-                            <div className="p-4 rounded-2xl border-2 border-emerald-600 bg-emerald-50/40 space-y-2">
+                            {/* Customer Digital Wallet Split Toggle */}
+                            {user && user.role === "CUSTOMER" && walletBalanceMinor > 0 && (
+                                <div
+                                    className={`p-4 rounded-2xl border transition-all ${
+                                        useWallet
+                                            ? "border-emerald-500 bg-emerald-50/50 shadow-2xs"
+                                            : "border-zinc-200 bg-zinc-50/50 hover:bg-zinc-50"
+                                    }`}
+                                >
+                                    <label className="flex items-start justify-between gap-3 cursor-pointer">
+                                        <div className="flex items-start gap-3">
+                                            <div
+                                                className={`p-2 rounded-xl mt-0.5 ${
+                                                    useWallet
+                                                        ? "bg-emerald-600 text-white"
+                                                        : "bg-zinc-200 text-zinc-600"
+                                                }`}
+                                            >
+                                                <Wallet size={18} />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-bold text-zinc-900">
+                                                        Apply Customer Digital Wallet
+                                                    </span>
+                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                                        Bal: {formatCurrency(walletBalanceMinor, "INR", true)}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[11px] text-zinc-500">
+                                                    {isFullyCoveredByWallet
+                                                        ? "Entire order will be paid from wallet balance (instant 1-click checkout)"
+                                                        : `${formatCurrency(
+                                                              walletDeductionPaise,
+                                                              "INR",
+                                                              true
+                                                          )} from wallet + remaining ${formatCurrency(
+                                                              payableGatewayPaise,
+                                                              "INR",
+                                                              true
+                                                          )} charged via gateway`}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <input
+                                            type="checkbox"
+                                            checked={useWallet}
+                                            onChange={(e) => setUseWallet(e.target.checked)}
+                                            className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-zinc-300 mt-1 cursor-pointer"
+                                        />
+                                    </label>
+                                </div>
+                            )}
+
+                            {/* External Gateway Container */}
+                            <div
+                                className={`p-4 rounded-2xl border-2 transition-all space-y-2 ${
+                                    isFullyCoveredByWallet
+                                        ? "border-zinc-200 bg-zinc-50/50 opacity-60"
+                                        : "border-emerald-600 bg-emerald-50/40"
+                                }`}
+                            >
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2 font-bold text-xs text-zinc-900">
                                         <CreditCard size={16} className="text-emerald-700" />
-                                        <span>Instant Test Gateway (Pre-configured Sandbox)</span>
+                                        <span>
+                                            {isFullyCoveredByWallet
+                                                ? "Gateway Not Needed (100% Wallet Paid)"
+                                                : "Instant Payment Gateway (Sandbox / Card)"}
+                                        </span>
                                     </div>
-                                    <CheckCircle2 size={16} className="text-emerald-600" />
+                                    {!isFullyCoveredByWallet && (
+                                        <CheckCircle2 size={16} className="text-emerald-600" />
+                                    )}
                                 </div>
                                 <p className="text-[11px] text-zinc-500 leading-relaxed">
-                                    Simulates instant PSP authorization and triggers atomic webhook fulfillment without external charges.
+                                    {isFullyCoveredByWallet
+                                        ? "No external payment processing required. Order will be settled immediately from your wallet ledger."
+                                        : `Authorizes remaining balance of ${formatCurrency(
+                                              payableGatewayPaise,
+                                              currency,
+                                              true
+                                          )}.`}
                                 </p>
                             </div>
                         </div>
@@ -368,10 +474,27 @@ export default function CheckoutPage() {
                                     </span>
                                 </div>
 
+                                {useWallet && walletDeductionPaise > 0 && (
+                                    <div className="flex justify-between text-xs text-emerald-700 font-bold">
+                                        <span>Wallet Balance Applied</span>
+                                        <span className="font-mono">
+                                            - {formatCurrency(walletDeductionPaise, currency, true)}
+                                        </span>
+                                    </div>
+                                )}
+
                                 <div className="pt-3 border-t border-zinc-200 flex justify-between items-baseline">
-                                    <span className="font-extrabold text-sm text-zinc-900">Total Amount</span>
+                                    <span className="font-extrabold text-sm text-zinc-900">
+                                        {useWallet && !isFullyCoveredByWallet
+                                            ? "Payable via Gateway"
+                                            : "Total Amount"}
+                                    </span>
                                     <span className="font-extrabold text-xl text-zinc-900 font-mono">
-                                        {formatCurrency(grandTotalPaise, currency, true)}
+                                        {formatCurrency(
+                                            useWallet ? payableGatewayPaise : grandTotalPaise,
+                                            currency,
+                                            true
+                                        )}
                                     </span>
                                 </div>
                             </div>
@@ -388,8 +511,18 @@ export default function CheckoutPage() {
                                             <Spinner size="sm" className="text-white" />
                                             <span>Reserving Stock & Confirming...</span>
                                         </>
+                                    ) : isFullyCoveredByWallet ? (
+                                        <span>
+                                            Pay with Wallet ({formatCurrency(grandTotalPaise, currency, true)})
+                                        </span>
+                                    ) : useWallet && walletDeductionPaise > 0 ? (
+                                        <span>
+                                            Pay {formatCurrency(payableGatewayPaise, currency, true)} (Split with Wallet)
+                                        </span>
                                     ) : (
-                                        <span>Confirm Order & Pay ({formatCurrency(grandTotalPaise, currency, true)})</span>
+                                        <span>
+                                            Confirm Order & Pay ({formatCurrency(grandTotalPaise, currency, true)})
+                                        </span>
                                     )}
                                 </button>
                             </div>

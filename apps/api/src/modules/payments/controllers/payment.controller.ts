@@ -10,12 +10,13 @@ export class PaymentController {
     createIntent: RequestHandler = async (req, res, next) => {
         try {
             const identity = resolveCartIdentity(req, res);
-            const { checkoutId, provider } = req.body;
+            const { checkoutId, provider, useWallet } = req.body;
 
             const result = await this.svc.createPaymentIntent(
                 identity,
                 checkoutId,
-                provider || "MOCK"
+                provider || "MOCK",
+                Boolean(useWallet)
             );
 
             res.status(result.isExisting ? 200 : 201).json({

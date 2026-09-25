@@ -66,6 +66,21 @@ export class StripePaymentGateway implements IPaymentGateway {
             payload: parsed,
         };
     }
+
+    async getPaymentStatus(
+        paymentIntentId: string
+    ): Promise<{ status: "SUCCEEDED" | "PENDING" | "FAILED"; failureReason?: string }> {
+        // In real stripe: stripe.paymentIntents.retrieve(paymentIntentId)
+        return { status: "SUCCEEDED" };
+    }
+
+    async refundPayment(
+        params: { paymentIntentId: string; amountMinor: number; idempotencyKey?: string; reason?: string }
+    ): Promise<{ externalRefundId: string; status: "SUCCEEDED" | "PENDING" | "FAILED" }> {
+        // In real stripe: stripe.refunds.create({ payment_intent, amount }, { idempotencyKey })
+        const externalRefundId = `re_stripe_${crypto.randomBytes(12).toString("hex")}`;
+        return { externalRefundId, status: "SUCCEEDED" };
+    }
 }
 
 export const stripePaymentGateway = new StripePaymentGateway();

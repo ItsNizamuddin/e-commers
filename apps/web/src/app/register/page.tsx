@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { UserPlus, Leaf, ShieldCheck } from "lucide-react";
 import { api } from "../../lib/api";
 import { toast, Spinner } from "@ecommers/ui";
+import { GoogleSignInButton } from "../../components/auth/GoogleSignInButton";
 
 export default function RegisterPage() {
     const router = useRouter();
@@ -55,6 +56,17 @@ export default function RegisterPage() {
                     <p className="text-xs text-zinc-500">
                         Join our farm-direct community for verified pure organic foods.
                     </p>
+                </div>
+
+                <div className="space-y-4">
+                    <GoogleSignInButton mode="signup" />
+
+                    <div className="relative flex items-center justify-center">
+                        <div className="border-t border-zinc-200 w-full" />
+                        <span className="bg-white px-3 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider absolute">
+                            or register with email
+                        </span>
+                    </div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">

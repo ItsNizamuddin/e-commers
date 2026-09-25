@@ -12,6 +12,7 @@ import {
     QrCode,
     Leaf,
     LogIn,
+    Wallet,
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "../../store";
 import { toggleCart } from "../../store/cart-slice";
@@ -107,6 +108,17 @@ export function AppHeader() {
                         >
                             {mobileMenuOpen ? <X size={20} /> : <Search size={20} />}
                         </button>
+
+                        {/* Customer Wallet Button */}
+                        {isAuthenticated && user && user.role === "CUSTOMER" && (
+                            <Link
+                                href="/account/wallet"
+                                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 transition-colors"
+                            >
+                                <Wallet size={14} className="text-emerald-700" />
+                                <span>Wallet</span>
+                            </Link>
+                        )}
 
                         {/* Customer Account Button */}
                         {isAuthenticated && user ? (

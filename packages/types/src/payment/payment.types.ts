@@ -41,6 +41,7 @@ export interface PaymentResponse {
 export interface CreatePaymentIntentInput {
     checkoutId: string;
     provider?: PaymentProvider;
+    useWallet?: boolean;
 }
 
 export interface WebhookNormalizedEvent {

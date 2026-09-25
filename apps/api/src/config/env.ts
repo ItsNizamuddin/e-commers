@@ -66,6 +66,10 @@ const envSchema = z.object({
         .enum(["true", "false"])
         .default("true")
         .transform((val) => val === "true"),
+
+    GOOGLE_CLIENT_ID: z
+        .string()
+        .default("mock-google-client-id.apps.googleusercontent.com"),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
@@ -107,4 +111,5 @@ export const env = {
     redisPort: parsedEnv.data.REDIS_PORT,
     redisPassword: parsedEnv.data.REDIS_PASSWORD,
     enableQueues: parsedEnv.data.NODE_ENV === "test" ? false : parsedEnv.data.ENABLE_QUEUES,
+    googleClientId: parsedEnv.data.GOOGLE_CLIENT_ID,
 } as const;

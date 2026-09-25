@@ -9,6 +9,7 @@ import { useAppDispatch } from "../../store";
 import { setSession } from "../../store/auth-slice";
 import { setCart } from "../../store/cart-slice";
 import { toast, Spinner } from "@ecommers/ui";
+import { GoogleSignInButton } from "../../components/auth/GoogleSignInButton";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -66,6 +67,17 @@ export default function LoginPage() {
                     <p className="text-xs text-zinc-500">
                         Access your farm orders, saved addresses, and batch certificates.
                     </p>
+                </div>
+
+                <div className="space-y-4">
+                    <GoogleSignInButton mode="signin" />
+
+                    <div className="relative flex items-center justify-center">
+                        <div className="border-t border-zinc-200 w-full" />
+                        <span className="bg-white px-3 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider absolute">
+                            or continue with email
+                        </span>
+                    </div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">

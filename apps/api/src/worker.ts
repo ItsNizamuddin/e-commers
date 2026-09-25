@@ -4,6 +4,7 @@ import { createNotificationWorker } from "./modules/queues/workers/notification.
 import { createDocumentWorker } from "./modules/queues/workers/document.worker.js";
 import { createBulkProcessingWorker } from "./modules/queues/workers/bulk.worker.js";
 import { createExpiryMonitorWorker } from "./modules/queues/workers/expiry-monitor.worker.js";
+import { createWalletReconciliationWorker } from "./modules/queues/workers/wallet-reconciliation.worker.js";
 import { outboxDispatcher } from "./modules/outbox/outbox.dispatcher.js";
 import { logger } from "./config/logger.js";
 import { env } from "./config/env.js";
@@ -20,9 +21,10 @@ async function startWorker(): Promise<void> {
             createDocumentWorker(),
             createBulkProcessingWorker(),
             createExpiryMonitorWorker(),
+            createWalletReconciliationWorker(),
         ];
 
-        logger.info("BullMQ queue consumers initialized: notifications(10), documents(2), bulk-processing(2), maintenance(1)");
+        logger.info("BullMQ queue consumers initialized: notifications(10), documents(2), bulk-processing(2), maintenance(2)");
 
         // 2. Schedule repeatable maintenance sweeps
         const queues = getQueues();
@@ -39,6 +41,13 @@ async function startWorker(): Promise<void> {
             { name: "sweep-stale-reservations", data: { reason: "Automated sweep of expired inventory reservations" } }
         );
         logger.info("Scheduled recurring inventory reservation expiry sweep (*/10 * * * *)");
+
+        await queues.maintenance.upsertJobScheduler(
+            "wallet-reconciliation-scheduler",
+            { pattern: "0 * * * *" },
+            { name: "wallet-reconciliation", data: {} }
+        );
+        logger.info("Scheduled hourly wallet ledger reconciliation sweep (0 * * * *)");
 
         // 3. Start Transactional Outbox Dispatcher loop
         outboxDispatcher.start(1500);

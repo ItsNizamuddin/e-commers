@@ -10,6 +10,7 @@ import {
     ShieldCheck,
     ArrowRight,
     ShoppingBag,
+    Wallet,
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "../../store";
 import { clearSession } from "../../store/auth-slice";
@@ -81,7 +82,30 @@ export default function AccountPage() {
                 </div>
 
                 {/* Dashboard Navigation Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                    {/* Wallet Card */}
+                    <Link
+                        href="/account/wallet"
+                        className="group rounded-3xl bg-white border border-zinc-200/80 p-6 hover:border-emerald-300 hover:shadow-md transition-all flex flex-col justify-between"
+                    >
+                        <div className="space-y-3">
+                            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-100 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                                <Wallet size={22} />
+                            </div>
+                            <h2 className="text-base font-bold text-zinc-900 group-hover:text-emerald-700 transition-colors">
+                                Digital Wallet
+                            </h2>
+                            <p className="text-xs text-zinc-500 leading-relaxed">
+                                Manage your stored balance, add top-up funds, and view immutable transaction ledger records.
+                            </p>
+                        </div>
+
+                        <div className="pt-6 border-t border-zinc-100 mt-6 flex items-center justify-between text-xs font-bold text-emerald-700 group-hover:translate-x-1 transition-transform">
+                            <span>Open Wallet</span>
+                            <ArrowRight size={14} />
+                        </div>
+                    </Link>
+
                     {/* Orders Card */}
                     <Link
                         href="/account/orders"
