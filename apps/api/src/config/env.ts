@@ -1,4 +1,10 @@
-import "dotenv/config";
+import { config } from "dotenv";
+import { resolve } from "path";
+
+// Load from monorepo root
+config({ path: resolve(process.cwd(), "../../.env") });
+// Load local overrides if any
+config();
 
 import { z } from "zod";
 
